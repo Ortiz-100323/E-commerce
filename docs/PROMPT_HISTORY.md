@@ -936,3 +936,262 @@ All 12 rows of the failure table in [tasks/ECOM-006.md](tasks/ECOM-006.md) have 
 - **C. Approve ESLint 9 with Babel's TypeScript parser.** That's more packages (`@babel/eslint-parser` and its presets).
 
 **Status:** ECOM-006 is ready for your review, not committed. Next is ECOM-007: the admin product screen (table, form, gift confirmation, history).
+
+---
+
+## #016 — 2026-11-21 — Lint option A, ECOM-006 committed, ECOM-007 built: admin product screens
+
+### User
+
+> go with A, commit and start ECOM-007. It is looking great our work
+
+### Assistant
+
+Thank you! **ECOM-006 is committed** as `8849272`, with option A recorded (D-077). **ECOM-007 is built** on `feature/ECOM-007-admin-product-ui`; it's waiting for your review and isn't committed.
+
+**First, a correction I owe you (D-079).** In ECOM-006 I said every new package was at least two weeks old. **That was wrong.** The npm option I used to filter by date was silently ignored. Six of the seven packages were between 1 and 10 days old. I found it today while checking the coverage package. All six are now pinned to versions that really are two weeks old (a few patch versions back, nothing major), and everything passes on them. The ECOM-006 ticket and the journal record the correction, and from now on I check each version's real publish date.
+
+## ECOM-007: Admin product screens
+
+### Acceptance criteria
+
+| # | Criterion | Result | How it was proven |
+|---|---|---|---|
+| 1 | The admin can create, edit, archive and restore a product, and the table reflects each change | ✅ Pass | Each action is done through the screens against a fake API that behaves like ours (versions, duplicate SKUs, the gift rule, history). After each one, the table shows the new row, the new values or the new status, with a green confirmation. The reviewer's name ("Łukasz") travels with every change. |
+| 2 | Saving a price of 0 asks for gift confirmation, and refusing keeps the form open | ✅ Pass | Price 0 opens "Price is 0. Mark this product as a gift?". **"No, go back"** keeps the form, your values and the cursor on the price, and **sends nothing**. **"Yes"** saves it as a gift. With "Free gift" already ticked, there's no question. |
+| 3 | Server validation errors appear on the matching fields | ✅ Pass | A name with HTML comes back from the server as an error under the Name field, with the cursor placed there. A taken SKU appears under the SKU field. Everything you typed stays. |
+| 4 | A 409 version conflict shows a reload message | ✅ Pass | If someone else saved the product while you had it open, Save shows "This product was changed by someone else since you opened it. Reload to see the latest version; your unsaved changes will be lost." **Reload** brings the latest values. |
+| 5 | The history page lists every change, oldest first | ✅ Pass | Created (by Maria, with all values), Changed (by someone else: "Price 89.99 → 79.99", "Stock 10 → 3") and Archived, in that order, each with its time. |
+
+**A real bug found and fixed on the way.** My first version of the edit form updated itself whenever the product's version changed. A test showed what that could cause: if the page refreshed in the background while you were editing, your save could silently **overwrite another person's change**. That's exactly the "lost edit" we protect against. Now the form keeps the version it was opened with, and only **Reload** updates it. A test proves it: I put the first design back on purpose and that test turned red.
+
+**What was built**
+- **Product list:** search (name, SKU, description), a filter for Active, Archived or All, and pages. Price with currency, a **Gift** badge and an **Out of stock** badge. Your search stays in the address, so refreshing keeps it.
+- **Create and edit form,** with category suggestions, the **gift question** for price 0, and messages under each field.
+- **Archive** (with a confirmation) and **Restore**, each with a green confirmation.
+- **History page** for each product: who, when (UTC), and the value before → after for every field.
+
+**Why it was built**
+Challenge rules CC-02 (manage products) and CC-07 (a usable interface). Until now this was only possible in Swagger.
+
+**Main goal**
+Manage the catalogue safely from the browser. No accidental free products, no lost edits, clear messages, and the full story of every product.
+
+**Human testable or background?**
+**Testable**, in the browser. Your two products from Swagger are already there.
+
+**What to test** (http://localhost:3000/admin)
+1. **List:** you see "Small gift Shoes" (Gift badge, $0.00) and "Running Shoes" ($89.99).
+2. **Create:** **New product** → SKU `TS-002`, Name `Trail Shoes`, Category `Sports` (it's suggested), Price `120`, Stock `0`, Weight `1.1` → **Create product**. → Back on the list, with "Product created", and Trail Shoes shows **Out of stock**.
+3. **Duplicate:** create another product with SKU `rs-001`. → "SKU RS-001 is already taken." under the SKU field.
+4. **Gift question:** create a product with price `0` and "Free gift" unticked. → The question appears. **No, go back** keeps the form; then **Yes, mark as gift** saves it with the Gift badge.
+5. **Mistakes:** type `<b>Shoes</b>` as a name, or `-1` as stock. → A message appears under the field.
+6. **Edit:** **Edit** on Running Shoes, change the price to `79.99`, **Save changes**. → The list shows $79.99.
+7. **Two people at once:** open Edit for Running Shoes in **two browser tabs**. Save a change in the first tab, then save a different change in the second. → The second shows the yellow "changed by someone else" message. **Reload** brings the first tab's change.
+8. **Archive and restore:** **Archive** Trail Shoes and confirm. → It leaves the Active list. Choose **Status: All** to see it as Archived, then **Restore**.
+9. **History:** **History** on Running Shoes. → Every change, oldest first, with your name, the time and before → after.
+10. **Search:** type `shoes` and press **Search**. The address shows `?q=shoes`, and refreshing keeps the results.
+
+### Failure cases and retries
+
+All 13 rows of the failure table in [tasks/ECOM-007.md](tasks/ECOM-007.md) have tests, and all pass. These matter most for the business:
+- **No lost edits,** even when the page refreshes in the background.
+- **Double click on Save or Archive:** one request.
+- **A failed save is never repeated automatically.** Your values stay, so you can just press Save again.
+- **Server trouble:** a clear message with a reference number, and the list offers **Try again**.
+
+**Tests:** 24 new frontend tests. The CI container is green: all checks, 33 tooling, 500 backend and 71 frontend tests. The website has been rebuilt with these screens.
+
+**One approval needed to finish the ticket:** its definition of done asks for frontend test coverage of at least 80%. Measuring that needs **`@vitest/coverage-v8`**. It must match the test runner's version exactly. Our test runner (Vitest 5.1.1, from ECOM-000) is itself only 3 days old, so I'd pin both to **5.1.0** (19 days old). **May I add `@vitest/coverage-v8` 5.1.0 and move Vitest to 5.1.0?**
+
+**Status:** ECOM-007 is ready for your review, not committed. Next is ECOM-008: the shop's product search page.
+
+---
+
+## #017 — 2026-11-21 — Owner's ECOM-007 test: evidence filed, DEF-01 fixed, UI polish ticket
+
+### User
+
+> Perfect, don`t forget to log into our journal the bug you found and how it was solved,
+>
+> The drop down is very off, it is okay for now but let`s focus on a better user experience when we focus on UI. Also, it created the item but I receive two messages,  Also, Store those images as recording of testing. It should be as we would respond a jira. Put it into task folder, under the task name + evidence.
+>
+> The duplicate test is good. For future record, perhaps we should show the item so the person can undestand which duplicate item is in its place.
+>
+> The gift pop up appeard, but ig provide me more two errors. Edit is also creating error message. Check on them
+>
+> *(Three screenshots attached, now stored as [01-table-after-create-two-messages.png](../tasks/ECOM-007-evidence/01-table-after-create-two-messages.png), [02-duplicate-sku-on-field.png](../tasks/ECOM-007-evidence/02-duplicate-sku-on-field.png) and [03-gift-confirmation-dialog.png](../tasks/ECOM-007-evidence/03-gift-confirmation-dialog.png).)*
+
+### Assistant
+
+Thank you for testing it in the browser: you found a real defect that my tests missed. Everything below is on `feature/ECOM-007-admin-product-ui`, not committed.
+
+## The extra red messages (DEF-01): found and fixed
+
+**What you saw:** the product was saved correctly, but a red "Something unexpected went wrong" appeared next to "Product created". Two appeared after the gift, and more after an edit.
+
+**Why it happened:**
+- After a save, the app keeps a copy of the saved product, so the screens don't have to ask the server again.
+- Then it refreshes every product list, so the table is up to date. That refresh also tried to reload those kept copies, and they had no instructions for reloading. Each one failed with an internal error, which the app showed as "Something unexpected".
+- Every product created in the session added one more failing copy. That's why there was one message, then two, then more.
+
+**Why my tests missed it:** they checked that "Product created" appeared, but never that **no** error appeared next to it. That was a gap in how I wrote the tests.
+
+**The fix:** after a save, only the product lists, that product's history and the categories are refreshed. The saved product is already up to date from the server's answer.
+
+**So it can't come back:**
+- **A test replays your exact session:** create Trail Shoes, create a gift through the dialog, edit Running Shoes. It requires 3 green messages and zero red ones.
+- **Every frontend test now fails** if the app hits an unexpected error, even when the test is about something else.
+- **Proof:** with the old code put back, 7 tests fail on exactly this error; with the fix, all 72 pass.
+- Unexpected errors are also written to the browser console now, to make any future diagnosis faster.
+
+## Test evidence, filed like a Jira test record
+
+Your screenshots are in **[tasks/ECOM-007-evidence/](tasks/ECOM-007-evidence/README.md)**, with a README that records:
+- the environment, and each step with its expected result, actual result and outcome;
+- the defect DEF-01, with its cause, fix, guards and status ("waiting for your re-test");
+- your observations, and a **re-test checklist** for you.
+
+From now on, every hand test gets the same treatment (D-082).
+
+## Journal
+
+- **D-080: the bug I found while building.** The edit form could have silently overwritten another admin's change after a background refresh. The entry covers how it was found, the cause, the fix, and the test that guards it (which fails on the old code).
+- **D-081: the bug you found** (DEF-01), with the same details.
+- **D-082:** the evidence folders, and the new UI-polish ticket.
+
+## Your UX remarks: a new ticket, ECOM-018 (UI polish)
+
+As you asked, these wait for the UI-focused work. The ticket collects:
+- **Drop-downs:** a proper look for the status filter and the category picker, with no light-blue autofill background.
+- **Table on narrow windows:** your screenshot shows wrapping SKUs and a cut-off Archive button. The actions should always be visible.
+- **Notifications:** green messages should close by themselves and not cover the table.
+- **Duplicate SKU, show who owns it:** "SKU RS-001 is already taken by **Running Shoes**", with links to view or edit it. That's your suggestion, recorded for later.
+
+**What to re-test** (http://localhost:3000/admin, already rebuilt with the fix):
+1. Create a product. → Only the green "Product created".
+2. Create a free product and answer **Yes, mark as gift**. → Only the green message.
+3. Edit a product and save. → Only "Changes saved".
+4. Repeat a few creates and edits. → Still no red messages.
+
+**Tests:** the CI container is green: all checks, 33 tooling, 500 backend and 72 frontend tests.
+
+**Still open from my last message:** may I add `@vitest/coverage-v8` 5.1.0 and move Vitest to 5.1.0, both 19 days old? ECOM-007's definition of done asks for at least 80% frontend coverage, and that needs it.
+
+**Status:** ECOM-007 is in review, waiting for your re-test of DEF-01 and the coverage answer. Then I commit it and start ECOM-008 (the shop's search page).
+
+---
+
+## #018 — 2026-11-21 — Re-test: the stale tab (DEF-02), gifts always free (CR-01), whole-page test checks
+
+### User
+
+> Every test, get the whole body to check if any error message appears. Log into our  journal the error and what created it. I believe a gift should be a upper option, I was able to create a gift with value which makes no sense. The error is still apearing. Or is it a cache problem ?
+>
+> *(Screenshot attached, now stored as [04-retest-errors-from-stale-tab.png](../tasks/ECOM-007-evidence/04-retest-errors-from-stale-tab.png).)*
+
+### Question asked during the turn, and the owner's answer
+
+> **Gift rule:** today a product can be a paid gift (SP-003 "Normal shoes" is $55 with the Gift tag). Should a gift always be free?
+> - Gifts are always free (Recommended): Gift ⇔ price 0. In the form, "Free gift" moves to the top; ticking it sets the price to 0 and locks the field. The API and the database refuse a paid gift (422). A one-off, audited data fix removes the Gift tag from SP-003 (it keeps its $55 price), recorded in its history as done by "Data migration".
+> - Keep paid gifts allowed: Gift stays a label any product can carry; only a price of 0 requires it. I would just move the gift option to the top of the form. SP-003 stays as it is.
+>
+> **Answer:** Gifts are always free (Recommended)
+
+### Assistant
+
+**You were right: it was a cache problem.** Your browser tab was still running the old code. Everything below is on `feature/ECOM-007-admin-product-ui`, not committed.
+
+## Why the red messages "came back" (DEF-02)
+
+**What I checked:** the server's access log.
+- The fix went live at 18:53 (server time).
+- Your two creates arrived at 19:09 and 19:11. Your browser **never downloaded the new code** in between; the only download of it was my own check at 19:12.
+- A web app like ours loads its code once per tab, so your open tab kept running the version with the bug.
+
+**What made it possible:** the web server sent no caching instructions. Even a refresh could reuse an old copy of the page.
+
+**Fixed:**
+- The page now always tells the browser to check for a newer version, and the smoke test verifies that on every CI run.
+- A "new version available — reload" banner is added to ECOM-018, so a long-open tab can warn you.
+
+**Logged in the journal as you asked (D-084):** the error, what created it, the server-log evidence, the fix, and how to diagnose it next time.
+
+## Gifts are always free (your decision, D-083)
+
+**What changed:**
+- **The form:** "Free gift (gifts are always priced at 0)" is now the **first option**. Ticking it sets the price to 0 and locks the field ("Gifts are always free."). Unticking it brings back the price you had typed.
+- **The API:** a gift with a price is refused with a clear message: "A gift must be free. Set the price to 0, or untick the gift."
+- **The database:** it refuses a paid gift too, as a safety net.
+- **Your existing data:** SP-003 "Normal shoes" was the only paid gift. It lost the Gift tag and kept its $55 price. Its **History** shows "Changed by Data migration: tags GIFT → (none)", with the reason. I verified this on your database.
+
+## Every test now checks the whole page (D-085)
+
+As you asked, when each frontend test finishes it inspects the whole page. The test fails if:
+- the page shows "Something unexpected went wrong";
+- **any red pop-up** appeared that the test didn't declare in advance (only the 8 tests whose purpose is to cause an error declare one);
+- the app logged an unexpected error.
+
+**The check found one more double message right away:** the "Product not found" page also showed a red "not found" pop-up. Fixed.
+
+## Evidence
+
+[tasks/ECOM-007-evidence/](tasks/ECOM-007-evidence/README.md) now holds your 4th screenshot, together with:
+- re-test 1;
+- **DEF-02** (the stale tab), with the log evidence;
+- **CR-01** (gifts always free);
+- an updated re-test checklist.
+
+**What to re-test** (http://localhost:3000/admin):
+1. **Reload once with Ctrl+F5.** That's the last time it's needed: from now on a normal refresh always gets the newest version.
+2. Create a product. → Only the green "Product created".
+3. Create a gift: tick **Free gift** first. → The price becomes 0 and is locked; save. → Only the green message.
+4. Try to give a gift a price. → You can't: the price stays locked while the gift box is ticked.
+5. Edit and save. → Only "Changes saved".
+6. Open **SP-003 Normal shoes**. → No Gift badge; its History shows the "Data migration" entry.
+
+**Tests:** the CI container is green: all checks, 33 tooling, 505 backend and 75 frontend tests, and the smoke checks (now including "the page is never served stale").
+
+**Still open:** may I add `@vitest/coverage-v8` 5.1.0 and move Vitest to 5.1.0, to measure the 80% frontend coverage?
+
+**Status:** ECOM-007 is in review, waiting for your re-test. Then I commit it and start ECOM-008 (the shop's search page).
+
+---
+
+## #019 — 2026-11-21 — Re-test 2 passed; frontend coverage gate added
+
+### User
+
+> Great, no error this time. Yes, move it. We will improve the interface later. It is good for testing the backend.
+>
+> *(Screenshot attached, now stored as [05-retest-2-only-success-message.png](../tasks/ECOM-007-evidence/05-retest-2-only-success-message.png).)*
+
+### Assistant
+
+Good to hear: **re-test 2 passed.** GF-04 was created as a free gift with only the green message, and SP-003 now shows $55.00 without the Gift badge. Everything is on `feature/ECOM-007-admin-product-ui`, not committed.
+
+## What I did
+
+**1. Filed your re-test as evidence.** Screenshot 05 is in [tasks/ECOM-007-evidence/](tasks/ECOM-007-evidence/README.md). The record now says **Passed**: both defects are verified by you, and the gift change is done. In the re-test checklist I ticked only what you actually confirmed. "A gift can't have a price" and "Edit shows only Changes saved" weren't in your report, so they stay unticked, with a note that the automated tests cover them.
+
+**2. Added the frontend coverage check (your "yes, move it", D-086).**
+- The test runner moved to Vitest 5.1.0, and the coverage tool is the matching 5.1.0. Both are 19 days old, dates checked properly this time.
+- **Result: 95.7%** of the frontend code is exercised by tests (89% of the branches), well above the 80% minimum. From now on, CI fails if it drops below 80%.
+- **One hiccup on the way:** npm itself crashed while installing (a bug in npm's handling of the test tool's optional parts). A one-line setting that pins the test runner fixed it. The package lock file had to be rebuilt, but every package we chose keeps its exact version.
+
+**3. Noted your direction.** The interface gets its polish later, in ECOM-018. For now the screens are good enough to test the backend.
+
+## ECOM-007: final state
+
+| # | Acceptance criterion | Result |
+|---|---|---|
+| 1 | Create, edit, archive and restore, with the table reflecting each change | ✅ Pass (automated, and by you in the browser) |
+| 2 | A price of 0 asks for gift confirmation; refusing keeps the form open | ✅ Pass (automated, and by you) |
+| 3 | Server validation errors on the matching fields | ✅ Pass (automated; you saw the duplicate SKU) |
+| 4 | A version conflict shows a reload message | ✅ Pass (automated) |
+| 5 | History lists every change, oldest first | ✅ Pass (automated) |
+| DoD | Frontend coverage ≥ 80% | ✅ 95.7% |
+
+**Tests:** the CI container is green: all checks, 34 tooling, 505 backend and 75 frontend tests (with the coverage check), and the smoke checks.
+
+**Status:** ECOM-007 has passed your re-test and its definition of done. **Shall I commit it and start ECOM-008** (the shop's product search page)?

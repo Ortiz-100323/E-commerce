@@ -41,7 +41,7 @@ The skeleton's single page uses plain `fetch`. The real UI needs a typed client,
 | `msw` | 3.0.7 | dev | Fake API responses in tests: 422, 409, 404, 5xx, network down, an HTML 502 |
 | `prettier` | 3.10.1 | dev | One code format, checked in CI |
 
-Each is pinned exactly and was the newest release on 2026-11-07, two weeks before the install (`npm view <package> version --before 2026-11-07`).
+**Correction (2026-11-21, found in ECOM-007, D-079):** this line first said each version "was the newest release on 2026-11-07, two weeks before the install". That was wrong. `npm view <package> version --before <date>` ignored the date and returned the newest version, so six of the seven packages were between 1 and 10 days old. Their real publish dates come from `npm view <package> time`. They were repinned in ECOM-007 to the newest stable release published on or before 2026-11-07: `@tanstack/react-query` 5.107.1, `react-router` 8.5.1, `react-hook-form` 7.91.0, `@hookform/resolvers` 7.0.3, `msw` 3.0.4 and `prettier` 3.9.10. `zod` 4.6.7 already qualified. The table above shows the versions first installed.
 
 **Not added: ESLint and its plugins** (D-077). The newest `typescript-eslint` (8.73.0) supports TypeScript below 6.1 only. Our TypeScript 7 no longer ships the JavaScript compiler API it needs, so ESLint can't read `.tsx` files at all. On top of that, `eslint-plugin-react` stops at ESLint 9. ESLint's main job here was `react/no-danger`, so `testing/scripts/check_no_raw_html.py` now enforces that rule and four related ones, and runs in `run.py lint`. `tsc --noEmit` (strict) keeps doing the type checking.
 

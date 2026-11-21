@@ -86,7 +86,7 @@ def state(product: Product) -> tuple[object, ...]:
     [
         {},
         {"price": "0", "gift": True, "weight_kg": "0", "stock": 0},
-        {"price": "10.50", "gift": True, "description": ""},
+        {"description": ""},
         {"price": str(MAX_PRICE), "stock": MAX_STOCK, "weight_kg": str(MAX_WEIGHT_KG)},
         {"price": "0.01", "weight_kg": "0.001"},
         {

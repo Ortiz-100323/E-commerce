@@ -47,3 +47,8 @@ def test_script_command_runs_the_named_script_isolated(runner: ModuleType) -> No
     assert command[1] == "-I"
     assert command[2].endswith("smoke_test.py")
     assert command[3:] == ["--base-url", "http://x"]
+
+
+def test_frontend_tests_enforce_coverage(runner: ModuleType) -> None:
+    command = runner.COMMANDS["frontend"]()[0].command
+    assert command[-2:] == ["run", "test:coverage"]

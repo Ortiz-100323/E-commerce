@@ -4,6 +4,7 @@ export type NoticeContent = {
   title: string
   detail?: string
   reference?: string
+  tone?: 'error' | 'success'
 }
 
 const UNEXPECTED = 'Something unexpected went wrong. Please try again.'

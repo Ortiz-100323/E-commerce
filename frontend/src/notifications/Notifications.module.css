@@ -31,3 +31,8 @@
   font-size: 0.8125rem;
   color: #4b5563;
 }
+
+.success {
+  border-color: #86efac;
+  border-left-color: #15803d;
+}

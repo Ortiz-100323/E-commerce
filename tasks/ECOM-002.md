@@ -18,7 +18,7 @@ The catalog's business rules live in pure Python, with no framework or I/O, so t
 - Value objects: `Sku`, `ProductName`, `Description`, `Category`, `Price`, `StockQuantity`, `Weight`, `ProductTag` (`GIFT`).
 - The `Product` aggregate: identity, state, `version`, status `ACTIVE` / `ARCHIVED`.
 - Behaviour: `rename`, `reprice`, `recategorize`, `restock`, `mark_as_gift`, `unmark_gift`, `decrease_stock`, `archive`, `restore`, `is_sellable`.
-- Invariant: `price == 0 ⇒ GIFT ∈ tags`.
+- Invariant: `price == 0 ⇒ GIFT ∈ tags`. **Later change (2026-11-21, D-083):** the rule became two-way, `price == 0 ⇔ GIFT ∈ tags`: a gift is always free. It was built during ECOM-007 at the owner's request.
 - Domain events: `ProductCreated`, `ProductChanged` (values before and after), `ProductArchived`, `ProductRestored`, `StockDecreased`.
 - Validation collects every issue before raising.
 

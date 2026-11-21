@@ -81,6 +81,7 @@ The admin needs to create, read, update, archive and restore products, and shopp
 | Domain rules broken (bad SKU, markup in the name, negative price, weight with 4 decimals) | 422 listing **all four** issues at once | Pass |
 | Price with 3 decimals, `NaN` price, `Infinity` weight, negative stock, a 10,001-character name | 422 `too_many_decimal_places`, `not_a_number`, `too_small` or `too_long` | Pass |
 | Price 0 without `gift: true` | 422, field `price`, code `zero_price_requires_gift` | Pass |
+| A gift with a price (added 2026-11-21, D-083) | 422, field `price`, code `gift_must_be_free`, on create and on edit | Pass |
 | `X-Actor-Name` missing on a change | 422, location `header`; nothing stored | Pass |
 | Unknown product id on GET, PUT, DELETE, restore and history | 404 `not-found`, "Product not found." | Pass |
 | Id that isn't a UUID, on the same 5 endpoints | 422, location `path`, code `not_a_uuid` | Pass |

@@ -1,7 +1,9 @@
 import { Navigate, type RouteObject } from 'react-router'
 
 import { AdminLayout } from '../features/admin/AdminLayout'
-import { AdminProductsPage } from '../features/admin/AdminProductsPage'
+import { EditProductPage, NewProductPage } from '../features/admin/products/ProductFormPages'
+import { ProductHistoryPage } from '../features/admin/products/ProductHistoryPage'
+import { ProductsTablePage } from '../features/admin/products/ProductsTablePage'
 import { StorefrontPage } from '../features/storefront/StorefrontPage'
 import { WeatherPage } from '../features/weather/WeatherPage'
 import { AppShell } from './AppShell'
@@ -17,7 +19,10 @@ export const routes: RouteObject[] = [
         element: <AdminLayout />,
         children: [
           { index: true, element: <Navigate to="products" replace /> },
-          { path: 'products', element: <AdminProductsPage /> },
+          { path: 'products', element: <ProductsTablePage /> },
+          { path: 'products/new', element: <NewProductPage /> },
+          { path: 'products/:productId/edit', element: <EditProductPage /> },
+          { path: 'products/:productId/history', element: <ProductHistoryPage /> },
         ],
       },
       { path: 'weather', element: <WeatherPage /> },

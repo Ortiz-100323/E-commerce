@@ -16,6 +16,9 @@
 > | 10 | 2026-11-21 | ECOM-004: the audit trail as built (§6.4, D-073). The coverage gate now includes `catalog.application`. |
 > | 11 | 2026-11-21 | ECOM-005: the product API as built (§4.5). The zero-price code is `zero_price_requires_gift` everywhere, and a retried PUT whose changes are already in place returns 200 (§4.3, D-075). |
 > | 12 | 2026-11-21 | ECOM-006: the frontend foundation. Package versions are pinned; mutations are never retried automatically (D-076). ESLint is replaced by a raw-HTML check until `typescript-eslint` supports TypeScript 7 (§5, D-077). |
+> | 13 | 2026-11-21 | ECOM-007: the admin product screens. The edit form keeps the version it opened with, so a background refresh can never overwrite another admin's change (D-078). Package versions corrected (D-079). |
+> | 14 | 2026-11-21 | Gifts are always free: the gift invariant is now two-way, in the domain, the API and the database, and migration 0004 fixed the existing data (§4.2, §4.4, D-083). The page is served with `Cache-Control: no-cache` (D-084). |
+> | 15 | 2026-11-21 | The frontend coverage gate (≥ 80%, §8.2) is enforced by `run.py frontend` with `@vitest/coverage-v8` (D-086). |
 >
 > Every decision here also appears in [JOURNAL.md](JOURNAL.md) with its context and the alternatives considered.
 
@@ -208,7 +211,7 @@ Exact versions are pinned in Phase 0 and logged in the journal.
 | `Description` | Trimmed, 0–2000 characters. No control characters except newline. |
 | `Category` | Trimmed, 1–80 characters. Compared case-insensitively. The canonical form is the first spelling seen. |
 | `Money` | A `Decimal` with at most 2 decimal places, in currency `USD` (CQ-06). |
-| `Price` | `Money` that is **≥ 0** and at most 9,999,999,999.99, the largest value `NUMERIC(12,2)` holds. A price of 0 is only legal together with the GIFT tag (see the invariant below). |
+| `Price` | `Money` that is **≥ 0** and at most 9,999,999,999.99, the largest value `NUMERIC(12,2)` holds. A price of 0 is legal only for a gift, and a gift always has a price of 0 (see the invariant below). |
 | `StockQuantity` | An integer ≥ 0 and at most 2,147,483,647 (a PostgreSQL `INTEGER`). |
 | `Weight` | A `Decimal` in kg, ≥ 0 and at most 9,999,999.999 (`NUMERIC(10,3)`), with at most 3 decimal places. |
 | `ProductTag` | A closed enum. It currently has one value, `GIFT`, and grows only when needed. |
@@ -216,7 +219,7 @@ Exact versions are pinned in Phase 0 and logged in the journal.
 **The `Product` aggregate** belongs to catalog.
 - **Identity:** `ProductId` (a UUID). The natural key is `Sku`, which is unique.
 - **State:** name, description, category, price, stock, weight, `tags`, `status` (`ACTIVE` or `ARCHIVED`), `version` (for optimistic locking) and timestamps.
-- **Invariant:** `price == 0 ⇒ GIFT ∈ tags`. Removing the GIFT tag requires a price above 0.
+- **Invariant:** `price == 0 ⇔ GIFT ∈ tags`: a gift is always free, and a free product is always a gift (D-083, which replaced the earlier one-way rule). Removing the GIFT tag requires a price above 0, and adding it requires a price of 0.
 - **Behaviour:**
   - `rename`, `reprice`, `recategorize`, `restock`
   - `mark_as_gift`, `unmark_gift`
@@ -284,7 +287,7 @@ Exact versions are pinned in Phase 0 and logged in the journal.
   - price ≥ 0
   - stock ≥ 0
   - weight ≥ 0
-  - a price of 0 implies the gift tag
+  - a price of 0 if and only if the gift tag (D-083)
 - SKUs have a unique index.
 - Search uses the `pg_trgm` extension, with GIN trigram indexes on name, SKU and description. This makes `ILIKE` fast and Unicode-aware, and user input is escaped for LIKE wildcards.
 - Import rows are stored in the `import_batch_rows` table, with their raw and normalised values as JSONB. Batches are never purged (CQ-09).
@@ -298,7 +301,7 @@ Exact versions are pinned in Phase 0 and logged in the journal.
 - **Deletion is a soft delete (archive).** Archived products are hidden from the storefront and cannot be bought, and their SKU remains reserved.
 - Alembic migrations run automatically when the app container starts.
 - **The `products` table as built (ECOM-003, D-071):**
-  - Tags are a `varchar[]` column. The gift rule is `CHECK (price > 0 OR 'GIFT' = ANY(tags))`.
+  - Tags are a `varchar[]` column. The gift rule is `CHECK ((price = 0) = ('GIFT' = ANY(tags)))` (`ck_products_gift_if_and_only_if_free`, migration 0004, D-083).
   - Besides the four domain mirrors, CHECKs also limit tags to the known ones, status to `ACTIVE`/`ARCHIVED`, and `version` to ≥ 1. Every constraint has a stable name (`ck_products_…`, `uq_products_sku`), which the tests assert.
   - There is no currency column: the shop sells in USD only (CQ-06).
   - Saving uses `UPDATE … WHERE id = :id AND version = :loaded RETURNING version`. No row means either the product doesn't exist (`ProductNotFound`) or someone saved first (`VersionConflict` with the current version).

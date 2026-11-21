@@ -9,6 +9,7 @@ import { productsApi } from '../../frontend/src/api/products'
 import { AppShell } from '../../frontend/src/app/AppShell'
 import { describeProblem } from '../../frontend/src/notifications/describeProblem'
 import { API, PRODUCT_ID, problem, product, serverError } from './support/api'
+import { expectErrorNotifications } from './support/pageGuard'
 import { renderApp } from './support/renderApp'
 import { server } from './support/server'
 
@@ -50,6 +51,7 @@ function countRequests(method: 'get' | 'delete', respond: () => Response) {
 
 describe('notifications for problems', () => {
   it('shows a 5xx problem with its request id after retrying the read twice', async () => {
+    expectErrorNotifications()
     const reads = countRequests('get', () => serverError('req-7f3a'))
     renderApp('/probe', { routes: probeRoutes })
 
@@ -76,6 +78,7 @@ describe('notifications for problems', () => {
   })
 
   it('does not retry a 404 and shows its title and detail without a reference', async () => {
+    expectErrorNotifications()
     const reads = countRequests('get', () =>
       problem({
         status: 404,
@@ -94,6 +97,7 @@ describe('notifications for problems', () => {
   })
 
   it('tells the person when the server cannot be reached', async () => {
+    expectErrorNotifications()
     const reads = countRequests('get', () => HttpResponse.error())
     renderApp('/probe', { routes: probeRoutes })
 
@@ -105,6 +109,7 @@ describe('notifications for problems', () => {
   })
 
   it('never retries a failed change and shows the 5xx reference', async () => {
+    expectErrorNotifications()
     countRequests('get', () => HttpResponse.json(product))
     const changes = countRequests('delete', () => serverError('req-del'))
     renderApp('/probe', { routes: probeRoutes })
@@ -118,6 +123,7 @@ describe('notifications for problems', () => {
   })
 
   it('shows a conflict from a change with its title', async () => {
+    expectErrorNotifications()
     countRequests('get', () => HttpResponse.json(product))
     const changes = countRequests('delete', () =>
       problem({

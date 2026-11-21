@@ -90,7 +90,7 @@ def backend_steps() -> list[Step]:
 
 
 def frontend_steps() -> list[Step]:
-    return [Step("vitest", [tool("npm"), "test"], cwd=FRONTEND)]
+    return [Step("vitest", [tool("npm"), "run", "test:coverage"], cwd=FRONTEND)]
 
 
 def smoke_steps() -> list[Step]:

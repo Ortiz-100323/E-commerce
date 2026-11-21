@@ -36,6 +36,10 @@ ZERO_PRICE_MESSAGES = {
     "price": "A price of 0 must be confirmed as a gift.",
     "gift": "A product priced at 0 must stay a gift. Set a price above 0 first.",
 }
+PAID_GIFT_MESSAGES = {
+    "price": "A gift must be free. Set the price to 0, or untick the gift.",
+    "gift": "A gift must be free. Set the price to 0 first.",
+}
 
 
 class EventBase(TypedDict):
@@ -53,12 +57,15 @@ class ProductStatus(StrEnum):
     ARCHIVED = "ARCHIVED"
 
 
-def zero_price_issue(field: str) -> ValidationIssue:
-    return ValidationIssue(field, "zero_price_requires_gift", ZERO_PRICE_MESSAGES[field])
-
-
-def breaks_gift_rule(price: Price, tags: frozenset[ProductTag]) -> bool:
-    return price.is_zero and ProductTag.GIFT not in tags
+def gift_rule_issue(
+    price: Price, tags: frozenset[ProductTag], field: str
+) -> ValidationIssue | None:
+    is_gift = ProductTag.GIFT in tags
+    if price.is_zero and not is_gift:
+        return ValidationIssue(field, "zero_price_requires_gift", ZERO_PRICE_MESSAGES[field])
+    if is_gift and not price.is_zero:
+        return ValidationIssue(field, "gift_must_be_free", PAID_GIFT_MESSAGES[field])
+    return None
 
 
 def tags_with_gift(tags: frozenset[ProductTag], gift: bool) -> frozenset[ProductTag]:
@@ -86,8 +93,9 @@ class ProductDetails:
     tags: frozenset[ProductTag]
 
     def __post_init__(self) -> None:
-        if breaks_gift_rule(self.price, self.tags):
-            raise InvalidProduct([zero_price_issue("price")])
+        issue = gift_rule_issue(self.price, self.tags, "price")
+        if issue is not None:
+            raise InvalidProduct([issue])
 
     def snapshot(self) -> dict[str, AuditValue]:
         return {
@@ -146,8 +154,9 @@ class Product:
         parsed_stock = collector.attempt(StockQuantity, stock)
         parsed_weight = collector.attempt(Weight.of, weight_kg)
         tags = tags_with_gift(frozenset(), gift)
-        if parsed_price is not None and breaks_gift_rule(parsed_price, tags):
-            collector.add(zero_price_issue("price"))
+        gift_issue = None if parsed_price is None else gift_rule_issue(parsed_price, tags, "price")
+        if gift_issue is not None:
+            collector.add(gift_issue)
         if (
             parsed_sku is None
             or parsed_name is None
@@ -299,8 +308,10 @@ class Product:
             else keep_if_equal(collector.attempt(Weight.of, weight_kg), current.weight)
         )
         tags = current.tags if gift is None else tags_with_gift(current.tags, gift)
-        if new_price is not None and breaks_gift_rule(new_price, tags):
-            collector.add(zero_price_issue("price" if price is not None else "gift"))
+        field = "price" if price is not None else "gift"
+        gift_issue = None if new_price is None else gift_rule_issue(new_price, tags, field)
+        if gift_issue is not None:
+            collector.add(gift_issue)
         if (
             new_name is None
             or new_description is None

@@ -164,8 +164,28 @@ def test_a_zero_price_with_the_gift_tag_is_allowed() -> None:
     assert product.price.is_zero
 
 
-def test_a_paid_product_may_also_be_a_gift() -> None:
-    assert create(price="10", gift=True).is_gift
+def test_a_paid_product_cannot_be_a_gift() -> None:
+    with pytest.raises(InvalidProduct) as raised:
+        create(price="10", gift=True)
+
+    assert codes_by_field(raised.value) == {"price": "gift_must_be_free"}
+    assert raised.value.issues[0].message == (
+        "A gift must be free. Set the price to 0, or untick the gift."
+    )
+
+
+def test_product_details_refuse_a_gift_with_a_price() -> None:
+    with pytest.raises(InvalidProduct) as raised:
+        ProductDetails(
+            name=ProductName("Mug"),
+            description=Description(""),
+            category=Category("Home"),
+            price=Price.of("5"),
+            stock=StockQuantity(1),
+            weight=Weight.of("0.3"),
+            tags=frozenset({ProductTag.GIFT}),
+        )
+    assert codes_by_field(raised.value) == {"price": "gift_must_be_free"}
 
 
 def test_product_details_refuse_a_zero_price_without_the_gift_tag() -> None:
@@ -245,10 +265,15 @@ def test_reprice_to_zero_requires_the_gift_tag() -> None:
     assert product.price == Price.of("89.99")
 
 
-def test_reprice_to_zero_is_allowed_for_a_gift() -> None:
-    product = existing(gift=True)
-    product.reprice("0", at=LATER)
+def test_a_gift_cannot_be_repriced_above_zero() -> None:
+    product = existing(price="0", gift=True)
+
+    with pytest.raises(InvalidProduct) as raised:
+        product.reprice("10", at=LATER)
+
+    assert codes_by_field(raised.value) == {"price": "gift_must_be_free"}
     assert product.price.is_zero
+    assert product.pull_events() == []
 
 
 def test_recategorize_records_one_change() -> None:
@@ -305,28 +330,46 @@ def test_restock_rejects_quantities_that_are_not_whole_numbers() -> None:
         existing().restock(BOOL_VALUE, at=LATER)
 
 
-def test_mark_as_gift_records_one_change() -> None:
+def test_a_paid_product_cannot_be_marked_as_a_gift() -> None:
     product = existing()
 
-    product.mark_as_gift(at=LATER)
+    with pytest.raises(InvalidProduct) as raised:
+        product.mark_as_gift(at=LATER)
+
+    assert codes_by_field(raised.value) == {"gift": "gift_must_be_free"}
+    assert raised.value.issues[0].message == "A gift must be free. Set the price to 0 first."
+    assert not product.is_gift
+    assert product.pull_events() == []
+
+
+def test_making_a_paid_product_a_free_gift_records_one_change() -> None:
+    product = existing()
+
+    product.revise(price="0", gift=True, at=LATER)
 
     assert product.is_gift
-    assert product.pull_events()[0].changes == {"tags": FieldChange((), ("GIFT",))}
+    assert product.pull_events()[0].changes == {
+        "price": FieldChange("89.99", "0.00"),
+        "tags": FieldChange((), ("GIFT",)),
+    }
 
 
 def test_mark_as_gift_on_a_gift_records_nothing() -> None:
-    product = existing(gift=True)
+    product = existing(price="0", gift=True)
     product.mark_as_gift(at=LATER)
     assert product.pull_events() == []
 
 
-def test_unmark_gift_records_one_change() -> None:
-    product = existing(gift=True)
+def test_turning_a_gift_into_a_paid_product_records_one_change() -> None:
+    product = existing(price="0", gift=True)
 
-    product.unmark_gift(at=LATER)
+    product.revise(price="10", gift=False, at=LATER)
 
     assert not product.is_gift
-    assert product.pull_events()[0].changes == {"tags": FieldChange(("GIFT",), ())}
+    assert product.pull_events()[0].changes == {
+        "price": FieldChange("0.00", "10.00"),
+        "tags": FieldChange(("GIFT",), ()),
+    }
 
 
 def test_the_gift_tag_cannot_be_removed_while_the_price_is_zero() -> None:

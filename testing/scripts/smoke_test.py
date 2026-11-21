@@ -1,5 +1,6 @@
 import argparse
 import json
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -29,6 +30,12 @@ def call(method: str, url: str, body: object | None = None) -> tuple[int, str]:
         return error.code, error.read().decode("utf-8")
 
 
+def cache_control(url: str) -> str:
+    request = urllib.request.Request(url, method="GET")
+    with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+        return str(response.headers.get("Cache-Control", ""))
+
+
 def expect(condition: bool, message: str) -> None:
     if not condition:
         raise SmokeFailure(message)
@@ -41,6 +48,17 @@ def run(base_url: str) -> int:
         status, body = call("GET", f"{base_url}/")
         expect(status == 200, f"expected 200, got {status}")
         expect('<div id="root">' in body, "the page has no React root element")
+
+    def page_is_never_stale() -> None:
+        for path in ("/", "/admin/products"):
+            header = cache_control(f"{base_url}{path}")
+            expect(header == "no-cache", f"{path} has Cache-Control {header!r}, expected no-cache")
+        _, body = call("GET", f"{base_url}/")
+        script = re.search(r'src="(/assets/[^"]+\.js)"', body)
+        if script is None:
+            raise SmokeFailure("the page loads no script from /assets")
+        header = cache_control(f"{base_url}{script.group(1)}")
+        expect("immutable" in header, f"the app bundle has Cache-Control {header!r}")
 
     def health_is_up() -> None:
         status, body = call("GET", f"{base_url}/api/v1/health")
@@ -63,6 +81,7 @@ def run(base_url: str) -> int:
 
     checks: list[tuple[str, Callable[[], None]]] = [
         ("portal loads through nginx", portal_loads),
+        ("the page is never served stale", page_is_never_stale),
         ("health check reports the database up", health_is_up),
         (f"real search for {SMOKE_CITY} is saved", real_search_is_saved),
         ("the search is first in the history", search_appears_in_history),

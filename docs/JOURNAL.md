@@ -851,7 +851,7 @@ Template:
 
 ### D-068: Choices made while building the catalog domain (ECOM-002)
 - **Date:** 2026-11-21
-- **Status:** Accepted (owner, prompt #010)
+- **Status:** Accepted (owner, prompt #010). The point "a paid product can also be a gift" is superseded by D-083 (gifts are always free).
 - **Decision:**
   - **Upper limits that match the database columns:** price up to 9,999,999,999.99 (`NUMERIC(12,2)`), stock up to 2,147,483,647 (`INTEGER`), weight up to 9,999,999.999 kg (`NUMERIC(10,3)`). A valid domain object can then always be saved; without the limits, an oversized value would pass the domain and fail in the database as a 500. The code is `too_large`, with `max` in `params`.
   - **`revise(...)`** changes several fields in one step and records one `ProductChanged`. The admin's full edit (PUT, ECOM-005) needs it: one save becomes one history entry, every issue is reported at once, and a price of 0 can be set together with the gift tag without worrying about order. The single-field behaviours in the ticket call `revise`.
@@ -966,7 +966,7 @@ Template:
 
 ### D-076: Frontend foundation plan (ECOM-006)
 - **Date:** 2026-11-21
-- **Status:** Accepted (owner approved the packages in prompt #015). The ESLint part is superseded by D-077.
+- **Status:** Accepted (owner approved the packages in prompt #015). The ESLint part is superseded by D-077. The package ages were wrong; corrected by D-079.
 - **Context:** ECOM-006 needs the libraries chosen in §5. Adding packages needs the owner's explicit approval.
 - **Decision (proposed):**
   - **Runtime packages:** `@tanstack/react-query`, `react-router`, `react-hook-form`, `zod` and `@hookform/resolvers`.
@@ -998,3 +998,134 @@ Template:
   - Downgrade to TypeScript 5.9 (rejected: a project-wide change for a linter).
   - Force the peer dependencies (rejected: unsupported, and likely to break).
   - `@babel/eslint-parser` with the TypeScript preset, or oxlint (not approved packages; offered to the owner as options).
+
+### D-078: Admin product screens (ECOM-007)
+- **Date:** 2026-11-21
+- **Status:** Accepted (owner accepted ECOM-007 in prompt #020)
+- **Decision:**
+  - **The table keeps its search, status and page in the address** (`?q=…&status=ALL&page=2`), so a refresh or a shared link shows the same list.
+  - **The browser checks only the obvious things** (required fields, the number formats). The server stays the authority, and its 422 messages land on the fields.
+  - **The gift dialog sends nothing until the admin answers.** "Yes" saves with `gift: true`; "No" returns to the price field.
+  - **The edit form keeps the version it was opened with.** A refresh in the background (after another change in the app) updates the page, but never the version the form sends. Only **Reload** rebuilds the form with the newest version. The first design rebuilt the form whenever the version changed. A test showed two consequences: the save lost its "back to the table" step, and a background refresh could have made the form send a newer version, silently overwriting someone else's change.
+  - **Handled problems don't pop up twice.** The form mutations declare `meta.handledProblems` (`duplicate-sku`, `version-conflict`), so those appear only on the form (the SKU field, or the reload banner). Every other failure still goes to the notifications.
+  - **After a change, every cached product list is refreshed** (`refetchType: 'all'`) before the admin is sent back, so the table never flashes the old values.
+  - **Archiving asks for confirmation; restoring doesn't.** Archiving hides a product from the shop, while restoring undoes that.
+  - **Times on the history page are shown in UTC,** labelled as such, so every admin reads the same time.
+- **Alternatives:**
+  - Rebuilding the form on every version change (rejected, see above).
+  - A browser `confirm()` for the gift question (rejected: it can't be styled or tested well, and its wording can't be controlled).
+  - Local time on the history page (rejected for now: admins in different time zones would see different times).
+
+### D-079: Package ages corrected
+- **Date:** 2026-11-21
+- **Status:** Accepted (correction of D-076, reported to the owner in prompt #016)
+- **Context:** In ECOM-006 the versions were chosen with `npm view <package> version --before 2026-11-07`, and reported as at least two weeks old. While checking the coverage package for ECOM-007, the publish dates turned out not to match. npm ignored `--before` for `view` and returned the newest versions. Six of the seven packages were between 1 and 10 days old.
+- **Decision:**
+  - Repinned to the newest stable release published on or before 2026-11-07, read from `npm view <package> time`: `@tanstack/react-query` 5.107.1, `react-router` 8.5.1, `react-hook-form` 7.91.0, `@hookform/resolvers` 7.0.3, `msw` 3.0.4, `prettier` 3.9.10 (`zod` 4.6.7 already qualified).
+  - The full CI suite passes on these versions.
+  - From now on, a version's age is checked against its publish date in `npm view <package> time`, never with `--before`.
+- **Note:** Vitest 5.1.1 (from ECOM-000) was published on 2026-11-18. It predates the two-week rule and was left alone. It matters again for the coverage package (ECOM-007), which must match Vitest exactly.
+
+### D-080: Bug: the edit form could overwrite another admin's change (found by a test, ECOM-007)
+- **Date:** 2026-11-21
+- **Status:** Fixed (logged at the owner's request in prompt #017)
+- **How it was found:** the first edit test failed when the whole file ran. After a save, the app stayed on the edit page instead of returning to the table.
+- **Cause:**
+  - The edit form was tied to the product's version, and rebuilt itself whenever the version changed.
+  - After a save, the refreshed product had a new version, so the form was rebuilt mid-save. The library then dropped the "go back to the table" step, which belonged to the old form.
+  - Worse, the same tie meant that a refresh in the background while an admin was editing would hand the form a newer version. The save would then send that newer version, pass the conflict check, and **silently overwrite someone else's change**. That is the lost update the whole design guards against (§7.3, D-071).
+- **Fix:**
+  - The form keeps the product and version it was opened with.
+  - Only the **Reload** button (after a conflict) rebuilds it, by bumping a counter on the page, not the version.
+- **Guard:** the test "never overwrites a change made by someone else, even after a background refresh" (`testing/frontend/adminProducts.test.tsx`). It refreshes the page's data in the background, saves, and expects the conflict banner, version 1 sent, and the other change intact. With the old code put back on purpose, this test fails.
+
+### D-081: Bug: "Something unexpected went wrong" after creating or editing a product (found by the owner, ECOM-007)
+- **Date:** 2026-11-21
+- **Status:** Fixed; waiting for the owner's re-test ([evidence](../tasks/ECOM-007-evidence/README.md), DEF-01)
+- **Symptom:**
+  - In the browser, a red "Something unexpected went wrong" appeared next to "Product created".
+  - Two appeared after a gift was created, and one more after an edit. The data itself was saved correctly.
+- **Cause:**
+  - After a save, the app put the server's answer into the cache under `['products', 'detail', id]`. For a new product, no screen had ever loaded that entry.
+  - Next, it refreshed every cached product query (`refetchType: 'all'`, added during ECOM-007 so the table never flashes old values). The new entries had no instruction for loading themselves, and each refresh failed with TanStack Query's internal "Missing queryFn" error.
+  - Every product created in the session added one more failing entry, which is why the count grew.
+- **Why the tests missed it:** they asserted that the success message appeared, never that no error appeared. The temporary check against the live backend was run from the edit page, where that product's entry did have a loader.
+- **Fix:**
+  - After a save, the app refreshes only the product lists (`['products', 'list']`, all of them), that product's history and the categories. The saved product's own entry comes straight from the server's answer, so nothing needs to reload it.
+  - Errors that aren't API problems are now logged with `console.error('Unexpected error', …)`.
+- **Guards:**
+  - A regression test replays the owner's run (create, create a gift through the dialog, edit) and requires 3 success messages and no error.
+  - `testing/frontend/setup.ts` now fails **every** frontend test in which the app logs an unexpected error.
+  - With the old refresh put back on purpose, 7 tests fail on "Missing queryFn"; with the fix, all 72 pass.
+
+### D-082: Test evidence is stored per ticket; UI polish gets its own ticket
+- **Date:** 2026-11-21
+- **Status:** Accepted (owner's request in prompt #017)
+- **Decision:**
+  - The owner's test screenshots and recordings go into `tasks/<KEY>-evidence/`, with a `README.md` written like a Jira test record: environment, steps with expected and actual results, defects (cause, fix, status), observations and a re-test checklist. ECOM-007's evidence is the first.
+  - The owner's UX remarks go into a new backlog ticket, **ECOM-018 (UI polish and user experience)**:
+    - the drop-downs look off;
+    - the table is cramped on a narrow window;
+    - notifications cover the content;
+    - a duplicate SKU should show the product that already uses it.
+
+    The owner asked for these to be addressed when the UI gets its own focus, not now.
+
+### D-083: Gifts are always free (owner's change request, CR-01)
+- **Date:** 2026-11-21
+- **Status:** Accepted (owner chose it in prompt #018). Supersedes the "paid gift" point of D-068.
+- **Context:** In the browser test, the owner created SP-003 "Normal shoes" at $55 with the Gift box ticked, and said a gift with a price makes no sense.
+- **Decision:** a product is a gift **if and only if** its price is 0.
+  - **Domain:** `gift_rule_issue` reports `zero_price_requires_gift` (price 0 without the tag, as before) and the new `gift_must_be_free` (the tag with a price above 0). The issue goes on `price` when the price changed or on create, and on `gift` otherwise, the same as the existing rule. `mark_as_gift` on a paid product is refused; making a product a free gift is one `revise(price="0", gift=True)`.
+  - **API:** 422 `validation-error`, code `gift_must_be_free`, field `price`.
+  - **Database:** the `CHECK ((price = 0) = ('GIFT' = ANY(tags)))`, named `ck_products_gift_if_and_only_if_free`, replaces `ck_products_zero_price_requires_gift`.
+  - **Existing data:** migration 0004 removes the Gift tag from paid products. Each one's version goes up by one, and an audit entry is written in the same statement: actor "Data migration", `product.changed`, tags `["GIFT"]` → `[]`, context `{"migration": "0004", "reason": "Gifts must be free (D-083)."}`. The price is kept: the owner's intent was to sell the product, not to give it away. On the live database this changed SP-003 only.
+  - **Form:** "Free gift (gifts are always priced at 0)" is the first option. Ticking it sets the price to 0 and makes the field read-only, with the hint "Gifts are always free."; unticking brings the previous price back. The form also refuses a paid gift itself, as a safety net.
+- **Tests:**
+  - domain: a paid gift is refused on create, on `ProductDetails`, on reprice and on `mark_as_gift`; making a product a free gift and turning a gift into a paid product each record one change;
+  - API: paid gift refused on create and on edit;
+  - database: the constraint refuses a paid gift row;
+  - migration: a downgrade to 0003, a paid gift and a free gift inserted, then an upgrade. Only the paid one loses the tag, with exactly one audit entry;
+  - frontend: the gift option comes first, locks the price, and unticking restores it; the server's refusal appears on the price field.
+- **Alternatives:**
+  - Deleting paid gifts (rejected: destroys data).
+  - Setting their price to 0 (rejected: would give away a product the owner meant to sell).
+  - Refusing the migration until someone fixes the data by hand (rejected: one clear, audited rule is simpler and leaves a trace).
+
+### D-084: Error log: DEF-01 "came back" because the browser tab was still running the old code (DEF-02)
+- **Date:** 2026-11-21
+- **Status:** Fixed (logged at the owner's request in prompt #018)
+- **The error:** after the DEF-01 fix was deployed, the owner created SP-02 and still saw two red "Something unexpected went wrong" messages next to "Product created".
+- **What created it:**
+  - Not the code: the fix was live (the served bundle `index-CfDpcUSZ.js` contains it).
+  - The frontend server's access log shows the owner's browser posting the products at 19:09:53 and 19:11:13 UTC without ever downloading the new bundle after the 18:53 rebuild. The only download of it was our own `curl` at 19:12:04; the `GET /` every 5 seconds is Docker's health check (`Wget`).
+  - A single-page app loads its code once per tab, so the tab kept running the old code, DEF-01 included.
+  - Contributing: nginx sent no `Cache-Control` header, so even a refresh could reuse an old copy of the page.
+- **Fix:**
+  - nginx sends `Cache-Control: no-cache` for the page and all app routes, and `public, max-age=31536000, immutable` for `/assets/` (hashed file names).
+  - The smoke test gained "the page is never served stale", which checks both on every CI run.
+  - ECOM-018 gets a "new version available — reload" banner, so a long-open tab can tell the admin.
+- **How to diagnose next time:** compare the bundle the server serves with the bundle requests in the frontend log (`docker compose logs frontend`), before changing any code.
+
+### D-085: Every frontend test checks the whole page for errors
+- **Date:** 2026-11-21
+- **Status:** Accepted (owner's request in prompt #018: "Every test, get the whole body to check if any error message appears")
+- **Decision:** `testing/frontend/setup.ts` checks the page when each test finishes, and fails the test if:
+  - the body contains "Something unexpected went wrong";
+  - the notification area holds a red notification, unless the test called `expectErrorNotifications()` first (8 tests do, because causing an error is their purpose);
+  - the app logged `Unexpected error` to the console (from D-081).
+- **Found by the new check:** the "Product not found" pages also popped up a red "The resource was not found." notification. Queries can now declare `meta.handledProblems` like mutations, and the product and history pages declare `not-found`.
+
+### D-086: Frontend coverage gate at 80% (Vitest 5.1.0 and @vitest/coverage-v8 5.1.0)
+- **Date:** 2026-11-21
+- **Status:** Accepted (owner approved in prompt #019: "Yes, move it")
+- **Decision:**
+  - `@vitest/coverage-v8` 5.1.0 is added, and Vitest moves from 5.1.1 to 5.1.0. The coverage package must match Vitest exactly, and 5.1.1 was only 3 days old. Both were published on 2026-11-02, checked with `npm view <package> time` (D-079).
+  - `vite.config.ts` measures `src/**` (except `main.tsx`) with thresholds of 80% for lines, statements, functions and branches. `run.py frontend` now runs `npm run test:coverage`, and a tooling test checks that.
+  - **First measurement:** statements 95.72%, branches 89.23%, functions 96.31%, lines 95.81%.
+- **npm problem met on the way:**
+  - Both `npm install` and a clean install failed inside npm's own peer-dependency resolver (npm 10.9.3, "Cannot read properties of null (reading 'edgesOut')").
+  - While resolving optional peers, npm reached for the newest Vitest (5.1.1) and its `@vitest/browser-playwright` peer, which clashed with the pinned 5.1.0.
+  - **Fix:** `"overrides": { "vitest": "5.1.0" }` in `frontend/package.json`. The `$vitest` reference form doesn't work for dev dependencies.
+  - The lock file had to be rebuilt from scratch. All direct dependencies stay pinned to their exact versions; only the packages they depend on were re-resolved, and those had already been resolved to their newest versions earlier the same day.
+  - The full CI suite passes on the new lock file.

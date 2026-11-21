@@ -113,6 +113,26 @@ async def test_a_price_of_zero_confirmed_as_a_gift_is_accepted(engine: AsyncEngi
     assert (product["price"], product["gift"], product["tags"]) == ("0.00", True, ["GIFT"])
 
 
+async def test_a_gift_with_a_price_is_refused_on_create_and_on_edit(engine: AsyncEngine) -> None:
+    async with live_api(engine) as client:
+        created = await client.post(
+            PRODUCTS, json=product_body(price="55.00", gift=True), headers=ANTONIO
+        )
+        product = await create(client)
+        edited = await client.put(
+            url(product["id"]), json=update_body(1, price="89.99", gift=True), headers=MARIA
+        )
+        stored = (await client.get(url(product["id"]))).json()
+
+    assert field_codes(assert_problem(created, 422, "validation-error")) == [
+        ("body", "price", "gift_must_be_free")
+    ]
+    assert field_codes(assert_problem(edited, 422, "validation-error")) == [
+        ("body", "price", "gift_must_be_free")
+    ]
+    assert (stored["gift"], stored["version"]) == (False, 1)
+
+
 async def test_removing_the_gift_flag_from_a_free_product_is_refused(engine: AsyncEngine) -> None:
     async with live_api(engine) as client:
         product = await create(client, price="0", gift=True)

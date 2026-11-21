@@ -33,7 +33,9 @@ products = Table(
     CheckConstraint("price >= 0", name="ck_products_price_not_negative"),
     CheckConstraint("stock >= 0", name="ck_products_stock_not_negative"),
     CheckConstraint("weight_kg >= 0", name="ck_products_weight_not_negative"),
-    CheckConstraint("price > 0 OR 'GIFT' = ANY(tags)", name="ck_products_zero_price_requires_gift"),
+    CheckConstraint(
+        "(price = 0) = ('GIFT' = ANY(tags))", name="ck_products_gift_if_and_only_if_free"
+    ),
     CheckConstraint("tags <@ ARRAY['GIFT']::varchar[]", name="ck_products_known_tags"),
     CheckConstraint("status IN ('ACTIVE', 'ARCHIVED')", name="ck_products_known_status"),
     CheckConstraint("version >= 1", name="ck_products_version_positive"),

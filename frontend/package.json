@@ -8,17 +8,21 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "format": "prettier --config .prettierrc.json --write src ../testing/frontend vite.config.ts",
     "format:check": "prettier --config .prettierrc.json --check src ../testing/frontend vite.config.ts"
   },
   "dependencies": {
-    "@hookform/resolvers": "7.0.8",
-    "@tanstack/react-query": "5.108.2",
+    "@hookform/resolvers": "7.0.3",
+    "@tanstack/react-query": "5.107.1",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "react-hook-form": "7.92.0",
-    "react-router": "8.5.2",
+    "react-hook-form": "7.91.0",
+    "react-router": "8.5.1",
     "zod": "4.6.7"
+  },
+  "overrides": {
+    "vitest": "5.1.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "8.0.0",
@@ -28,11 +32,12 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.3.0",
+    "@vitest/coverage-v8": "5.1.0",
     "jsdom": "29.1.1",
-    "msw": "3.0.7",
-    "prettier": "3.10.1",
+    "msw": "3.0.4",
+    "prettier": "3.9.10",
     "typescript": "7.0.2",
     "vite": "8.3.8",
-    "vitest": "5.1.1"
+    "vitest": "5.1.0"
   }
 }

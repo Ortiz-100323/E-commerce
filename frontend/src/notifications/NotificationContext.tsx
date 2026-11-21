@@ -39,7 +39,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       {children}
       <section className={styles.region} aria-label="Notifications" aria-live="polite">
         {notices.map((notice) => (
-          <div key={notice.id} role="alert" className={styles.notice}>
+          <div
+            key={notice.id}
+            role={notice.tone === 'success' ? 'status' : 'alert'}
+            className={
+              notice.tone === 'success' ? `${styles.notice} ${styles.success}` : styles.notice
+            }
+          >
             <p className={styles.title}>{notice.title}</p>
             {notice.detail ? <p>{notice.detail}</p> : null}
             {notice.reference ? (

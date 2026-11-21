@@ -10,3 +10,4 @@ tasks
 **/.ruff_cache
 **/.hypothesis
 **/.coverage
+**/coverage

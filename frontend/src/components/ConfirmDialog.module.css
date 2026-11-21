@@ -1,0 +1,40 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(17 24 39 / 45%);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  z-index: 10;
+}
+
+.dialog {
+  background: #fff;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  width: min(28rem, 100%);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 20%);
+}
+
+.dialog h2 {
+  margin-top: 0;
+  font-size: 1.25rem;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.actions button {
+  padding: 0.5rem 1rem;
+}
+
+.primary {
+  background: #111827;
+  color: #fff;
+  border: 1px solid #111827;
+  border-radius: 0.25rem;
+}

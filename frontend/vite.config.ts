@@ -44,5 +44,12 @@ export default defineConfig({
     include: ['**/*.test.{ts,tsx}'],
     environment: 'jsdom',
     setupFiles: [path.join(testingRoot, 'setup.ts')],
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/main.tsx', 'src/**/*.d.ts'],
+      reporter: ['text-summary', 'text'],
+      thresholds: { lines: 80, statements: 80, functions: 80, branches: 80 },
+    },
   },
 })
