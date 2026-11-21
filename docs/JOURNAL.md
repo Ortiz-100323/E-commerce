@@ -963,3 +963,38 @@ Template:
   - Ignoring `sku` in a PUT (rejected: a silent no-op hides client bugs).
   - Always 409 on a stale version (rejected: a retry after a timeout would show a false conflict).
   - Search through the repository (rejected: it would load whole aggregates for a read-only list).
+
+### D-076: Frontend foundation plan (ECOM-006)
+- **Date:** 2026-11-21
+- **Status:** Accepted (owner approved the packages in prompt #015). The ESLint part is superseded by D-077.
+- **Context:** ECOM-006 needs the libraries chosen in §5. Adding packages needs the owner's explicit approval.
+- **Decision (proposed):**
+  - **Runtime packages:** `@tanstack/react-query`, `react-router`, `react-hook-form`, `zod` and `@hookform/resolvers`.
+  - **Dev packages:** `msw`, `eslint`, `@eslint/js`, `typescript-eslint`, `eslint-plugin-react`, `eslint-plugin-react-hooks`, `globals` and `prettier`.
+  - Every package is pinned exactly at install time, at a version at least two weeks old.
+  - **One `ApiError`** for every failed call: Problem Details, an error response that isn't Problem Details, and network failures.
+  - **Change functions take the actor as an argument**, so a change without a name doesn't compile. The name is percent-encoded.
+  - **Queries retry up to twice, only on network errors and 5xx. Mutations never retry automatically** (D-072): a repeated change must be a person's decision.
+  - **The weather page moves to `/weather`** until ECOM-009, so the smoke test keeps passing.
+  - **The reviewer's name lives in `localStorage`, with an in-memory fallback** when storage is blocked.
+- **Risk:** the project uses TypeScript 7 (the native compiler), and `typescript-eslint` may not support it yet. The fallback is ESLint without type-aware rules, still enforcing `react/no-danger` and the hooks rules; `tsc --noEmit` keeps doing the type checking.
+- **Alternatives:** a hand-written fetch cache instead of TanStack Query (rejected: loading, error, retry and invalidation logic is exactly what the library provides, and §5 chose it); retrying mutations with the backend's protections as a safety net (rejected: the owner wants retries to be deliberate).
+
+### D-077: A raw-HTML check instead of ESLint, while TypeScript 7 lacks ESLint support
+- **Date:** 2026-11-21
+- **Status:** Accepted (owner chose option A, keep the raw-HTML check, in prompt #016)
+- **Context:**
+  - ECOM-006 planned ESLint with `react/no-danger`.
+  - At install time, the newest `typescript-eslint` (8.73.0) declared support for TypeScript `>=4.8.4 <6.1.0`. The project uses TypeScript 7 (the native compiler), whose package no longer ships the JavaScript compiler API that `typescript-eslint` needs to parse `.tsx`.
+  - `eslint-plugin-react` 7.37.5 supports ESLint up to 9.
+  - Without a TypeScript parser, ESLint can't read any of our files.
+- **Decision:**
+  - **Don't install the ESLint packages for now.** Installing them would mean forcing peer dependencies that the authors say don't work.
+  - **`testing/scripts/check_no_raw_html.py`** enforces the purpose of `react/no-danger`, and a bit more. It refuses `dangerouslySetInnerHTML`, `.innerHTML`, `.outerHTML`, `insertAdjacentHTML`, `document.write(ln)` and `createContextualFragment` in `frontend/src`. It runs in `run.py lint`, with 13 tooling tests, like the no-comments check.
+  - **Prettier** (approved) checks the format. `tsc --noEmit` in strict mode keeps doing the type checking.
+  - **Revisit** when `typescript-eslint` supports TypeScript 7. That is a small ticket: add the packages, a flat config, and a lint step.
+- **What is lost meanwhile:** the React hooks rules (hooks called conditionally, missing effect dependencies) and general lint rules. The code reviews and the tests cover them for now.
+- **Alternatives:**
+  - Downgrade to TypeScript 5.9 (rejected: a project-wide change for a linter).
+  - Force the peer dependencies (rejected: unsupported, and likely to break).
+  - `@babel/eslint-parser` with the TypeScript preset, or oxlint (not approved packages; offered to the owner as options).

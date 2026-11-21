@@ -60,7 +60,9 @@ export function WeatherPage() {
     <main className={styles.page}>
       <header>
         <h1>Weather check</h1>
-        <p className={styles.note}>Temporary test feature (ECOM-000). It proves the stack works end to end.</p>
+        <p className={styles.note}>
+          Temporary test feature (ECOM-000). It proves the stack works end to end.
+        </p>
       </header>
 
       <form className={styles.form} onSubmit={handleSubmit}>

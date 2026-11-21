@@ -50,6 +50,8 @@ def lint_steps() -> list[Step]:
         Step("import-linter", uv_backend("lint-imports"), cwd=BACKEND),
         Step("mypy", uv_backend("mypy"), cwd=BACKEND),
         Step("tsc", [tool("npm"), "run", "typecheck"], cwd=FRONTEND),
+        Step("prettier", [tool("npm"), "run", "format:check"], cwd=FRONTEND),
+        *script_steps("check_no_raw_html", ["frontend/src"]),
     ]
 
 

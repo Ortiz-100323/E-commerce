@@ -25,3 +25,8 @@ def no_comments() -> ModuleType:
 @pytest.fixture(scope="session")
 def runner() -> ModuleType:
     return load_module("run.py", "testing_runner")
+
+
+@pytest.fixture(scope="session")
+def no_raw_html() -> ModuleType:
+    return load_module("scripts/check_no_raw_html.py", "check_no_raw_html")

@@ -15,7 +15,15 @@ def test_each_command_has_at_least_one_step(runner: ModuleType) -> None:
 
 def test_lint_runs_every_static_check(runner: ModuleType) -> None:
     names = [step.name for step in runner.COMMANDS["lint"]()]
-    assert names == ["ruff check", "ruff format", "import-linter", "mypy", "tsc"]
+    assert names == [
+        "ruff check",
+        "ruff format",
+        "import-linter",
+        "mypy",
+        "tsc",
+        "prettier",
+        "script check_no_raw_html",
+    ]
 
 
 def test_backend_tests_enforce_domain_and_application_coverage(runner: ModuleType) -> None:

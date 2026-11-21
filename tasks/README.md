@@ -27,7 +27,7 @@ A ticket moves to **Done** only after the owner accepts it at its review gate.
 | [ECOM-003](ECOM-003.md) | Catalog persistence: schema, repository and Unit of Work | 1 | ECOM-002 | Done |
 | [ECOM-004](ECOM-004.md) | Audit trail: append-only log and product history | 1 | ECOM-003 | Done |
 | [ECOM-005](ECOM-005.md) | Product CRUD and search API | 1 | ECOM-004 | Done |
-| [ECOM-006](ECOM-006.md) | Frontend foundation: API client, routing, server state, actor prompt | 2 | ECOM-005 | Backlog |
+| [ECOM-006](ECOM-006.md) | Frontend foundation: API client, routing, server state, actor prompt | 2 | ECOM-005 | Done |
 | [ECOM-007](ECOM-007.md) | Admin product UI: table, form, gift dialog, history | 2 | ECOM-006 | Backlog |
 | [ECOM-008](ECOM-008.md) | Storefront search UI | 2 | ECOM-006 | Backlog |
 | [ECOM-009](ECOM-009.md) | Remove the temporary weather feature | 2 | ECOM-007, ECOM-008 | Backlog |

@@ -688,3 +688,251 @@ All 19 rows of the failure table in [tasks/ECOM-005.md](tasks/ECOM-005.md) have 
 **Tests:** 132 new tests. The CI container is green: 500 backend tests, with 100% of the business-rule code tested.
 
 **Status:** ECOM-005 is ready for your review, not committed. Next is ECOM-006: the frontend foundation (API client, page routing, and the "Who is reviewing?" name prompt).
+
+---
+
+## #014 — 2026-11-21 — Owner tested ECOM-005; committed; ECOM-006 planned
+
+### User
+
+> It is working well
+>
+> I've created the items
+>
+> ```json
+> {
+>   "items": [
+>     {
+>       "id": "a9afd68e-9fdb-45bc-91c1-18daad984026",
+>       "sku": "RS-001",
+>       "name": "Running Shoes",
+>       "description": "Lightweight shoes.",
+>       "category": "Sports",
+>       "price": "89.99",
+>       "currency": "USD",
+>       "stock": 10,
+>       "weight_kg": "0.800",
+>       "gift": false,
+>       "tags": [],
+>       "status": "ACTIVE",
+>       "is_sellable": true,
+>       "version": 1,
+>       "created_at": "2026-11-21T16:50:27.113338Z",
+>       "updated_at": "2026-11-21T16:50:27.113338Z"
+>     },
+>     {
+>       "id": "40d20d85-b3d4-4ad0-a82c-4c396bfd7d6c",
+>       "sku": "GC-001",
+>       "name": "Small gift Shoes",
+>       "description": "Lightweight shoes",
+>       "category": "Gifts",
+>       "price": "0.00",
+>       "currency": "USD",
+>       "stock": 10,
+>       "weight_kg": "0.800",
+>       "gift": true,
+>       "tags": [
+>         "GIFT"
+>       ],
+>       "status": "ACTIVE",
+>       "is_sellable": true,
+>       "version": 1,
+>       "created_at": "2026-11-21T16:53:59.895056Z",
+>       "updated_at": "2026-11-21T16:53:59.895056Z"
+>     }
+>   ],
+>   "total": 2,
+>   "page": 1,
+>   "page_size": 20
+> }
+> ```
+>
+> Then changed to
+>
+> ```json
+> {
+>   "id": "40d20d85-b3d4-4ad0-a82c-4c396bfd7d6c",
+>   "sku": "GC-001",
+>   "name": "Small gift Shoes",
+>   "description": "Lightweight shoes",
+>   "category": "Gifts",
+>   "price": "0.00",
+>   "currency": "USD",
+>   "stock": 10,
+>   "weight_kg": "0.800",
+>   "gift": true,
+>   "tags": [
+>     "GIFT"
+>   ],
+>   "status": "ACTIVE",
+>   "is_sellable": true,
+>   "version": 1,
+>   "created_at": "2026-11-21T16:53:59.895056Z",
+>   "updated_at": "2026-11-21T16:53:59.895056Z"
+> }
+> ```
+>
+> And deleted (archived)
+> 40d20d85-b3d4-4ad0-a82c-4c396bfd7d6c
+>
+> And restored
+>
+> ```json
+> {
+>   "id": "40d20d85-b3d4-4ad0-a82c-4c396bfd7d6c",
+>   "sku": "GC-001",
+>   "name": "Small gift Shoes",
+>   "description": "Lightweight shoes",
+>   "category": "Gifts",
+>   "price": "0.00",
+>   "currency": "USD",
+>   "stock": 10,
+>   "weight_kg": "0.800",
+>   "gift": true,
+>   "tags": [
+>     "GIFT"
+>   ],
+>   "status": "ACTIVE",
+>   "is_sellable": true,
+>   "version": 3,
+>   "created_at": "2026-11-21T16:53:59.895056Z",
+>   "updated_at": "2026-11-21T16:59:44.644676Z"
+> }
+> ```
+>
+> All categories mapped
+>
+> ```json
+> {
+>   "items": [
+>     "Gifts",
+>     "Sports"
+>   ]
+> }
+> ```
+>
+> So All tests done. You did a great job!
+>
+> Lets commit and next task.
+
+### Assistant
+
+**ECOM-005 is committed** as `22e2ea4`, with your Swagger test recorded in the ticket.
+
+Your results are exactly what the rules say should happen. One detail, confirmed from the product's history:
+- **The "change" came back as version 1.** The values you sent were the ones the product already had, so nothing was saved and no history entry was written. That's the "nothing changed, no new version" rule working.
+- **Archiving took it to version 2 and restoring to version 3.** The gift's history reads: created → archived → restored.
+- **Names are stored exactly as typed** in the X-Actor-Name field: "x-c4-Antonio" for the create, and "X-AON-Antonio" for the archive and restore.
+
+## ECOM-006: Frontend foundation, the plan for your approval
+
+I've created `feature/ECOM-006-frontend-foundation`; nothing is built yet. This ticket needs **new packages**, and our rule is that you approve them first. The full plan and failure table are in [tasks/ECOM-006.md](tasks/ECOM-006.md).
+
+**What it will give you (business view):** the base that every screen is built on. Pages and links for the shop and the admin area. One consistent way of showing errors: messages under the right form fields, and a notice for anything else, with a reference number when the server fails. And the "Who is reviewing?" prompt that asks for your name once and attaches it to every change.
+
+**Packages to approve:**
+
+| Package | Used for |
+|---|---|
+| `@tanstack/react-query` | Loading and caching data from the API, with loading and error states |
+| `react-router` | Pages and URLs (shop, admin) |
+| `react-hook-form` + `zod` + `@hookform/resolvers` | Forms, with the same rules as the server, and server errors shown on the right field |
+| `msw` (tests only) | Fake API answers in tests: 422, 409, server errors, network down |
+| `eslint` + `typescript-eslint` + `eslint-plugin-react` + `eslint-plugin-react-hooks` + `@eslint/js` + `globals` (tests and CI only) | Code checks, including a ban on injecting raw HTML |
+| `prettier` (tests and CI only) | One code format |
+
+All of these were chosen in the architecture (§5). Each will be pinned to an exact version at least two weeks old. **One risk:** we use the new TypeScript 7, which the ESLint TypeScript plugin may not support yet. If not, ESLint still runs its React and HTML-injection checks, and the TypeScript compiler keeps checking types.
+
+**Following your rules on retries and errors:**
+- **A failed change is never retried automatically,** so a "create" can't be sent twice behind your back. Only reading data is retried, at most twice, and only when the server or network failed.
+- **The submit button is disabled while saving,** so a double click sends one request.
+- **Every kind of failure has a clear message:** field errors, conflicts, not found, server error with a reference, network down, or a broken response from the proxy.
+
+**Acceptance criteria (to be proven when built):**
+1. Routes for both areas render inside the shell.
+2. A validation problem from the API marks the matching form fields.
+3. A 5xx problem shows a notification that includes the `request_id`.
+4. The admin area asks for the reviewer's name once, and every change request carries it.
+
+**What you'll be able to test after ECOM-006:** the shell, the two areas, the name prompt (ask once, remembered, "Change" link), and "Page not found". The product screens themselves come in ECOM-007 (admin) and ECOM-008 (shop).
+
+**Status:** ECOM-005 is done and committed. **Can I add these packages and build ECOM-006?**
+
+---
+
+## #015 — 2026-11-21 — Packages added, ECOM-006 built: frontend foundation
+
+### User
+
+> yes, add the packages and build ECOM-006
+
+### Assistant
+
+**ECOM-006 is built** on `feature/ECOM-006-frontend-foundation`. It's waiting for your review and isn't committed.
+
+**Packages added, each pinned to the newest version from at least two weeks ago:**
+- `@tanstack/react-query` 5.108.2
+- `react-router` 8.5.2
+- `react-hook-form` 7.92.0
+- `zod` 4.6.7
+- `@hookform/resolvers` 7.0.8
+- `msw` 3.0.7 (tests only)
+- `prettier` 3.10.1 (tests only)
+
+**One change from the plan (D-077): ESLint is not installed.** The risk I mentioned came true, and it's worse than expected. The ESLint TypeScript plugin supports TypeScript only up to 6.0, and our TypeScript 7 has dropped the part it needs, so ESLint can't read our files at all. What ESLint was mainly for, blocking raw HTML injection, is now done by a small checker in `testing/scripts`. The build fails if anyone uses `dangerouslySetInnerHTML`, `innerHTML` or similar. It has its own 13 tests. What we lose for now are the React "hooks" rules; the tests and reviews cover them. Options are at the end.
+
+## ECOM-006: Frontend foundation
+
+### Acceptance criteria
+
+| # | Criterion | Result | How it was proven |
+|---|---|---|---|
+| 1 | Routes for both areas render inside the shell | ✅ Pass | The shop at `/`, the admin products page at `/admin/products` (`/admin` goes there), the weather page at `/weather`, and "Page not found" for anything else. All of them render inside the same header and menu, and the header links move between them. |
+| 2 | A validation problem from the API marks the matching form fields | ✅ Pass | A test form sends to a fake API that answers 422. The SKU and price fields turn red with the server's exact messages, and the cursor goes to the first one. Messages that match no field, such as "Reviewer name: Field required", are listed at the top of the form. No pop-up appears for this kind of error. |
+| 3 | A 5xx problem shows a notification that includes the `request_id` | ✅ Pass | When loading keeps failing with a server error, the app tries 3 times in total, then shows "An unexpected error occurred. Reference: req-7f3a". If the second try works, you see nothing. A failed **change** shows its reference after **one** try. |
+| 4 | The admin area asks for the reviewer's name once, and every change request carries it | ✅ Pass | The first visit to Admin asks "Who is reviewing?" and hides the page until you answer. The name is remembered when you come back. Archive and restore both send it, and "Łukasz" arrives intact. The shop never asks. |
+
+**I also checked that the tests can fail.** I broke the rules on purpose: once to let a failed change retry, once to let a "not found" retry. The tests turned red both times, and the code was put back.
+
+**What was built**
+- **The frame of the website:** a header with **Shop** and **Admin**, a page for each, and "Page not found" for wrong addresses.
+- **"Who is reviewing?"** Asked once, remembered, and changeable with **Change**. Even with browser storage blocked, it works for the session.
+- **One way to talk to the API and show its errors:** messages under the right fields, and a pop-up for other problems. Server errors show a reference number, so a log line can be found.
+
+**Why it was built**
+Every screen from now on (admin products in ECOM-007, shop search in ECOM-008, import, checkout) sits on this frame. Errors will look the same everywhere, and no change can be sent without your name.
+
+**Main goal**
+A reliable base: clear errors, no change ever repeated automatically, and no change without a name.
+
+**Human testable or background?**
+**Partly testable**, in the browser. The pages and the name prompt can be tried now. The error messages on forms become visible in ECOM-007, when the first real form talks to the API; for now the tests prove them.
+
+**What to test** (http://localhost:3000)
+1. Open **http://localhost:3000**. → A dark header with **E-commerce**, **Shop** and **Admin**, and a "Shop" page saying search arrives in ECOM-008.
+2. Click **Admin**. → A window asks **"Who is reviewing?"**. Click **Continue** with the box empty. → "Tell us who is making this change."
+3. Type your name and click **Continue**. → "Admin, Reviewing as <your name>", with a **Products** tab, and the address becomes `/admin/products`.
+4. **Refresh the page (F5).** → You're not asked again.
+5. Click **Change**, type another name and click **Continue**. → The header shows the new name. Try **Cancel** too: the name stays.
+6. Go to **http://localhost:3000/anything**. → "Page not found", with a link back to the shop.
+7. Go to **http://localhost:3000/weather**. → The temporary weather page still works.
+8. Optional: open a private window and go to Admin. → It asks again, since that window has its own storage.
+
+### Failure cases and retries
+
+All 12 rows of the failure table in [tasks/ECOM-006.md](tasks/ECOM-006.md) have tests, and all pass. These matter most for the business:
+- **A failed change is never repeated automatically.** One click is one request, even when the server fails.
+- **Double click on a save button:** one request; the button is disabled while saving.
+- **Server or network trouble when reading:** two quiet retries, then a clear message.
+- **A broken answer from the server** (an HTML error page, or text instead of data): a clear message, never a blank or crashed screen.
+
+**Tests:** 54 new tests: 41 for the frontend and 13 for the raw-HTML checker. The CI container is green: all checks including Prettier and the HTML check, 33 tooling tests, 500 backend tests and 47 frontend tests. The running site has been rebuilt, and the smoke test passes on it.
+
+**Known local issue:** on this Windows machine, the frontend tests sometimes stop before starting ("failed to find the runner") and pass on the next run. It never happened in the CI container, which is the reference.
+
+**Your choice on linting (D-077, no rush):**
+- **A. Keep it as it is.** The raw-HTML checker and strict TypeScript are in place, and ESLint comes back when its TypeScript plugin supports TypeScript 7. This is my recommendation for now.
+- **B. Approve `oxlint`.** It's a single fast linter that reads TypeScript without the compiler, and should cover the React and hooks rules. I'd confirm that at install time.
+- **C. Approve ESLint 9 with Babel's TypeScript parser.** That's more packages (`@babel/eslint-parser` and its presets).
+
+**Status:** ECOM-006 is ready for your review, not committed. Next is ECOM-007: the admin product screen (table, form, gift confirmation, history).

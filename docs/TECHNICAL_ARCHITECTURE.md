@@ -15,6 +15,7 @@
 > | 9 | 2026-11-21 | §8.2 makes failure cases with their responses, retries and stock safety a required part of every ticket's tests (D-072). §4.4 adds `ProductAlreadyExists` for a retried create. |
 > | 10 | 2026-11-21 | ECOM-004: the audit trail as built (§6.4, D-073). The coverage gate now includes `catalog.application`. |
 > | 11 | 2026-11-21 | ECOM-005: the product API as built (§4.5). The zero-price code is `zero_price_requires_gift` everywhere, and a retried PUT whose changes are already in place returns 200 (§4.3, D-075). |
+> | 12 | 2026-11-21 | ECOM-006: the frontend foundation. Package versions are pinned; mutations are never retried automatically (D-076). ESLint is replaced by a raw-HTML check until `typescript-eslint` supports TypeScript 7 (§5, D-077). |
 >
 > Every decision here also appears in [JOURNAL.md](JOURNAL.md) with its context and the alternatives considered.
 
@@ -444,7 +445,7 @@ Domain validation **collects every issue before raising**, rather than stopping 
 | Forms | `react-hook-form` + `zod`. These mirror the server rules; the server stays authoritative. |
 | Styling | CSS Modules (no UI framework) |
 | Cart | Client-side, stored in `localStorage`. The server re-validates and re-prices it at checkout. |
-| Quality | ESLint, including `react/no-danger`. Prettier. `tsc --noEmit`. |
+| Quality | Prettier, `tsc --noEmit` (strict) and a raw-HTML check that refuses `dangerouslySetInnerHTML`, `innerHTML` and similar (D-077). ESLint returns when `typescript-eslint` supports TypeScript 7. |
 | Tests | **Vitest** + **React Testing Library** + **MSW**, with specs in `testing/frontend`. **Playwright** for E2E, with specs in `testing/e2e`. |
 
 **Screens**
