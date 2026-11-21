@@ -1,11 +1,13 @@
 import { NavLink, Outlet } from 'react-router'
 
+import { useCart } from '../cart/CartContext'
 import styles from './AppShell.module.css'
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   isActive ? `${styles.link} ${styles.active}` : styles.link
 
 export function AppShell() {
+  const { count } = useCart()
   return (
     <div className={styles.shell}>
       <header className={styles.header}>
@@ -20,6 +22,9 @@ export function AppShell() {
             Admin
           </NavLink>
         </nav>
+        <p className={styles.cart} aria-live="polite">
+          Cart: {count} {count === 1 ? 'item' : 'items'}
+        </p>
       </header>
       <main className={styles.main}>
         <Outlet />

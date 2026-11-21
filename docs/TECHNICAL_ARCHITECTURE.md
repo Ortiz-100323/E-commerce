@@ -19,6 +19,7 @@
 > | 13 | 2026-11-21 | ECOM-007: the admin product screens. The edit form keeps the version it opened with, so a background refresh can never overwrite another admin's change (D-078). Package versions corrected (D-079). |
 > | 14 | 2026-11-21 | Gifts are always free: the gift invariant is now two-way, in the domain, the API and the database, and migration 0004 fixed the existing data (§4.2, §4.4, D-083). The page is served with `Cache-Control: no-cache` (D-084). |
 > | 15 | 2026-11-21 | The frontend coverage gate (≥ 80%, §8.2) is enforced by `run.py frontend` with `@vitest/coverage-v8` (D-086). |
+> | 16 | 2026-11-21 | ECOM-008: the shop search page, with every filter in the URL, and a minimal cart that never holds more than the stock shown (D-087). |
 >
 > Every decision here also appears in [JOURNAL.md](JOURNAL.md) with its context and the alternatives considered.
 

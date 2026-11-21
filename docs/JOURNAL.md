@@ -1129,3 +1129,18 @@ Template:
   - **Fix:** `"overrides": { "vitest": "5.1.0" }` in `frontend/package.json`. The `$vitest` reference form doesn't work for dev dependencies.
   - The lock file had to be rebuilt from scratch. All direct dependencies stay pinned to their exact versions; only the packages they depend on were re-resolved, and those had already been resolved to their newest versions earlier the same day.
   - The full CI suite passes on the new lock file.
+
+### D-087: The shop's search page and a minimal cart (ECOM-008)
+- **Date:** 2026-11-21
+- **Status:** Accepted (owner tested and accepted ECOM-008 in prompt #021)
+- **Decision:**
+  - **The whole search lives in the URL:** `q`, `category`, `min_price`, `max_price`, `in_stock`, `tag`, `sort` and `page`. Only values that differ from the defaults are written, so links stay short. Values that can't be valid (a page that isn't a number, an unknown sort or tag, a negative or non-numeric price, or a minimum above the maximum) are dropped and the defaults used, so a hand-edited link never shows an error page.
+  - **The shop always asks for `status=ACTIVE`.** Archived products never appear in the list. Their product page still opens (old links keep working) but says "This product is no longer available", with the button disabled.
+  - **The text filters apply on Search; the lists and check boxes apply at once.** Price fields are checked before anything is sent.
+  - **A minimal cart now,** so "cannot be added to the cart" can be proven. It is kept in `localStorage` (`ecommerce.cart`), as §5 plans, with an in-memory fallback, and the header shows "Cart: N items". It never holds more than the stock shown: a click at the limit is refused, and the button says "Only N in stock". The cart page and checkout come in ECOM-015, and the server re-checks stock with row locks at checkout (ECOM-014, §7.3).
+  - **Gifts show "Free"** instead of $0.00, next to the Gift badge.
+  - **12 products per page,** which fits a grid of 3 or 4 columns.
+  - **Read hooks are shared:** `src/api/productQueries.ts` serves both the shop and the admin area.
+- **Alternatives:**
+  - Searching on every keystroke (rejected for now: an explicit Search is simpler to test and sends fewer requests; it can move to ECOM-018).
+  - Hiding archived product pages with a 404 (rejected: an old shared link would look broken instead of explaining).

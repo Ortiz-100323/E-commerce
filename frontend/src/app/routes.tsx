@@ -4,6 +4,7 @@ import { AdminLayout } from '../features/admin/AdminLayout'
 import { EditProductPage, NewProductPage } from '../features/admin/products/ProductFormPages'
 import { ProductHistoryPage } from '../features/admin/products/ProductHistoryPage'
 import { ProductsTablePage } from '../features/admin/products/ProductsTablePage'
+import { ProductDetailPage } from '../features/storefront/ProductDetailPage'
 import { StorefrontPage } from '../features/storefront/StorefrontPage'
 import { WeatherPage } from '../features/weather/WeatherPage'
 import { AppShell } from './AppShell'
@@ -14,6 +15,7 @@ export const routes: RouteObject[] = [
     element: <AppShell />,
     children: [
       { index: true, element: <StorefrontPage /> },
+      { path: 'products/:productId', element: <ProductDetailPage /> },
       {
         path: 'admin',
         element: <AdminLayout />,

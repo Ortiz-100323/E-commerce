@@ -85,6 +85,7 @@ export function fakeCatalog(seed: Partial<Product>[] = []) {
   const products = new Map<string, Product>()
   const history = new Map<string, HistoryEntry[]>()
   const requests: Recorded[] = []
+  const lists: Record<string, string>[] = []
 
   const log = (product: Product, event: string, actor: string, before: unknown, after: unknown) => {
     const entries = history.get(product.id) ?? []
@@ -200,10 +201,25 @@ export function fakeCatalog(seed: Partial<Product>[] = []) {
   server.use(
     http.get(`${API}/products`, ({ request }) => {
       const url = new URL(request.url)
-      const q = (url.searchParams.get('q') ?? '').toLowerCase()
-      const status = url.searchParams.get('status') ?? 'ACTIVE'
-      const page = Number(url.searchParams.get('page') ?? '1')
-      const size = Number(url.searchParams.get('page_size') ?? '20')
+      const param = (key: string) => url.searchParams.get(key)
+      lists.push(Object.fromEntries(url.searchParams.entries()))
+      const q = (param('q') ?? '').toLowerCase()
+      const status = param('status') ?? 'ACTIVE'
+      const category = (param('category') ?? '').toLowerCase()
+      const minPrice = param('min_price')
+      const maxPrice = param('max_price')
+      const inStock = param('in_stock')
+      const tag = param('tag')
+      const sort = param('sort') ?? 'name'
+      const page = Number(param('page') ?? '1')
+      const size = Number(param('page_size') ?? '20')
+      const keys: Record<string, (product: Product) => string | number> = {
+        name: (product) => product.name.toLowerCase(),
+        price: (product) => Number(product.price),
+        created_at: (product) => product.created_at,
+      }
+      const key = keys[sort.replace('-', '')] ?? keys.name
+      const direction = sort.startsWith('-') ? -1 : 1
       const matching = [...products.values()]
         .filter((product) => status === 'ALL' || product.status === status)
         .filter((product) =>
@@ -211,7 +227,16 @@ export function fakeCatalog(seed: Partial<Product>[] = []) {
             text.toLowerCase().includes(q),
           ),
         )
-        .sort((left, right) => left.name.toLowerCase().localeCompare(right.name.toLowerCase()))
+        .filter((product) => category === '' || product.category.toLowerCase() === category)
+        .filter((product) => minPrice === null || Number(product.price) >= Number(minPrice))
+        .filter((product) => maxPrice === null || Number(product.price) <= Number(maxPrice))
+        .filter((product) => inStock === null || (inStock === 'true') === product.stock > 0)
+        .filter((product) => tag === null || product.tags.includes(tag))
+        .sort((left, right) => {
+          const a = key(left)
+          const b = key(right)
+          return (a < b ? -1 : a > b ? 1 : 0) * direction
+        })
       return HttpResponse.json({
         items: matching.slice((page - 1) * size, page * size),
         total: matching.length,
@@ -310,6 +335,7 @@ export function fakeCatalog(seed: Partial<Product>[] = []) {
     products,
     history,
     requests,
+    lists,
     bySku: (sku: string) => [...products.values()].find((product) => product.sku === sku),
     edit: (sku: string, changes: Partial<Product>) => {
       const current = [...products.values()].find((product) => product.sku === sku)

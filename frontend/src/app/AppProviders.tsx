@@ -2,6 +2,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 
 import { ActorProvider } from '../actor/ActorContext'
+import { CartProvider } from '../cart/CartContext'
 import { NotificationProvider, useNotify } from '../notifications/NotificationContext'
 import { createQueryClient } from './queryClient'
 
@@ -20,7 +21,9 @@ export function AppProviders({ children, retryDelay }: Props) {
   return (
     <NotificationProvider>
       <ActorProvider>
-        <QueryProvider retryDelay={retryDelay}>{children}</QueryProvider>
+        <CartProvider>
+          <QueryProvider retryDelay={retryDelay}>{children}</QueryProvider>
+        </CartProvider>
       </ActorProvider>
     </NotificationProvider>
   )

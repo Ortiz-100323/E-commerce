@@ -1195,3 +1195,68 @@ Good to hear: **re-test 2 passed.** GF-04 was created as a free gift with only t
 **Tests:** the CI container is green: all checks, 34 tooling, 505 backend and 75 frontend tests (with the coverage check), and the smoke checks.
 
 **Status:** ECOM-007 has passed your re-test and its definition of done. **Shall I commit it and start ECOM-008** (the shop's product search page)?
+
+---
+
+## #020 — 2026-11-21 — ECOM-007 committed, ECOM-008 built: the shop
+
+### User
+
+> Perfect, commit and lets go for next one.
+
+### Assistant
+
+**ECOM-007 is committed** as `f47c000`. **ECOM-008 is built** on `feature/ECOM-008-storefront-search`; it's waiting for your review and isn't committed. No new packages were needed.
+
+## ECOM-008: The shop's search page
+
+### Acceptance criteria
+
+| # | Criterion | Result | How it was proven |
+|---|---|---|---|
+| 1 | Typing a query and applying filters updates the results and the URL | ✅ Pass | Searching "shoes", ticking "In stock only" and sorting by price narrow the list each time. The address becomes `?q=shoes&in_stock=true&sort=-price`. Category, price range and "Gifts only" work the same way, and so do all 5 sort orders and the pages. |
+| 2 | Reloading the page keeps the same search | ✅ Pass | The page is opened, closed and opened again at the same address. The results, the search box, the check boxes and the sort order all come back the same. |
+| 3 | Gift products show the badge | ✅ Pass | Gifts show the **Gift** badge and the price **"Free"**, in the list and on their own page. |
+| 4 | Out-of-stock products cannot be added to the cart | ✅ Pass | An out-of-stock product shows "Out of stock" and its button is disabled. A product with 2 in stock, clicked 3 times fast, stops at 2: "Only 2 in stock". I loosened that limit by one on purpose, and the test caught it. |
+
+**What was built**
+- **The shop page** (http://localhost:3000):
+  - search by name, SKU or description;
+  - filters for category, minimum and maximum price, "In stock only" and "Gifts only";
+  - 5 sort orders, and pages of 12 products.
+- **Everything is in the address,** so a refresh or a shared link shows the same results. A badly edited link never breaks the page: wrong values are simply ignored.
+- **A page for each product,** with its price ("Free" for gifts), description, category, weight, stock and **Add to cart**.
+- **A simple cart** that counts items in the header ("Cart: 2 items") and survives a refresh. **It never holds more than the stock.** The cart page and checkout come in ECOM-015, and the server checks stock again at payment (ECOM-014).
+
+**Why it was built**
+Challenge rules CC-05 (search) and CC-07 (a usable interface). It's the shopper's half of the store.
+
+**Main goal**
+Shoppers find products easily, and can never put more in the cart than there is.
+
+**Human testable or background?**
+**Testable** in the browser. Your own products are already there. I checked the shop's search against your data: 7 active products, 3 of them gifts.
+
+**What to test** (http://localhost:3000; refresh once to get the new version)
+1. **Shop:** your 7 products appear as cards. The 3 gifts say **Free**, with a **Gift** badge.
+2. **Search:** type `shoes` and press **Search**. → Only shoes. The address shows `?q=shoes`.
+3. **Gifts only:** click **Shop** in the header to clear the search, then tick **Gifts only**. → Collar gift, shoes for gift and Small gift Shoes.
+4. **Filters together:** click **Shop**, choose Category **Sports**, type Min price `50` and press **Search**. → Normal shoes, Running Shoes and Trail Shoes.
+5. **Sort** by "Price: high to low". → Trail Shoes first.
+6. **Refresh the page (F5).** → Same results, same filters.
+7. **Wrong prices:** Min `100`, Max `10`, **Search**. → "The minimum price must not be above the maximum." and nothing changes.
+8. **Product page:** click **Running Shoes**, then **Add to cart**. → "Added to cart", and the header says "Cart: 1 item". Keep clicking: it stops at the stock ("Only N in stock").
+9. **Out of stock:** in Admin, set a product's stock to 0, then open it in the shop. → "Out of stock", and the button can't be clicked.
+10. **Wrong link:** http://localhost:3000/products/abc → "Product not found", with a link back to the shop.
+
+### Failure cases and retries
+
+All 13 rows of the failure table in [tasks/ECOM-008.md](tasks/ECOM-008.md) have tests, and all pass. These matter most for the business:
+- **Never more than the stock:** an out-of-stock product can't be added, the cart stops at the stock even with fast clicks, and an archived product says "No longer available".
+- **Bad input never breaks the page:** wrong prices get a message and send nothing, and bad links fall back to the normal list.
+- **Server trouble:** a clear message with **Try again**.
+- **A small accessibility bug found by the tests:** the price error messages had been placed inside the field labels, which garbled the field names for screen readers. Fixed.
+
+**Tests:** 19 new tests for the shop. The CI container is green: all checks, 34 tooling, 505 backend and 94 frontend tests (96% coverage), and the smoke checks. Every test also checks the whole page for errors, as you asked.
+
+**Status:** ECOM-008 is ready for your review, not committed. Next is ECOM-009: removing the temporary weather feature from ECOM-000.

@@ -3,6 +3,7 @@ import { cleanup } from '@testing-library/react'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, vi, type MockInstance } from 'vitest'
 
 import { forgetActorInMemory } from '../../frontend/src/actor/actorStorage'
+import { forgetCartInMemory } from '../../frontend/src/cart/cart'
 import {
   errorNotificationsOnPage,
   pageShowsUnexpectedError,
@@ -29,6 +30,7 @@ afterEach(() => {
   server.resetHandlers()
   window.localStorage.clear()
   forgetActorInMemory()
+  forgetCartInMemory()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
   expect(unexpected, 'the app reported an unexpected error').toEqual([])
