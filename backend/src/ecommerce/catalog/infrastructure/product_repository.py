@@ -11,6 +11,7 @@ from ecommerce.catalog.domain.errors import (
     ProductNotFound,
     VersionConflict,
 )
+from ecommerce.catalog.domain.events import ProductEvent
 from ecommerce.catalog.domain.product import Product, ProductDetails, ProductId, ProductStatus
 from ecommerce.catalog.domain.value_objects import (
     Category,
@@ -32,6 +33,14 @@ SKU_UNIQUE_INDEX = "uq_products_sku"
 class SqlAlchemyProductRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+        self._stored_events: list[ProductEvent] = []
+
+    def take_stored_events(self) -> list[ProductEvent]:
+        events, self._stored_events = self._stored_events, []
+        return events
+
+    def forget_stored_events(self) -> None:
+        self._stored_events = []
 
     async def add(self, product: Product) -> None:
         row = {
@@ -50,6 +59,7 @@ class SqlAlchemyProductRepository:
             if is_violation_of(error, SKU_UNIQUE_INDEX):
                 raise DuplicateSku(product.sku.value) from error
             raise
+        self._stored_events.extend(product.pull_events())
 
     async def get(self, product_id: ProductId) -> Product | None:
         return await self._first(select(products).where(products.c.id == product_id))
@@ -58,6 +68,8 @@ class SqlAlchemyProductRepository:
         return await self._first(select(products).where(products.c.sku == sku.value))
 
     async def save(self, product: Product) -> None:
+        if not product.has_pending_events:
+            return
         statement = (
             update(products)
             .where(products.c.id == product.id, products.c.version == product.version)
@@ -74,6 +86,7 @@ class SqlAlchemyProductRepository:
                 product.id, expected_version=product.version, current_version=current
             )
         product.bump_version()
+        self._stored_events.extend(product.pull_events())
 
     async def _first(self, statement: Any) -> Product | None:
         row = (await self._session.execute(statement)).mappings().first()

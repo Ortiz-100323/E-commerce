@@ -1,8 +1,15 @@
 from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import UTC, datetime
+from types import TracebackType
+from typing import Self
 
+from ecommerce.catalog.application.unit_of_work import CatalogUnitOfWorkFactory
+from ecommerce.catalog.domain.product import Product, ProductId
+from ecommerce.catalog.domain.value_objects import Sku
 from ecommerce.main import Dependencies
+from ecommerce.shared_kernel.application.audit import AuditEntry
+from ecommerce.shared_kernel.domain.actor import Actor
 from ecommerce.weather.domain.city import City
 from ecommerce.weather.domain.weather_search import CurrentWeather, Location, WeatherSearch
 
@@ -61,17 +68,85 @@ class SequenceClock:
         return moment
 
 
+class InMemoryProductRepository:
+    def __init__(self) -> None:
+        self.items: dict[ProductId, Product] = {}
+
+    async def add(self, product: Product) -> None:
+        self.items[product.id] = product
+
+    async def get(self, product_id: ProductId) -> Product | None:
+        return self.items.get(product_id)
+
+    async def get_by_sku(self, sku: Sku) -> Product | None:
+        return next((item for item in self.items.values() if item.sku == sku), None)
+
+    async def save(self, product: Product) -> None:
+        self.items[product.id] = product
+
+
+class InMemoryAuditLog:
+    def __init__(self) -> None:
+        self.entries: list[AuditEntry] = []
+
+    async def entries_for(self, entity: str, entity_id: str) -> list[AuditEntry]:
+        return [
+            entry
+            for entry in self.entries
+            if (entry.entity, entry.entity_id) == (entity, entity_id)
+        ]
+
+
+class InMemoryCatalogUnitOfWork:
+    def __init__(self, catalog: "InMemoryCatalog", actor: Actor | None) -> None:
+        self.products = catalog.products
+        self.audit_log = catalog.audit_log
+        self.actor = actor
+        self.committed = False
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        return None
+
+    async def commit(self) -> None:
+        self.committed = True
+
+    async def rollback(self) -> None:
+        return None
+
+
+class InMemoryCatalog:
+    def __init__(self) -> None:
+        self.products = InMemoryProductRepository()
+        self.audit_log = InMemoryAuditLog()
+        self.opened: list[InMemoryCatalogUnitOfWork] = []
+
+    def __call__(self, actor: Actor | None = None) -> InMemoryCatalogUnitOfWork:
+        work = InMemoryCatalogUnitOfWork(self, actor)
+        self.opened.append(work)
+        return work
+
+
 def dependencies_factory(
     *,
     provider: FakeWeatherProvider | None = None,
     repository: InMemoryWeatherSearchRepository | None = None,
     database_up: bool = True,
     clock: SequenceClock | None = None,
+    catalog: CatalogUnitOfWorkFactory | None = None,
 ) -> Callable[[], AbstractAsyncContextManager[Dependencies]]:
     dependencies = Dependencies(
         weather_provider=provider or FakeWeatherProvider(),
         weather_repository=repository or InMemoryWeatherSearchRepository(),
         database_probe=FakeDatabaseProbe(database_up),
+        catalog_unit_of_work=catalog or InMemoryCatalog(),
         clock=clock or SequenceClock(),
     )
 

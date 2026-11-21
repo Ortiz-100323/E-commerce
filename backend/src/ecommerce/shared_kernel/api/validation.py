@@ -107,9 +107,9 @@ def field_error_from_pydantic(error: Mapping[str, Any]) -> FieldError:
     )
 
 
-def field_error_from_issue(issue: ValidationIssue) -> FieldError:
+def field_error_from_issue(issue: ValidationIssue, location: str = "body") -> FieldError:
     return FieldError(
-        location="body",
+        location=location,
         field=issue.field,
         code=issue.code,
         message=issue.message,

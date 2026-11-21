@@ -17,10 +17,12 @@ from ecommerce.catalog.domain.errors import (
 from ecommerce.catalog.domain.product import INITIAL_VERSION, Product, ProductId
 from ecommerce.catalog.domain.value_objects import MAX_PRICE, MAX_STOCK, MAX_WEIGHT_KG, Sku
 from ecommerce.catalog.infrastructure.unit_of_work import SqlAlchemyCatalogUnitOfWork
+from ecommerce.shared_kernel.domain.actor import Actor
 from ecommerce.shared_kernel.infrastructure.database import create_session_factory
 
 CREATED_AT = datetime(2026, 11, 21, 10, 0, 0, 123456, tzinfo=UTC)
 LATER = CREATED_AT + timedelta(hours=1)
+TESTER = Actor("Tester")
 
 
 def product_id(number: int) -> ProductId:
@@ -52,7 +54,7 @@ def sessions(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
 
 
 def unit_of_work(sessions: async_sessionmaker[AsyncSession]) -> SqlAlchemyCatalogUnitOfWork:
-    return SqlAlchemyCatalogUnitOfWork(sessions)
+    return SqlAlchemyCatalogUnitOfWork(sessions, TESTER)
 
 
 async def store(sessions: async_sessionmaker[AsyncSession], *products: Product) -> None:
@@ -328,9 +330,12 @@ async def test_a_failed_save_can_be_retried_after_reloading(
 async def test_save_of_a_product_that_was_never_stored_raises_not_found(
     sessions: async_sessionmaker[AsyncSession],
 ) -> None:
+    never_stored = make_product()
+    never_stored.rename("Trail Shoes", at=LATER)
+
     async with unit_of_work(sessions) as work:
         with pytest.raises(ProductNotFound):
-            await work.products.save(make_product())
+            await work.products.save(never_stored)
 
 
 async def test_the_repository_is_only_available_inside_the_unit_of_work(

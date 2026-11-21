@@ -13,6 +13,7 @@
 > | 7 | 2026-11-21 | ECOM-002: the catalog domain is built. §4.2 gains upper limits that match the database columns, the `revise` behaviour, and the rules for no-op changes and archived products (D-068). §8.3 adds the catalog domain contract and an import test. |
 > | 8 | 2026-11-21 | ECOM-003: products are stored with Core tables and explicit translation instead of ORM imperative mapping (§4.1, D-071). §4.4 describes the `products` table, its constraints and optimistic locking as built. §8.3 adds the catalog layers contract. |
 > | 9 | 2026-11-21 | §8.2 makes failure cases with their responses, retries and stock safety a required part of every ticket's tests (D-072). §4.4 adds `ProductAlreadyExists` for a retried create. |
+> | 10 | 2026-11-21 | ECOM-004: the audit trail as built (§6.4, D-073). The coverage gate now includes `catalog.application`. |
 >
 > Every decision here also appears in [JOURNAL.md](JOURNAL.md) with its context and the alternatives considered.
 
@@ -636,6 +637,14 @@ Each policy is a domain strategy. The composition root selects one from the sett
 - the trigger rejects `UPDATE` and `DELETE`;
 - the history endpoint returns the right timeline;
 - after the 6 review rows are resolved, the golden import test finds exactly 6 resolution entries.
+
+**As built (ECOM-004, D-073)**
+- `audit_log` has a bigint identity `id`, which gives the order, plus the columns above, with JSONB `before`/`after`/`context`. A per-statement trigger refuses every `UPDATE` and `DELETE`.
+- When `add` or `save` succeeds, the product repository takes the product's events. `commit()` maps them to entries with the unit of work's actor and inserts them just before the database commit. A unit of work opened without an actor can read, but it can't commit changes (`ActorRequired`).
+- A save with no pending events is skipped, so a request that changes nothing creates no new version and no entry.
+- Event names are `product.created`, `product.changed` (only the changed fields), `product.archived`, `product.restored` and `product.stock_decreased` (with the quantity and the order reference in `context`).
+- `X-Actor-Name` is read by the `require_actor` dependency: percent-decoded UTF-8, trimmed, 1–100 characters, no control characters. Errors are 422 `validation-error` with `location: "header"`.
+- `GET /api/v1/products/{id}/history` returns `{product_id, entries}`, oldest first, or 404 if the product doesn't exist.
 
 ### 6.5 SKU identity: does this SKU already belong to a different product?
 

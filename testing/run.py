@@ -68,7 +68,11 @@ def tooling_steps() -> list[Step]:
     return pytest_steps("tooling tests", "testing/tooling")
 
 
-COVERED_PACKAGES = ["ecommerce.catalog.domain", "ecommerce.shared_kernel.domain"]
+COVERED_PACKAGES = [
+    "ecommerce.catalog.domain",
+    "ecommerce.catalog.application",
+    "ecommerce.shared_kernel.domain",
+]
 COVERAGE_THRESHOLD = 95
 
 

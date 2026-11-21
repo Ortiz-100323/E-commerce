@@ -246,6 +246,10 @@ class Product:
     def bump_version(self) -> None:
         self._version += 1
 
+    @property
+    def has_pending_events(self) -> bool:
+        return bool(self._events)
+
     def pull_events(self) -> list[ProductEvent]:
         events, self._events = self._events, []
         return events

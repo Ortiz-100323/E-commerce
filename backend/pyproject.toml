@@ -70,10 +70,10 @@ layers = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "Catalog layers: infrastructure depends on application, which depends on domain"
+name = "Catalog layers: api and infrastructure depend on application, which depends on domain"
 type = "layers"
 layers = [
-    "ecommerce.catalog.infrastructure",
+    "ecommerce.catalog.api | ecommerce.catalog.infrastructure",
     "ecommerce.catalog.application",
     "ecommerce.catalog.domain",
 ]

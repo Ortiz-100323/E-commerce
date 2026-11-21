@@ -7,6 +7,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from ecommerce.shared_kernel.api.actor import InvalidHeader
 from ecommerce.shared_kernel.api.problem_details import (
     INTERNAL_ERROR,
     MALFORMED_REQUEST,
@@ -52,6 +53,13 @@ async def handle_domain_validation(request: Request, exc: Exception) -> Response
     return validation_problem(request, [field_error_from_issue(issue) for issue in exc.issues])
 
 
+async def handle_invalid_header(request: Request, exc: Exception) -> Response:
+    assert isinstance(exc, InvalidHeader)
+    return validation_problem(
+        request, [field_error_from_issue(issue, location="header") for issue in exc.issues]
+    )
+
+
 async def handle_not_found(request: Request, exc: Exception) -> Response:
     assert isinstance(exc, NotFoundError)
     return problem_response(request, NOT_FOUND, detail=exc.detail)
@@ -89,6 +97,7 @@ def install_problem_handlers(
     app.add_exception_handler(RequestValidationError, handle_request_validation)
     app.add_exception_handler(StarletteHTTPException, handle_http_exception)
     app.add_exception_handler(DomainValidationError, handle_domain_validation)
+    app.add_exception_handler(InvalidHeader, handle_invalid_header)
     app.add_exception_handler(NotFoundError, handle_not_found)
     for exception_type, mapping in mappings.items():
         app.add_exception_handler(exception_type, mapped_handler(mapping))

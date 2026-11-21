@@ -18,9 +18,10 @@ def test_lint_runs_every_static_check(runner: ModuleType) -> None:
     assert names == ["ruff check", "ruff format", "import-linter", "mypy", "tsc"]
 
 
-def test_backend_tests_enforce_domain_coverage(runner: ModuleType) -> None:
+def test_backend_tests_enforce_domain_and_application_coverage(runner: ModuleType) -> None:
     command = runner.COMMANDS["backend"]()[0].command
     assert "--cov=ecommerce.catalog.domain" in command
+    assert "--cov=ecommerce.catalog.application" in command
     assert "--cov=ecommerce.shared_kernel.domain" in command
     assert "--cov-fail-under=95" in command
 

@@ -6,11 +6,18 @@ import httpx
 from fastapi import FastAPI
 from sqlalchemy.exc import OperationalError
 
+from ecommerce.catalog.api.router import router as catalog_router
+from ecommerce.catalog.application.unit_of_work import CatalogUnitOfWorkFactory
+from ecommerce.catalog.infrastructure.unit_of_work import SqlAlchemyCatalogUnitOfWorkFactory
 from ecommerce.shared_kernel.api.exception_handlers import install_problem_handlers
 from ecommerce.shared_kernel.api.health_router import router as health_router
 from ecommerce.shared_kernel.api.problem_details import SERVICE_UNAVAILABLE, ProblemMapping
 from ecommerce.shared_kernel.application.ports import Clock, DatabaseProbe, SystemClock
-from ecommerce.shared_kernel.infrastructure.database import SqlAlchemyDatabaseProbe, create_engine
+from ecommerce.shared_kernel.infrastructure.database import (
+    SqlAlchemyDatabaseProbe,
+    create_engine,
+    create_session_factory,
+)
 from ecommerce.shared_kernel.infrastructure.logging import configure_logging
 from ecommerce.shared_kernel.infrastructure.request_id_middleware import RequestIdMiddleware
 from ecommerce.shared_kernel.infrastructure.settings import Settings
@@ -33,6 +40,7 @@ class Dependencies:
     weather_provider: WeatherProvider
     weather_repository: WeatherSearchRepository
     database_probe: DatabaseProbe
+    catalog_unit_of_work: CatalogUnitOfWorkFactory
     clock: Clock
 
 
@@ -51,6 +59,9 @@ async def production_dependencies() -> AsyncIterator[Dependencies]:
                 ),
                 weather_repository=SqlAlchemyWeatherSearchRepository(engine),
                 database_probe=SqlAlchemyDatabaseProbe(engine),
+                catalog_unit_of_work=SqlAlchemyCatalogUnitOfWorkFactory(
+                    create_session_factory(engine)
+                ),
                 clock=SystemClock(),
             )
     finally:
@@ -64,6 +75,7 @@ def create_app(dependencies_factory: DependenciesFactory = production_dependenci
             app.state.weather_provider = dependencies.weather_provider
             app.state.weather_repository = dependencies.weather_repository
             app.state.database_probe = dependencies.database_probe
+            app.state.catalog_unit_of_work = dependencies.catalog_unit_of_work
             app.state.clock = dependencies.clock
             yield
 
@@ -71,6 +83,7 @@ def create_app(dependencies_factory: DependenciesFactory = production_dependenci
     app.add_middleware(RequestIdMiddleware)
     install_problem_handlers(app, {**INFRASTRUCTURE_PROBLEMS, **WEATHER_PROBLEMS})
     app.include_router(health_router, prefix=API_PREFIX)
+    app.include_router(catalog_router, prefix=API_PREFIX)
     app.include_router(weather_router, prefix=API_PREFIX)
     return app
 

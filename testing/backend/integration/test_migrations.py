@@ -39,3 +39,15 @@ def test_the_products_migration_downgrades_and_upgrades_cleanly(test_database_ur
         upgrade_to_head(test_database_url)
 
     assert "products" in table_names(test_database_url)
+
+
+def test_the_audit_log_migration_downgrades_and_upgrades_cleanly(test_database_url: str) -> None:
+    config = alembic_config(test_database_url)
+    try:
+        command.downgrade(config, "0002")
+        assert "audit_log" not in table_names(test_database_url)
+        assert "products" in table_names(test_database_url)
+    finally:
+        upgrade_to_head(test_database_url)
+
+    assert "audit_log" in table_names(test_database_url)

@@ -578,6 +578,28 @@ def test_a_product_can_be_rebuilt_from_stored_state_without_events() -> None:
     assert product.pull_events() == []
 
 
+def test_pending_events_are_reported_until_they_are_pulled() -> None:
+    product = existing()
+    assert not product.has_pending_events
+
+    product.rename("Trail Shoes", at=LATER)
+    assert product.has_pending_events
+
+    product.pull_events()
+    assert not product.has_pending_events
+
+
+def test_a_change_to_the_same_value_leaves_nothing_pending() -> None:
+    product = existing()
+
+    product.rename(product.name.value, at=LATER)
+    product.archive(at=LATER)
+    product.pull_events()
+    product.archive(at=LATER)
+
+    assert not product.has_pending_events
+
+
 def test_bump_version_moves_to_the_next_version_without_events() -> None:
     product = existing()
 

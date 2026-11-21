@@ -486,3 +486,130 @@ The running stack updated its database automatically when it started.
 **Tests:** 34 new tests against the real database, covering all 5 acceptance criteria. The CI container is green: 294 backend tests, with 100% of the business-rule code tested.
 
 **Status:** ECOM-003 is ready for your review, not committed. Next is ECOM-004: the audit trail, which records who changed what, when, and the value before and after.
+
+---
+
+## #011 — 2026-11-21 — Failure, retry and stock tests; ECOM-003 committed; ECOM-004 plan
+
+### User
+
+> Dont forget to add tests about the errors that could happen and possible response. We need to always remember about idempotency and make sure we do not sell products if we don't have. Commit and see ecom 4
+
+### Assistant
+
+**ECOM-003 is committed** as `de71143` on `feature/ECOM-003-catalog-persistence`. Before committing I added the tests you asked for, and they found a real bug.
+
+## What I added to ECOM-003
+
+**What was built**
+- **We can't sell the last unit twice.** If two buyers go for the last unit at the same moment, the first sale goes through and the second is refused. The stock stays at 0, never -1.
+- **A sold-out product refuses sales.** So does a sale bigger than the stock, or a sale of an archived product. In every case the stored stock stays exactly as it was.
+- **Retries are safe.** If the same "create product" arrives twice (a double click, or a network retry), the second is refused and only one product exists. If a save is refused because someone else saved first, it can be redone after reloading, and both changes are kept.
+- **Bug found and fixed.** The repeated "create product" used to crash with a raw database error, which the API would have shown as a generic server error (500). It now gives a clear "product already exists" error.
+
+**Why it was built**
+You asked for tests of what can go wrong and what comes back, for safe retries, and for never selling what we don't have.
+
+**Main goal**
+No double sales, no duplicates, and a clear answer for every problem we can foresee.
+
+**Human testable or background?**
+**Background only.** From ECOM-005 you'll see these answers in Swagger: 409 "already exists", 409 "changed by someone else", 404 "not found".
+
+**What to test**
+Nothing by hand yet.
+
+**This is now a permanent rule (D-072).** Before any ticket is built, it gets a "Failure cases and retries" table, and every row of that table gets a test. The table answers three questions:
+1. What can go wrong, and what does the caller get back?
+2. What happens if the same request arrives twice?
+3. If the ticket touches stock, can we sell what we don't have?
+
+A raw error or a 500 for something we could have foreseen counts as a bug. The checkout's own protection was already designed (§7.2, §7.3) and is built in ECOM-014: the `Idempotency-Key`, and stock locking under heavy load.
+
+**Tests:** ECOM-003 now has 41 new tests. The CI container is green: 301 backend tests, with 100% of the business-rule code tested.
+
+## ECOM-004: Audit trail, the plan for your review
+
+I've created `feature/ECOM-004-audit-trail`; nothing is built yet. The full plan and its failure table are in [tasks/ECOM-004.md](tasks/ECOM-004.md).
+
+**In short:**
+- Every product change writes one entry to `audit_log`: the event, who made it, when, the value before and the value after.
+- The entry is written in the same database transaction as the change, so a change never exists without its entry.
+- A database trigger refuses any edit or deletion of an entry.
+- `GET /api/v1/products/{id}/history` returns a product's timeline, oldest first.
+
+**Four decisions that need your OK (D-073):**
+1. **Who writes the log.** The Unit of Work writes it automatically when it commits, for every product that was saved. Use cases never write it by hand, so none can forget. A refused or rolled-back change leaves no entry.
+2. **"Nothing changed" means no entry and no new version.** Saving the same name again, or archiving twice, leaves no trace. Today a save with no changes still moves the version; this fixes it.
+3. **Names with accents in `X-Actor-Name`.** Browsers can only send basic Latin characters in a header, so a name like "Łukasz" or "李" would fail. The screen will send the name encoded and the backend will decode it. You won't notice anything: the name is stored exactly as typed.
+4. **The `X-Actor-Name` header rule is tested here on a small test-only route.** Product change endpoints only exist from ECOM-005, and ECOM-005 then checks the rule on every real endpoint.
+
+**One known gap:** the trigger blocks editing and deleting entries, but the database owner can still empty the whole table, which the tests need for cleanup. Closing that needs a separate database user for the app with "add and read only" rights. I've noted it for ECOM-016.
+
+**What you'll be able to test:** nothing by hand in ECOM-004 either, because products can't be created over the API until ECOM-005. From ECOM-005 you'll edit a product in Swagger and see its history: who, when, before and after.
+
+**Status:** ECOM-003 is done and committed. ECOM-004's plan is waiting for your OK or your changes; then I build it.
+
+Small note: Docker now asks for an extra file-access permission to rebuild the CI image. I ran the checks by mounting the changed code into the existing CI container instead. If you rebuild the image yourself, Docker may ask you to allow it.
+
+---
+
+## #012 — 2026-11-21 — ECOM-004 built: audit trail
+
+### User
+
+> go ahead with ECOM-004. I'd like to have the ACs in the response and its achievement. I'm not seeing it or may be not getting them.
+
+### Assistant
+
+**ECOM-004 is built** on `feature/ECOM-004-audit-trail`. It's waiting for your review and isn't committed.
+
+You were right that the criteria were missing from my replies: they were only in the ticket files. From now on, every delivery reply has a table like the one below (D-074).
+
+## ECOM-004: Audit trail
+
+### Acceptance criteria
+
+| # | Criterion | Result | How it was proven |
+|---|---|---|---|
+| 1 | Each product change writes one audit entry with before, after, actor and time | ✅ Pass | Creating a product writes one "created" entry with all its values. Changing the name and price in one save writes **one** entry: just those two fields, before and after, with "Maria" and the time. Archive, restore and a sale each write one entry. |
+| 2 | When the transaction rolls back, its audit entry is gone too | ✅ Pass | A change that is cancelled or fails halfway leaves no change and no entry. It works the other way too: if the entry can't be written, the change isn't saved. |
+| 3 | `UPDATE` and `DELETE` on `audit_log` fail | ✅ Pass | Direct database commands that try to edit or delete entries are refused with "audit_log is append-only". That includes commands that match no entry at all. |
+| 4 | A change request without `X-Actor-Name` returns 422 | ✅ Pass | A request with no name, or a blank one, gets 422 "required". So does a name that is too long, has hidden characters or is badly encoded. "Łukasz" and "李" are accepted. Tested on a test-only change route, because the real product change endpoints arrive in ECOM-005. |
+| 5 | The history endpoint returns the product's entries, oldest first | ✅ Pass | A product that was created and then repriced returns exactly those two entries, in order. Other products' entries never show up. |
+
+**What was built**
+- **Every product change is written down:** what it was, what it became, who did it and when.
+- **The record and the change are saved together, or not at all.** A history entry can never describe a change that didn't happen, and a change can never be missing from the history.
+- **The records can't be edited or deleted.** The database itself refuses it.
+- **A change without a name is refused.** Every change must say who made it, in the `X-Actor-Name` header. Names with accents or in other alphabets work.
+- **Each product has a history:** `GET /api/v1/products/{id}/history` lists its changes, oldest first.
+
+**Why it was built**
+Rule PR-13: every change must be traceable, so a wrong price or stock level can always be explained. For example: "Maria changed the price from 129.99 to 119.99 at 14:02".
+
+**Main goal**
+A history you can trust: complete, in order, and impossible to tamper with through the app.
+
+**Human testable or background?**
+**Mostly background.** The history endpoint is live in Swagger, but there are no products to look at until ECOM-005.
+
+**What to test**
+1. Open Swagger: http://localhost:8001/docs
+2. Find **products → GET /api/v1/products/{product_id}/history** and click "Try it out".
+3. Paste any id, for example `00000000-0000-4000-8000-000000000001`, and click "Execute".
+4. Expected: **404** with "Product not found.", because the shop has no products yet.
+5. Now type `abc` as the id. Expected: **422**, saying the id isn't a valid UUID.
+
+From ECOM-005 you'll create and edit a product in Swagger and watch its history fill up here.
+
+### Failure cases and retries (your rule from last time)
+
+All 17 rows of the failure table in [tasks/ECOM-004.md](tasks/ECOM-004.md) have tests, and all pass. These matter most for the business:
+- **No duplicates in the history.** If a request is repeated, or a change changes nothing (the same name again, archiving twice), the history stays as it was and the version number doesn't move.
+- **A refused change leaves no trace.** That covers a save refused because someone else saved first, a duplicate SKU and a product that already exists.
+- **No double sale.** When two buyers race for the last unit, there is one sale and one history entry, and the stock stays at 0.
+
+**Tests:** 67 new tests. The CI container is green: 368 backend tests, with 100% of the business-rule code tested. The running stack already has the new table.
+
+**Status:** ECOM-004 is ready for your review, not committed. Next is ECOM-005, the product API: create, edit, archive and search. It's the first ticket you can test by hand in Swagger.

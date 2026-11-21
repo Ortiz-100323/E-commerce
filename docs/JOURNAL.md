@@ -914,3 +914,30 @@ Template:
   - **One bug found and fixed.** Adding the same product twice hit the primary key and escaped as a raw `IntegrityError`, which the API would have turned into a 500. It is now `ProductAlreadyExists`, raised inside the SAVEPOINT so the transaction stays usable.
   - Idempotency of the checkout itself (`Idempotency-Key`) and row locking for stock stay in ECOM-014, as designed in §7.2 and §7.3.
 - **Alternatives:** leaving failure tests to ECOM-016 hardening (rejected: a missing error path is cheapest to find while the ticket is open, as the primary-key bug showed).
+
+### D-073: How the audit trail is written (ECOM-004 plan)
+- **Date:** 2026-11-21
+- **Status:** Accepted (owner approved the plan in prompt #012)
+- **Decision:**
+  - **`audit_log`** with a bigint identity `id` for ordering, the §6.4 columns, JSONB `before`/`after`/`context`, and an index on `(entity, entity_id, id)`. A trigger blocks `UPDATE` and `DELETE`.
+  - **The repository remembers the products it adds or saves; `commit()` turns their events into rows and inserts them** in the same transaction. Events of a product that was never saved are not logged. `save` skips a product with no pending changes, so a no-op creates no version and no entry.
+  - **The actor is given when a unit of work is opened for a change.** Committing events without an actor is a programming error and rolls everything back.
+  - **`X-Actor-Name` is percent-encoded UTF-8**, decoded by the backend, because browsers only send Latin-1 header values; plain ASCII names are unchanged. `Actor` is trimmed, 1–100 characters, no control characters.
+  - **The header rule is tested on a route built inside the test**, since product change endpoints only arrive in ECOM-005; ECOM-005's contract test checks it on every real endpoint.
+  - **`TRUNCATE` stays possible for the table owner** (the tests clean up with it). Blocking it in production needs a separate app role with `INSERT`/`SELECT` only on `audit_log`, noted for ECOM-016.
+- **Alternatives:** use cases writing audit rows themselves (rejected: easy to forget one); a trigger on `products` writing the log (rejected: it can't know the actor or the order reference, and puts the logic in SQL); an `IN_PROGRESS`-style outbox (not needed: everything is one transaction); passing the actor to `commit()` (rejected: every change path would need to remember it, and a missed one would fail only at runtime).
+- **As built (ECOM-004):**
+  - **The repository takes a product's events when an `add` or `save` succeeds** and keeps them until `commit()`. It doesn't hold a reference to the product. A refused save leaves the events with the product, and a `rollback()` discards the kept ones. `Product.has_pending_events` tells `save` whether there is anything to write.
+  - **The repository is created once per unit of work** in `__aenter__`. Before this, each `products` access built a new one, so it couldn't keep events.
+  - **The event-to-entry mapping lives in `catalog/application/audit.py`.** It is pure code, so it joins the 95% coverage gate. `AuditEntry`, `AuditLog` (the reading port) and `ActorRequired` live in `shared_kernel/application/audit.py`. The table and the writer live in `shared_kernel/infrastructure/audit.py`, ready for the import and ordering contexts.
+  - **Header errors say `location: "header"`.** `require_actor` raises `InvalidHeader`, which the Problem Details handler turns into the standard 422 body. `field_error_from_issue` gained a `location` argument.
+  - **The trigger works per statement** (`FOR EACH STATEMENT`), so even an `UPDATE` or `DELETE` that matches no rows is refused.
+  - **The API tests on the real database** run the app's lifespan and an `httpx.ASGITransport` client in the test's own event loop, so the engine and the app share one loop. The `engine` and `test_database_url` fixtures moved to `testing/backend/conftest.py`.
+  - **The DB-outage row of the failure table** relies on the `OperationalError` → 503 mapping already tested in ECOM-001. The new test forces the audit insert to fail and proves that the change is not stored either.
+
+### D-074: Delivery replies list every acceptance criterion with its result
+- **Date:** 2026-11-21
+- **Status:** Accepted (owner's request in prompt #012)
+- **Context:** The owner said they couldn't see, in the delivery replies, which acceptance criteria were met and how.
+- **Decision:** Every delivery reply includes a table of the ticket's acceptance criteria with the result of each (Pass, or what is missing) and one plain line on how it was proven. It comes right after the business view (D-067). The ticket's "Verification" section holds the same table with the technical detail, and the failure table (D-072) shows a result per row.
+- **Alternatives:** linking to the ticket only (rejected: the owner wants to see it in the reply).
