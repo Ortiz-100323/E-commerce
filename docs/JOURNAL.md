@@ -776,3 +776,76 @@ Template:
   - **Frontend tests in `testing/frontend`.** A small Vite plugin in `vite.config.ts` resolves the specs' package imports (`react`, Testing Library) from `frontend/node_modules`, the risk §9 flagged. `vitest` itself is left to Vitest. Vitest must also be started with the true path casing (`C:\…`); `run.py` guarantees that, while a Git Bash cwd of `c:\…` loads `vitest` twice.
   - **Ruff runs with `--config backend/pyproject.toml`** over `backend/` and `testing/`, with `ecommerce` and `fakes` declared as first-party for import sorting.
 - **Known leftover:** Starlette 1.10 warns that its `TestClient` should use `httpx2`. Adding that package was blocked as unvetted, so the warning stays until the owner decides.
+
+---
+
+## 2026-11-21: Session 2, round 3 (ECOM-001, backend foundation)
+
+### D-061: Integration tests use the compose database, not Testcontainers
+- **Date:** 2026-11-21
+- **Status:** Accepted (owner, prompt #009). This settles the open point in D-057 and supersedes "Testcontainers" in §4.1, §7.3 and §8.1.
+- **Decision:** Integration tests run against the `ecommerce_test` database on the compose `db` service. It is migrated once per test session through Alembic, and each test truncates the tables it uses. Locally that means `docker compose up -d db` first; in the `ci` container, the database is already there.
+- **Alternatives considered:**
+  - **Testcontainers.** Each run gets a fresh PostgreSQL, but the `ci` container would need the host's Docker socket mounted. That gives the container root-level control of the host, and adds a second way of starting PostgreSQL to maintain.
+  - **SQLite for tests.** Fast, but it can't test `FOR UPDATE`, `pg_trgm`, CHECK constraints or the audit trigger, which are the reasons we chose PostgreSQL.
+- **Consequences:** The race tests in ECOM-014 run on the compose database over separate connections, which is what they need. Two test runs at once against the same database would interfere, which doesn't happen in our workflow.
+
+### D-062: How Problem Details is built
+- **Date:** 2026-11-21
+- **Status:** Accepted (owner, prompt #009). This implements D-046 and D-047.
+- **Decision:**
+  - **Base errors in the shared kernel.** `DomainValidationError` carries one or more `ValidationIssue`s and becomes 422 `validation-error`. `NotFoundError` becomes 404 `not-found`, with an optional `detail`.
+  - **Exception-to-problem tables.** Each context hands the composition root a table from its exception types to problem types, so `shared_kernel` never imports a context. Today: `WeatherUnavailable` → 502 `upstream-unavailable` (a new type in the catalog), and SQLAlchemy's `OperationalError` → 503 `service-unavailable` with `Retry-After: 1`.
+  - **HTTP errors** (unknown route, wrong method) map by status. A status with no type in the catalog uses `about:blank` with the standard phrase, as RFC 9457 recommends. The `Allow` header of a 405 is kept.
+  - **Broken JSON** (Pydantic's `json_invalid`) is 400 `malformed-request`, with no `errors[]`.
+  - **Pydantic errors.** A table maps each Pydantic type to our code; an unknown type falls back to `invalid` rather than failing. `params` keep only plain values (strings, numbers, booleans; Decimals as strings). Pydantic's `input`, `url` and any `error` object are dropped, so a submitted value can't come back in a response.
+  - **A coverage test** reads the app's OpenAPI document, works out every Pydantic error type our request schemas can raise, and fails if one has no code. New endpoints are covered automatically.
+  - **500s** never show the exception. The error is logged with the request ID, and the response carries the same ID so the logs can be found.
+- **Alternatives considered:**
+  - A global registry that contexts add themselves to at import time: hidden coupling, and order-dependent.
+  - Translating database errors inside every repository: more code for the same 503.
+
+### D-063: Request IDs and structured logs
+- **Date:** 2026-11-21
+- **Status:** Accepted (owner, prompt #009)
+- **Decision:**
+  - A pure ASGI middleware gives every request an ID and returns it in `X-Request-ID`. An incoming `X-Request-ID` is kept only if it is 8–64 letters, digits or hyphens; anything else is replaced with a new UUID, so a client can't inject text into our logs.
+  - Logs are JSON, one object per line, with `time`, `level`, `logger`, `message` and `request_id`. Each request writes exactly one line (`ecommerce.request`) with method, path, status and duration. The query string is never logged.
+  - Uvicorn's own access log is silenced, because our request line replaces it.
+  - `create_production_app` configures the logging; `create_app` doesn't, so tests can capture logs normally.
+- **Alternatives considered:** Starlette's `BaseHTTPMiddleware`. It is simpler to write, but it has known problems with exceptions and streaming responses.
+
+### D-064: `Money` in the shared kernel
+- **Date:** 2026-11-21
+- **Status:** Accepted (owner, prompt #009). This implements PR-08 and CQ-06.
+- **Decision:**
+  - `Money` holds a `Decimal` amount, normalised to 2 decimal places, in USD only.
+  - Bad **data** raises `InvalidMoney`, a `DomainValidationError`: more than 2 decimal places, NaN or infinity, an amount beyond Decimal precision, another currency, or text that isn't a number.
+  - A float or a boolean raises `TypeError` instead, because that is a programming error, never user input.
+  - `Money` supports `+`, `-`, multiplication by a whole quantity, comparison and `is_zero`. It may be negative; `Price` adds the "≥ 0" rule in ECOM-002.
+
+### D-065: A generic SQLAlchemy Unit of Work
+- **Date:** 2026-11-21
+- **Status:** Accepted (owner, prompt #009)
+- **Decision:**
+  - `UnitOfWork` is a port in `shared_kernel.application`. `SqlAlchemyUnitOfWork` opens a session on entry, commits only when `commit()` is called, and rolls back everything else on exit, including after an exception.
+  - Each context's own Unit of Work (from ECOM-003) will build on it and expose that context's repositories. ECOM-004 adds writing the audit events in the same transaction.
+  - The temporary weather repository keeps its own transactions; it isn't worth migrating before ECOM-009 deletes it.
+
+### D-066: Quality gates added in ECOM-001
+- **Date:** 2026-11-21
+- **Status:** Accepted (owner, prompt #009)
+- **Decision:**
+  - `mypy --strict`, with the Pydantic plugin, over `backend/src` and `backend/migrations`. It runs in `run.py lint`, so in the `ci` container too.
+  - A layers contract for `shared_kernel` (`api | infrastructure` → `application` → `domain`), and `shared_kernel.domain` joins the "free of frameworks" contract. The request-ID middleware therefore lives in `infrastructure`, and the problem handlers read the request ID from the request rather than importing it.
+
+### D-067: Delivery reports are written from a business point of view
+- **Date:** 2026-11-21
+- **Status:** Accepted (requested by the owner in prompt #008)
+- **Context:** The owner tests each delivery as a business person would. Technical delivery replies made it hard to compare what Claude believes it delivered with what the owner can actually check.
+- **Decision:**
+  - Plans stay technical and detailed, for analysis.
+  - Every delivery reply answers, in simple business language: what was built, why, the main goal, whether it is human testable or background only, and what to test.
+  - Each ticket gets a "Business view" section with the same five points, so the report stays with the ticket.
+- **Alternatives:** keep technical replies and rely on the verification table. Rejected: the table proves the criteria but doesn't tell a business tester what to do.
+

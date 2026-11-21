@@ -1,14 +1,20 @@
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass
 
 import httpx
 from fastapi import FastAPI
+from sqlalchemy.exc import OperationalError
 
+from ecommerce.shared_kernel.api.exception_handlers import install_problem_handlers
 from ecommerce.shared_kernel.api.health_router import router as health_router
+from ecommerce.shared_kernel.api.problem_details import SERVICE_UNAVAILABLE, ProblemMapping
 from ecommerce.shared_kernel.application.ports import Clock, DatabaseProbe, SystemClock
 from ecommerce.shared_kernel.infrastructure.database import SqlAlchemyDatabaseProbe, create_engine
+from ecommerce.shared_kernel.infrastructure.logging import configure_logging
+from ecommerce.shared_kernel.infrastructure.request_id_middleware import RequestIdMiddleware
 from ecommerce.shared_kernel.infrastructure.settings import Settings
+from ecommerce.weather.api.problems import WEATHER_PROBLEMS
 from ecommerce.weather.api.router import router as weather_router
 from ecommerce.weather.application.ports import WeatherProvider
 from ecommerce.weather.domain.repository import WeatherSearchRepository
@@ -16,6 +22,10 @@ from ecommerce.weather.infrastructure.open_meteo import OpenMeteoWeatherProvider
 from ecommerce.weather.infrastructure.repository import SqlAlchemyWeatherSearchRepository
 
 API_PREFIX = "/api/v1"
+
+INFRASTRUCTURE_PROBLEMS: Mapping[type[Exception], ProblemMapping] = {
+    OperationalError: ProblemMapping(SERVICE_UNAVAILABLE, headers={"Retry-After": "1"}),
+}
 
 
 @dataclass(frozen=True)
@@ -58,6 +68,13 @@ def create_app(dependencies_factory: DependenciesFactory = production_dependenci
             yield
 
     app = FastAPI(title="E-commerce API", version="0.1.0", lifespan=lifespan)
+    app.add_middleware(RequestIdMiddleware)
+    install_problem_handlers(app, {**INFRASTRUCTURE_PROBLEMS, **WEATHER_PROBLEMS})
     app.include_router(health_router, prefix=API_PREFIX)
     app.include_router(weather_router, prefix=API_PREFIX)
     return app
+
+
+def create_production_app() -> FastAPI:
+    configure_logging(Settings().log_level)
+    return create_app()

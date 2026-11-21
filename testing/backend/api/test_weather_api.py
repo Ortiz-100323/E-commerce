@@ -71,11 +71,11 @@ def test_history_rejects_an_invalid_limit(limit: object) -> None:
 
 
 def test_unknown_city_returns_404() -> None:
-    with client_with(FakeWeatherProvider(error=CityNotFound("Atlantis"))) as client:
+    with client_with(FakeWeatherProvider(error=CityNotFound())) as client:
         response = client.post(SEARCHES, json={"city": "Atlantis"})
 
     assert response.status_code == 404
-    assert response.json() == {"detail": "City not found."}
+    assert response.json()["detail"] == "City not found."
 
 
 def test_upstream_failure_returns_502() -> None:
@@ -83,7 +83,7 @@ def test_upstream_failure_returns_502() -> None:
         response = client.post(SEARCHES, json={"city": "Lisbon"})
 
     assert response.status_code == 502
-    assert response.json() == {"detail": "The weather service is unavailable. Try again later."}
+    assert response.json()["type"] == "urn:ecommerce:problem:upstream-unavailable"
 
 
 @pytest.mark.parametrize("payload", [{"city": "   "}, {"city": "a" * 101}, {}, {"city": 5}])

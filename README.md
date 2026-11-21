@@ -40,7 +40,7 @@ docker compose up -d db
 cd backend
 uv sync
 uv run alembic upgrade head
-uv run uvicorn --factory ecommerce.main:create_app --port 8001
+uv run uvicorn --factory ecommerce.main:create_production_app --port 8001 --no-access-log
 ```
 
 In a second terminal:

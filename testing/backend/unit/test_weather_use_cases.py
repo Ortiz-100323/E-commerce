@@ -55,7 +55,7 @@ async def test_invalid_city_is_rejected_before_calling_the_provider() -> None:
     assert repository.items == []
 
 
-@pytest.mark.parametrize("error", [CityNotFound("Atlantis"), WeatherUnavailable("down")])
+@pytest.mark.parametrize("error", [CityNotFound(), WeatherUnavailable("down")])
 async def test_provider_errors_propagate_and_nothing_is_saved(error: Exception) -> None:
     use_case, _, repository = build(provider=FakeWeatherProvider(error=error))
 

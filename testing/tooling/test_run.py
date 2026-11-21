@@ -13,6 +13,11 @@ def test_each_command_has_at_least_one_step(runner: ModuleType) -> None:
         assert runner.COMMANDS[name](), name
 
 
+def test_lint_runs_every_static_check(runner: ModuleType) -> None:
+    names = [step.name for step in runner.COMMANDS["lint"]()]
+    assert names == ["ruff check", "ruff format", "import-linter", "mypy", "tsc"]
+
+
 def test_unknown_command_is_rejected(runner: ModuleType) -> None:
     with pytest.raises(SystemExit) as raised:
         runner.main(["nope"])

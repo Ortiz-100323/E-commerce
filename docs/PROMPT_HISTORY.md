@@ -290,3 +290,95 @@ ECOM-000 is built and waiting for your review. `docker compose up --build` start
 **Docs updated:** journal entry D-060 (pinned versions and the choices I made while building), the ticket's verification section, the board (ECOM-000 is In Review), and a README with the run instructions and the CSV download date.
 
 Nothing is committed. Once you accept ECOM-000, I'll mark it Done and update TECHNICAL_ARCHITECTURE.md to revision 5 (four containers). ECOM-001 comes next. Should I commit ECOM-000 now?
+
+---
+
+## #007 — 2026-11-21 — ECOM-000 accepted and committed; building ECOM-001
+
+### User
+
+> That's great job. I tested the portal and containers are up. Great. Commit the code and let's start our real project. Ecom-001
+
+### Assistant
+
+**ECOM-000 is committed** as `c56c7c7`, on a new branch, `feature/ECOM-000-walking-skeleton`. I didn't commit straight to `main`; merge it whenever you like, or ask me to. The ticket is Done, its decisions are marked accepted, and TECHNICAL_ARCHITECTURE.md is at revision 5. I also added a `.gitattributes` that keeps LF line endings. Without it, a Windows checkout would convert files to CRLF before they're copied into the Linux containers.
+
+**ECOM-001 is built and waiting for your review.** It's on `feature/ECOM-001-backend-foundation`, branched from ECOM-000, and not committed yet.
+
+**What it adds:**
+- **One error format.** Every error now comes back as Problem Details:
+  - an unknown route or wrong method;
+  - broken JSON, as 400;
+  - invalid input, as 422, listing every bad field at once;
+  - not found, as 404;
+  - Open-Meteo down, as 502;
+  - the database down, as 503 with `Retry-After`;
+  - an unexpected crash, as 500, without exposing internals.
+- **Request IDs and JSON logs.** Every response carries `X-Request-ID`. Each request writes one JSON log line with the same ID. Uvicorn's duplicate access line is silenced.
+- **Shared domain pieces:** `Money` (Decimal, 2 decimal places, USD only) and the base errors (`ValidationIssue`, `DomainValidationError`, `NotFoundError`).
+- **A Unit of Work** for SQLAlchemy, ready for the catalog in ECOM-003.
+- **Quality gates:** mypy strict across the whole backend, and a layer contract for the shared kernel.
+
+**Tests.** All 6 acceptance criteria pass, and the ticket has a verification table. The CI container is green: 19 tooling, 120 backend (up from 39), 6 frontend and 4 smoke tests. I also checked the live stack through nginx; for example, `{"town":"Lisbon"}` returns 422 listing both `city` (required) and `town` (unknown field). The weather page needed no change, because the status codes it reacts to didn't change.
+
+**Three decisions for you to review** (journal D-061 to D-066):
+1. **No Testcontainers.** The CI container would need the host's Docker socket, which gives it root-level control of your machine. Integration tests keep using the `ecommerce_test` database in the compose `db` instead.
+2. **A new problem type, `upstream-unavailable` (502),** for when Open-Meteo fails. It wasn't in the original error catalog.
+3. **Incoming `X-Request-ID` values are kept only if they're 8–64 letters, digits or hyphens.** Anything else is replaced, so nobody can inject text into our logs.
+
+**A slip, again:** one shell command contained a stray `python -` and a `cat` writing to `/tmp`. It hung and changed nothing except an empty temp file, which I deleted. It's the same mistake as last time, so from now on I'll make multi-step edits with the editor tool instead of long shell one-liners.
+
+**Next:** review ECOM-001 and tell me to commit when you're happy. ECOM-002 (catalog domain: value objects and the `Product` aggregate) comes after that.
+
+---
+
+## #008 — 2026-11-21 — Delivery reports from a business point of view
+
+### User
+
+> To facilitate undestanding, always responde me with What was build, why it was build, main goal of it, if it is human testable or only background, what should be tested. I want to have a better perspective of what you think you delivery agains what I'm testing and ready. Simple language and more business oriented. I want to do those testing as a business person would. The plan is still technical and very detailed for me to analize, but the outcome I want a business perspective of what you believe you delivered
+
+### Assistant
+
+From now on, every delivery report will use these five points. Plans stay technical. I've saved this as a standing rule (journal D-067), and each ticket now gets a "Business view" section. Here is ECOM-001 in that format.
+
+## ECOM-001: Backend foundation
+
+**What was built**
+The backend's "house rules", which every future feature will follow:
+- **Clear, safe error messages.** When something goes wrong, the system always answers the same way: what went wrong, and which fields need fixing, all at once. It never repeats what the person typed, so a mistyped card number can't leak into a screen or a log.
+- **A reference number on every request.** Each request gets a reference number, which is also written in the system log. If a customer reports a problem and quotes the number, support can find exactly what happened.
+- **Money handled properly.** Prices are exact to the cent, USD only, with no rounding surprises. Nobody can see this yet.
+- **All-or-nothing saving.** If a step fails halfway, nothing is half-saved. Nobody can see this yet either.
+- **Automatic quality checks** that run before anything is accepted.
+
+**Why it was built**
+Products, CSV import and orders all need these rules. Building them once, before any business feature, means every screen behaves the same way and we don't fix the same problem three times.
+
+**Main goal**
+When something goes wrong, people get a clear and safe message, and we can trace exactly what happened.
+
+**Human testable or background?**
+Mostly background, about 80%. You can see the error messages and the reference number. Money and all-or-nothing saving have no screen yet; they become visible with prices (ECOM-002/005) and orders (ECOM-013 onwards). Until then, automatic tests cover them.
+
+**What to test (as a business user)**
+
+*In the portal (http://localhost:3000):*
+1. Search **Lisbon**. It still works as before, and the search appears in the history.
+2. Search **Xyzzyqqq**. You should see "City not found. Check the spelling and try again."
+3. Simulate an outage. In a terminal, run `docker compose stop db`, then search again: you should see "The weather service is unavailable. Try again later." Then run `docker compose start db`, wait a few seconds and search once more. It should work again without restarting anything else. (I ran this check on the live stack: unavailable, then back to normal.)
+
+*In Swagger (http://localhost:8001/docs), at `POST /api/v1/weather/searches` → "Try it out":*
+
+4. Send `{"town": "Lisbon"}`. The answer should list **both** problems at once: `city` is missing and `town` isn't allowed.
+5. Send `{"city": 4111111111111111}` (a test card number). The answer says the field is invalid, but **the number appears nowhere** in it.
+6. In any answer, look at the response headers for **x-request-id**. Then run `docker compose logs backend --tail 5`: the log line for that call carries the same number.
+
+*You don't need to test:* the money rules, all-or-nothing saving or the quality checks. 120 automatic backend tests cover them, all green.
+
+**Decisions waiting on you**
+- Integration tests use our own test database rather than an extra tool that would need full control of your machine's Docker.
+- When the weather provider is down, the system answers "upstream unavailable" (a new error type, not in the original list).
+- A reference number sent in by a caller is kept only if it looks safe. Otherwise we issue a new one, so nobody can write junk into our logs.
+
+**Status:** ready for your review, not committed yet. Once you're happy, tell me to commit, and I'll start ECOM-002 (the product catalog rules: name, price, stock and so on).

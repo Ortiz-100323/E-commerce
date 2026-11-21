@@ -1,21 +1,20 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 
 from ecommerce.shared_kernel.application.ports import Clock
-from ecommerce.weather.api.schemas import (
-    ErrorResponse,
-    WeatherSearchRequest,
-    WeatherSearchResponse,
-)
-from ecommerce.weather.application.errors import CityNotFound, WeatherUnavailable
+from ecommerce.weather.api.schemas import WeatherSearchRequest, WeatherSearchResponse
 from ecommerce.weather.application.list_weather_searches import ListWeatherSearches
 from ecommerce.weather.application.ports import WeatherProvider
 from ecommerce.weather.application.search_weather import SearchWeather
-from ecommerce.weather.domain.errors import InvalidCity
 from ecommerce.weather.domain.repository import WeatherSearchRepository
 
 router = APIRouter(prefix="/weather", tags=["weather (temporary)"])
+
+PROBLEM_RESPONSES: dict[int | str, dict[str, object]] = {
+    status.HTTP_404_NOT_FOUND: {"description": "The city was not found."},
+    status.HTTP_502_BAD_GATEWAY: {"description": "Open-Meteo is unavailable."},
+}
 
 
 def get_search_weather(request: Request) -> SearchWeather:
@@ -35,25 +34,13 @@ def get_list_weather_searches(request: Request) -> ListWeatherSearches:
     "/searches",
     status_code=status.HTTP_201_CREATED,
     summary="Look up the current weather for a city and save the search",
-    responses={
-        status.HTTP_404_NOT_FOUND: {"model": ErrorResponse},
-        status.HTTP_502_BAD_GATEWAY: {"model": ErrorResponse},
-    },
+    responses=PROBLEM_RESPONSES,
 )
 async def search_weather(
     body: WeatherSearchRequest,
     use_case: Annotated[SearchWeather, Depends(get_search_weather)],
 ) -> WeatherSearchResponse:
-    try:
-        view = await use_case.execute(body.city)
-    except InvalidCity as error:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from error
-    except CityNotFound as error:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "City not found.") from error
-    except WeatherUnavailable as error:
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY, "The weather service is unavailable. Try again later."
-        ) from error
+    view = await use_case.execute(body.city)
     return WeatherSearchResponse.model_validate(view)
 
 

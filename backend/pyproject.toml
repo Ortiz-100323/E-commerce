@@ -22,6 +22,7 @@ packages = ["src/ecommerce"]
 [dependency-groups]
 dev = [
     "import-linter>=2.17",
+    "mypy>=2.4.1",
     "pytest>=9.2.0",
     "pytest-asyncio>=1.5.0",
     "ruff>=0.17.6",
@@ -36,7 +37,7 @@ src = ["src", "../testing"]
 select = ["E", "F", "I", "B", "UP"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["ecommerce", "fakes"]
+known-first-party = ["ecommerce", "fakes", "problems"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -58,11 +59,27 @@ layers = [
 ]
 
 [[tool.importlinter.contracts]]
+name = "Shared kernel layers: api and infrastructure depend on application, which depends on domain"
+type = "layers"
+layers = [
+    "ecommerce.shared_kernel.api | ecommerce.shared_kernel.infrastructure",
+    "ecommerce.shared_kernel.application",
+    "ecommerce.shared_kernel.domain",
+]
+
+[[tool.importlinter.contracts]]
 name = "Domain and application stay free of frameworks"
 type = "forbidden"
 source_modules = [
     "ecommerce.weather.domain",
     "ecommerce.weather.application",
+    "ecommerce.shared_kernel.domain",
     "ecommerce.shared_kernel.application",
 ]
 forbidden_modules = ["fastapi", "starlette", "sqlalchemy", "pydantic", "pydantic_settings", "httpx", "alembic"]
+
+[tool.mypy]
+strict = true
+python_version = "3.13"
+plugins = ["pydantic.mypy"]
+files = ["src", "migrations"]

@@ -1,6 +1,6 @@
 # Task board
 
-This folder simulates a Jira project. Each ticket is one Markdown file, named after its key. A ticket has these sections: context, scope, acceptance criteria, test plan, definition of done and status.
+This folder simulates a Jira project. Each ticket is one Markdown file, named after its key. A ticket has these sections: context, scope, acceptance criteria, test plan, definition of done and status. When it is delivered, it also gets a business view: what was built, why, the main goal, whether a person can test it or it runs in the background, and what to test (D-067).
 
 - **ECOM-000** sets up the environment: a walking skeleton that proves the whole stack runs end to end in local containers.
 - **ECOM-001 onwards** build the e-commerce application, following [TECHNICAL_ARCHITECTURE.md](../docs/TECHNICAL_ARCHITECTURE.md).
@@ -22,7 +22,7 @@ A ticket moves to **Done** only after the owner accepts it at its review gate.
 | Key | Title | Phase | Depends on | Status |
 |---|---|---|---|---|
 | [ECOM-000](ECOM-000.md) | Walking skeleton: four containers, weather test feature, local CI | 0 | — | Done |
-| [ECOM-001](ECOM-001.md) | Backend foundation: shared kernel, Problem Details errors, quality gates | 1 | ECOM-000 | Backlog |
+| [ECOM-001](ECOM-001.md) | Backend foundation: shared kernel, Problem Details errors, quality gates | 1 | ECOM-000 | Done |
 | [ECOM-002](ECOM-002.md) | Catalog domain: value objects and the Product aggregate | 1 | ECOM-001 | Backlog |
 | [ECOM-003](ECOM-003.md) | Catalog persistence: schema, repository and Unit of Work | 1 | ECOM-002 | Backlog |
 | [ECOM-004](ECOM-004.md) | Audit trail: append-only log and product history | 1 | ECOM-003 | Backlog |

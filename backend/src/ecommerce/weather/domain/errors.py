@@ -1,6 +1,5 @@
-class WeatherDomainError(Exception):
-    pass
+from ecommerce.shared_kernel.domain.errors import DomainValidationError
 
 
-class InvalidCity(WeatherDomainError):
+class InvalidCity(DomainValidationError):
     pass

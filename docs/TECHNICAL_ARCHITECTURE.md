@@ -9,6 +9,7 @@
 > | 3 | 2026-11-21 | Q-14 answered. Added an **append-only audit trail** that records how every value was and what it became (§6.4). Q-02, Q-07, Q-11, Q-12 and Q-13 are closed on their defaults. |
 > | 4 | 2026-11-21 | Went deeper on four points: the idempotency key (§7.2), preventing oversold stock (§7.3), one error format for everything (§4.6), and CSV warnings versus errors plus the SKU identity check (§6.2, §6.5). The sample's expected numbers were updated (§2). |
 > | 5 | 2026-11-21 | ECOM-000 is built. Four containers (`db`, `backend`, `frontend`, `ci`) replace the single app image (§3, §10, D-053). The frontend reaches the API through an nginx proxy (D-054). One health endpoint (§4.5, D-056). The repository layout (§9) and the phased plan (§12) now match the code and the tickets. |
+> | 6 | 2026-11-21 | ECOM-001: integration tests use the compose database instead of Testcontainers (§4.1, §7.3, §8.1, D-061). The problem catalog gains `upstream-unavailable`, and §4.6 explains how errors reach the handlers (D-062). Layer contracts and mypy strict (§8.3, D-066). |
 >
 > Every decision here also appears in [JOURNAL.md](JOURNAL.md) with its context and the alternatives considered.
 
@@ -186,7 +187,7 @@ Both contexts share one database transaction through a Unit of Work.
 | Settings | `pydantic-settings`, read from environment variables. This includes the import policies. |
 | Logging | Structured JSON, plus a request-ID middleware |
 | Quality | `ruff` (lint and format), `mypy --strict`, `import-linter` |
-| Tests | `pytest`, `pytest-asyncio`, `pytest-cov`, `hypothesis` (property-based) and `httpx`. **Testcontainers** provides a real PostgreSQL. |
+| Tests | `pytest`, `pytest-asyncio`, `pytest-cov`, `hypothesis` (property-based) and `httpx`. Integration tests use a real PostgreSQL: the `ecommerce_test` database on the compose `db` service (D-061). |
 
 Exact versions are pinned in Phase 0 and logged in the journal.
 
@@ -388,7 +389,14 @@ Domain validation **collects every issue before raising**, rather than stopping 
 | `validation-error` | 422 | Pydantic or domain validation failed | `errors[]` |
 | `idempotency-key-reused` | 422 | §7.2 | — |
 | `internal-error` | 500 | An unexpected failure | — |
+| `upstream-unavailable` | 502 | An external service failed. Today that is only Open-Meteo, for the temporary weather feature. | — |
 | `service-unavailable` | 503 | The database is unreachable, or a lock wait timed out (§7.3) | Header `Retry-After` |
+
+**How errors reach the handlers (built in ECOM-001, D-062).**
+- The shared kernel provides the base errors: `DomainValidationError` (a list of `ValidationIssue`) becomes `validation-error`, and `NotFoundError` becomes `not-found`, with its optional `detail`.
+- Each context also gives the composition root a table from its own exception types to problem types. The weather context maps `WeatherUnavailable` to `upstream-unavailable`, and `main.py` maps the database's `OperationalError` to `service-unavailable`. Later contexts add their entries (for example `version-conflict`) the same way.
+- An HTTP status with no type in the catalog uses `about:blank`, with the standard status phrase as its title, as RFC 9457 recommends.
+- Every problem response also carries the `X-Request-ID` header, including 500s, which bypass the middleware.
 
 **Frontend.** A single `ApiError` class parses every problem response.
 - Entries in `errors[].field` are mapped onto form fields with react-hook-form's `setError`.
@@ -777,7 +785,7 @@ None of this is needed for the fake gateway. It is recorded here so the design i
 - **`SERIALIZABLE` isolation.** It is correct, but every caller needs a retry loop for serialization failures.
 - **An in-process mutex or a Redis lock.** A mutex fails with more than one worker. Redis is extra infrastructure, and the database already provides row locks.
 
-**Tests**, all against real PostgreSQL through Testcontainers:
+**Tests**, all against real PostgreSQL (the `ecommerce_test` database, D-061):
 - **Race.** 20 parallel checkouts on separate connections compete for the last unit. Exactly **1 returns 201** and **19 return 409**. Afterwards the stock is 0 and there is exactly one `StockDecreased` audit entry.
 - **Deterministic interleaving, with no `sleep`.** A test double of the gateway holds T1 *inside* the lock using a latch. The test asserts that T2 is still blocked, then releases the latch and asserts that T2 gets a 409.
 - **Opposite order.** Carts {A, B} and {B, A} are submitted in parallel. Both succeed, and there is no deadlock.
@@ -794,7 +802,7 @@ None of this is needed for the fake gateway. It is recorded here so the design i
 |-------|-------|---------|-------|
 | Unit: domain | Value objects, aggregates and policies. Pure code with no I/O, plus property-based tests. | pytest, hypothesis | ms |
 | Unit: application | Use cases with **in-memory fakes** for repositories and gateways | pytest | ms |
-| Integration | Repositories, migrations, CHECK constraints, locking and the CSV reader, all against **real PostgreSQL** in a Testcontainers container (one per session, isolated per test) | pytest, testcontainers | seconds |
+| Integration | Repositories, migrations, the Unit of Work, CHECK constraints, locking and the CSV reader, all against **real PostgreSQL**: the `ecommerce_test` database on the compose `db`, migrated once per session and truncated per test (D-061) | pytest | seconds |
 | API | Full HTTP flow through FastAPI on real PostgreSQL, including the **golden sample-CSV review workflow** | pytest, httpx | seconds |
 | Architecture | Layer rules and the no-comments rule | import-linter, script | seconds |
 | Frontend component | Screens and hooks, with the API mocked by MSW | Vitest, RTL, MSW | seconds |
@@ -811,11 +819,15 @@ None of this is needed for the fake gateway. It is recorded here so the design i
 
 ### 8.3 Architecture enforcement
 
-`import-linter` enforces three contracts:
+`import-linter` enforces these contracts:
 
 1. `*.domain` does not import `fastapi`, `sqlalchemy`, `pydantic`, `infrastructure` or `api`.
 2. `*.application` does not import `infrastructure` or `api`.
 3. `ordering` does not import `catalog.domain`.
+
+Each context gets its own **layers** contract (`api | infrastructure` → `application` → `domain`), and one **forbidden** contract keeps every `domain` and `application` package free of frameworks. Today these cover `weather` and `shared_kernel` (ECOM-001); `catalog` and `ordering` are added as they arrive.
+
+**mypy** runs in strict mode, with the Pydantic plugin, over `backend/src` and `backend/migrations`.
 
 ### 8.4 No-comments enforcement (CC-10)
 
@@ -930,7 +942,7 @@ The browser only talks to the frontend container. React calls relative URLs (`/a
 
 CI runs locally in the `ci` container. `python testing/run.py all` runs these steps in order:
 
-1. ruff (lint and format), import-linter and `tsc` (mypy joins in ECOM-001, ESLint in ECOM-006)
+1. ruff (lint and format), import-linter, mypy (strict) and `tsc` (ESLint joins in ECOM-006)
 2. the no-comments check
 3. tests for the runner and helper scripts
 4. pytest, against the `ecommerce_test` database on the compose `db`

@@ -23,7 +23,3 @@ class WeatherSearchResponse(BaseModel):
     wind_speed_kmh: float
     weather_code: int
     searched_at: datetime
-
-
-class ErrorResponse(BaseModel):
-    detail: str

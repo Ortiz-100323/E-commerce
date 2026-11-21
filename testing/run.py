@@ -48,6 +48,7 @@ def lint_steps() -> list[Step]:
             uv_backend("ruff", "format", "--check", "--config", config, "backend", "testing"),
         ),
         Step("import-linter", uv_backend("lint-imports"), cwd=BACKEND),
+        Step("mypy", uv_backend("mypy"), cwd=BACKEND),
         Step("tsc", [tool("npm"), "run", "typecheck"], cwd=FRONTEND),
     ]
 

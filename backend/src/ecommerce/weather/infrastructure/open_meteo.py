@@ -30,7 +30,7 @@ class OpenMeteoWeatherProvider:
         )
         results = body.get("results") or []
         if not results:
-            raise CityNotFound(city.value)
+            raise CityNotFound()
         first = results[0]
         return Location(
             name=str(first["name"]),
