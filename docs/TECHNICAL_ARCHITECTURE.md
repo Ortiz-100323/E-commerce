@@ -11,6 +11,8 @@
 > | 5 | 2026-11-21 | ECOM-000 is built. Four containers (`db`, `backend`, `frontend`, `ci`) replace the single app image (§3, §10, D-053). The frontend reaches the API through an nginx proxy (D-054). One health endpoint (§4.5, D-056). The repository layout (§9) and the phased plan (§12) now match the code and the tickets. |
 > | 6 | 2026-11-21 | ECOM-001: integration tests use the compose database instead of Testcontainers (§4.1, §7.3, §8.1, D-061). The problem catalog gains `upstream-unavailable`, and §4.6 explains how errors reach the handlers (D-062). Layer contracts and mypy strict (§8.3, D-066). |
 > | 7 | 2026-11-21 | ECOM-002: the catalog domain is built. §4.2 gains upper limits that match the database columns, the `revise` behaviour, and the rules for no-op changes and archived products (D-068). §8.3 adds the catalog domain contract and an import test. |
+> | 8 | 2026-11-21 | ECOM-003: products are stored with Core tables and explicit translation instead of ORM imperative mapping (§4.1, D-071). §4.4 describes the `products` table, its constraints and optimistic locking as built. §8.3 adds the catalog layers contract. |
+> | 9 | 2026-11-21 | §8.2 makes failure cases with their responses, retries and stock safety a required part of every ticket's tests (D-072). §4.4 adds `ProductAlreadyExists` for a retried create. |
 >
 > Every decision here also appears in [JOURNAL.md](JOURNAL.md) with its context and the alternatives considered.
 
@@ -183,7 +185,7 @@ Both contexts share one database transaction through a Unit of Work.
 |---------|--------|
 | Runtime | Python **3.13**, managed with **uv** |
 | Web | **FastAPI**, with Pydantic v2 |
-| ORM and migrations | **SQLAlchemy 2.x async**, using imperative mapping so the domain stays free of ORM classes. **Alembic** handles migrations. |
+| ORM and migrations | **SQLAlchemy 2.x async**, using Core tables and explicit translation between rows and aggregates, so the domain stays free of ORM classes (D-071). **Alembic** handles migrations. |
 | DB | **PostgreSQL 17**, using the **psycopg 3** driver (async for the app, sync for Alembic) |
 | Settings | `pydantic-settings`, read from environment variables. This includes the import policies. |
 | Logging | Structured JSON, plus a request-ID middleware |
@@ -292,6 +294,13 @@ Exact versions are pinned in Phase 0 and logged in the journal.
 - The `idempotency_keys` table holds checkout keys, their request fingerprints and their outcomes (§7.2). Rows expire after 24 hours.
 - **Deletion is a soft delete (archive).** Archived products are hidden from the storefront and cannot be bought, and their SKU remains reserved.
 - Alembic migrations run automatically when the app container starts.
+- **The `products` table as built (ECOM-003, D-071):**
+  - Tags are a `varchar[]` column. The gift rule is `CHECK (price > 0 OR 'GIFT' = ANY(tags))`.
+  - Besides the four domain mirrors, CHECKs also limit tags to the known ones, status to `ACTIVE`/`ARCHIVED`, and `version` to ≥ 1. Every constraint has a stable name (`ck_products_…`, `uq_products_sku`), which the tests assert.
+  - There is no currency column: the shop sells in USD only (CQ-06).
+  - Saving uses `UPDATE … WHERE id = :id AND version = :loaded RETURNING version`. No row means either the product doesn't exist (`ProductNotFound`) or someone saved first (`VersionConflict` with the current version).
+  - A duplicate SKU is caught inside a SAVEPOINT and becomes `DuplicateSku`, so the surrounding transaction stays usable. Adding the same product twice (a retried create) hits the primary key and becomes `ProductAlreadyExists`, never a raw database error.
+  - `ecommerce/schema.py` gathers every table for Alembic, and a test fails if the migrations and the table definitions drift apart.
 
 ### 4.5 API surface (`/api/v1`)
 
@@ -824,6 +833,11 @@ None of this is needed for the fake gateway. It is recorded here so the design i
   - domain and application ≥ 95%
   - the whole backend ≥ 85%
   - the frontend ≥ 80%
+- **Three questions every ticket answers with tests (D-072):**
+  1. **What can go wrong, and what does the caller get back?** Every failure the ticket can produce has a test. That covers bad input, not found, conflicts, the database refusing a write and a dependency being down. The test asserts the domain error or, once there is an endpoint, the exact status and Problem Details `type` (§4.6). A raw database error or a 500 for a foreseeable case counts as a bug.
+  2. **What happens on a retry?** For every write, a test shows that repeating it can't create a duplicate, sell twice or log a change twice. A change that changes nothing creates no new version and no audit entry.
+  3. **Can we sell what we don't have?** Every ticket that touches stock proves that stock never goes below zero, including under concurrent requests (§7.3).
+- Each ticket lists these cases in a **"Failure cases and retries"** section before it is built.
 
 ### 8.3 Architecture enforcement
 
@@ -833,7 +847,7 @@ None of this is needed for the fake gateway. It is recorded here so the design i
 2. `*.application` does not import `infrastructure` or `api`.
 3. `ordering` does not import `catalog.domain`.
 
-Each context gets its own **layers** contract (`api | infrastructure` → `application` → `domain`), and one **forbidden** contract keeps every `domain` and `application` package free of frameworks. Today these cover `weather` and `shared_kernel` (ECOM-001) and `catalog.domain` (ECOM-002); `catalog`'s other layers and `ordering` are added as they arrive. A further contract stops `catalog.domain` from importing anything in the project except `shared_kernel.domain`. An architecture test (`testing/backend/architecture`) reads every `*/domain` package and fails if it imports anything outside the standard library, its own package and `shared_kernel.domain`.
+Each context gets its own **layers** contract (`api | infrastructure` → `application` → `domain`), and one **forbidden** contract keeps every `domain` and `application` package free of frameworks. Today these cover `weather` and `shared_kernel` (ECOM-001) and `catalog` (domain in ECOM-002; application and infrastructure in ECOM-003). `catalog.api` joins in ECOM-005 and `ordering` when it arrives. A further contract stops `catalog.domain` from importing anything in the project except `shared_kernel.domain`. An architecture test (`testing/backend/architecture`) reads every `*/domain` package and fails if it imports anything outside the standard library, its own package and `shared_kernel.domain`.
 
 **mypy** runs in strict mode, with the Pydantic plugin, over `backend/src` and `backend/migrations`.
 

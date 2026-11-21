@@ -886,3 +886,31 @@ Template:
   - `.hypothesis/` and `.coverage` are ignored by git and Docker.
 - **Result:** 100% coverage of both domain packages.
 
+### D-071: How products are stored (ECOM-003)
+- **Date:** 2026-11-21
+- **Status:** Accepted (owner accepted ECOM-003 in prompt #011). Supersedes "imperative mapping" in §4.1.
+- **Context:** The ticket asked for SQLAlchemy imperative mapping of `Product`. `Product` keeps its state in private attributes and a frozen `ProductDetails` of frozen value objects. Imperative mapping would have to instrument the domain class itself (adding SQLAlchemy state to its instances and intercepting its attributes) and map every value object as a composite.
+- **Decision:**
+  - **Core tables with explicit translation.** `SqlAlchemyProductRepository` writes rows with `insert`/`update` and rebuilds `Product` through its normal constructor. The translation is about 40 lines, checked by mypy, and keeps the domain class untouched. The weather repository already works this way.
+  - **The repository runs on the Unit of Work's session.** `CatalogUnitOfWork` (an application port) exposes `products`; `SqlAlchemyCatalogUnitOfWork` builds the repository on its session, so a use case commits or rolls back everything at once.
+  - **Optimistic locking in one statement:** `UPDATE … WHERE id AND version = loaded … RETURNING version`. When no row matches, one extra read tells `ProductNotFound` from `VersionConflict(expected, current)`. On success the repository calls `Product.bump_version()`, so the caller holds the new version (ECOM-005 returns it).
+  - **Duplicate SKUs** are caught inside a SAVEPOINT and raised as `DuplicateSku`, identified by the constraint name `uq_products_sku`. The transaction stays usable, which the CSV import will need.
+  - **Schema:** tags as `varchar[]`; CHECKs for the four domain rules, plus known tags, known status and `version ≥ 1`; every constraint named. No currency column (USD only, CQ-06; adding one later is a migration). The downgrade also drops `pg_trgm`.
+  - **`ecommerce/schema.py`** gathers every table for Alembic's `env.py`. A test compares the migrated database with the table definitions (Alembic's `compare_metadata`). Alembic doesn't compare CHECK constraints, so separate tests write invalid rows with direct SQL and assert each constraint by name.
+  - **Test hygiene:** the shared Unit of Work tests now drop their scratch table when they finish, so it can't show up as schema drift.
+- **Alternatives:** ORM imperative mapping (rejected for the reasons above); a hand-written SQL repository without SQLAlchemy Core (rejected: Core gives typed statements and the same engine as the rest of the app).
+
+
+### D-072: Every ticket tests its failures, its retries and stock safety
+- **Date:** 2026-11-21
+- **Status:** Accepted (owner's instruction in prompt #011)
+- **Context:** The owner asked that we never forget tests for the errors that can happen and the response each produces, that we always think about idempotency, and that we never sell products we don't have.
+- **Decision:**
+  - Every ticket gets a **"Failure cases and retries"** section before it is built, and tests for each line of it (§8.2):
+    1. every failure and what the caller gets back (a domain error, or the HTTP status and Problem Details `type` once there is an endpoint); a raw database error or a 500 for a foreseeable case counts as a bug;
+    2. what happens on a retry: no duplicate, no double sale, no double audit entry; a change that changes nothing creates no new version and no audit entry;
+    3. for tickets that touch stock: stock never goes below zero, including under concurrent requests.
+  - Applied to ECOM-003 straight away. Seven new tests: two buyers racing for the last unit (the second gets `VersionConflict` and the stock stays 0); a sale after the stock reaches 0 is refused; a sale larger than the stock changes nothing; an archived product can't be sold; a refused save can be retried after reloading; a retried create is refused; and the new error's own test.
+  - **One bug found and fixed.** Adding the same product twice hit the primary key and escaped as a raw `IntegrityError`, which the API would have turned into a 500. It is now `ProductAlreadyExists`, raised inside the SAVEPOINT so the transaction stays usable.
+  - Idempotency of the checkout itself (`Idempotency-Key`) and row locking for stock stay in ECOM-014, as designed in §7.2 and §7.3.
+- **Alternatives:** leaving failure tests to ECOM-016 hardening (rejected: a missing error path is cheapest to find while the ticket is open, as the primary-key bug showed).

@@ -243,6 +243,9 @@ class Product:
     def snapshot(self) -> dict[str, AuditValue]:
         return {"sku": self._sku.value, **self._details.snapshot(), "status": self._status.value}
 
+    def bump_version(self) -> None:
+        self._version += 1
+
     def pull_events(self) -> list[ProductEvent]:
         events, self._events = self._events, []
         return events

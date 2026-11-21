@@ -1,6 +1,6 @@
 # Task board
 
-This folder simulates a Jira project. Each ticket is one Markdown file, named after its key. A ticket has these sections: context, scope, acceptance criteria, test plan, definition of done and status. When it is delivered, it also gets a business view: what was built, why, the main goal, whether a person can test it or it runs in the background, and what to test (D-067).
+This folder simulates a Jira project. Each ticket is one Markdown file, named after its key. A ticket has these sections: context, scope, acceptance criteria, test plan, definition of done and status. Before it is built, it also gets a "Failure cases and retries" section: what can go wrong and what the caller gets back, what happens on a retry, and, if it touches stock, proof that we never sell what we don't have (D-072). When it is delivered, it also gets a business view: what was built, why, the main goal, whether a person can test it or it runs in the background, and what to test (D-067).
 
 - **ECOM-000** sets up the environment: a walking skeleton that proves the whole stack runs end to end in local containers.
 - **ECOM-001 onwards** build the e-commerce application, following [TECHNICAL_ARCHITECTURE.md](../docs/TECHNICAL_ARCHITECTURE.md).
@@ -24,7 +24,7 @@ A ticket moves to **Done** only after the owner accepts it at its review gate.
 | [ECOM-000](ECOM-000.md) | Walking skeleton: four containers, weather test feature, local CI | 0 | — | Done |
 | [ECOM-001](ECOM-001.md) | Backend foundation: shared kernel, Problem Details errors, quality gates | 1 | ECOM-000 | Done |
 | [ECOM-002](ECOM-002.md) | Catalog domain: value objects and the Product aggregate | 1 | ECOM-001 | Done |
-| [ECOM-003](ECOM-003.md) | Catalog persistence: schema, repository and Unit of Work | 1 | ECOM-002 | Backlog |
+| [ECOM-003](ECOM-003.md) | Catalog persistence: schema, repository and Unit of Work | 1 | ECOM-002 | Done |
 | [ECOM-004](ECOM-004.md) | Audit trail: append-only log and product history | 1 | ECOM-003 | Backlog |
 | [ECOM-005](ECOM-005.md) | Product CRUD and search API | 1 | ECOM-004 | Backlog |
 | [ECOM-006](ECOM-006.md) | Frontend foundation: API client, routing, server state, actor prompt | 2 | ECOM-005 | Backlog |

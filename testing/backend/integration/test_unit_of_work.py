@@ -16,6 +16,8 @@ async def probe_table(engine: AsyncEngine) -> AsyncIterator[AsyncEngine]:
         )
         await connection.execute(text("TRUNCATE unit_of_work_probe"))
     yield engine
+    async with engine.begin() as connection:
+        await connection.execute(text("DROP TABLE unit_of_work_probe"))
 
 
 async def stored_ids(engine: AsyncEngine) -> list[int]:

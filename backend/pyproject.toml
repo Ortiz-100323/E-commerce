@@ -70,6 +70,15 @@ layers = [
 ]
 
 [[tool.importlinter.contracts]]
+name = "Catalog layers: infrastructure depends on application, which depends on domain"
+type = "layers"
+layers = [
+    "ecommerce.catalog.infrastructure",
+    "ecommerce.catalog.application",
+    "ecommerce.catalog.domain",
+]
+
+[[tool.importlinter.contracts]]
 name = "Catalog domain depends only on the shared kernel domain"
 type = "forbidden"
 source_modules = ["ecommerce.catalog.domain"]
@@ -85,6 +94,7 @@ name = "Domain and application stay free of frameworks"
 type = "forbidden"
 source_modules = [
     "ecommerce.catalog.domain",
+    "ecommerce.catalog.application",
     "ecommerce.weather.domain",
     "ecommerce.weather.application",
     "ecommerce.shared_kernel.domain",

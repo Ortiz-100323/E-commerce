@@ -441,3 +441,48 @@ Three of these are my own judgement, so please confirm them: **11** (archived pr
 **A slip, a third time:** one command again started with a stray `python -` and hung. Nothing changed; I stopped it and checked the file. Since then, every file change in this ticket has gone through the editor tool, and I saved this as a standing rule in my memory.
 
 **Status:** ECOM-002 is ready for your review, not committed. Next is ECOM-003: saving products in the database.
+
+---
+
+## #010 — 2026-11-21 — Testing tools added, ECOM-002 committed, ECOM-003 built
+
+### User
+
+> add hypothesis and pytest-cov, then commit and start ECOM-003. I believe it will only be testable for me after ecom 5 which will crate the crud.  Lets go for 003.
+
+### Assistant
+
+**Done so far:**
+- **Testing tools added.** The automatic product-rule tests now use hypothesis, which generates hundreds of random examples per rule. The build fails if less than 95% of the business-rule code is tested; today it's 100%.
+- **ECOM-002 committed** as `cf9689f`. I took your go-ahead as acceptance of the three judgement calls (archived products stay editable, category spelling, a paid product can be a gift); tell me if any should change.
+- **ECOM-003 built** on `feature/ECOM-003-catalog-persistence`, waiting for your review, not committed.
+
+You're right about testing: **ECOM-005 is the first ticket you can test by hand**, in Swagger. The screens come in ECOM-007 (admin) and ECOM-008 (storefront).
+
+## ECOM-003: Product storage
+
+**What was built**
+- Products can now be **saved in the database and read back exactly** as they were, to the cent and the gram, with accents and symbols intact.
+- **The database has its own safety net.** Even if a bug or a manual SQL command tries, it refuses a negative price, negative stock or weight, a free product that isn't a gift, an unknown status, and a second product with the same SKU.
+- **Protection against two people editing at once.** If two admins open the same product and both save, the second save is refused instead of silently overwriting the first. The admin screen (ECOM-007) will use this to say "this product changed, reload it".
+- **Fast search is prepared:** the database has search indexes on name, SKU and description, ready for the search in ECOM-005.
+
+**Why it was built**
+The product rules from ECOM-002 lived only in memory. Now products are kept, and the database double-checks the most important rules.
+
+**Main goal**
+Products are stored safely and exactly, and no edit is ever lost to a simultaneous one.
+
+**Human testable or background?**
+**Background only.** Nothing to click yet.
+
+**What to test**
+Nothing by hand. If you'd like a look, the new (empty) products table is visible with:
+`docker compose exec db psql -U ecommerce -d ecommerce -c "\d products"`
+The running stack updated its database automatically when it started.
+
+**One technical choice to review (D-071):** the ticket said to connect products to the database through SQLAlchemy's automatic mapping. I wrote the translation by hand instead, about 40 lines. The automatic mapping would have changed how our product rules work internally; the hand-written version leaves them untouched and is the same approach as the weather feature.
+
+**Tests:** 34 new tests against the real database, covering all 5 acceptance criteria. The CI container is green: 294 backend tests, with 100% of the business-rule code tested.
+
+**Status:** ECOM-003 is ready for your review, not committed. Next is ECOM-004: the audit trail, which records who changed what, when, and the value before and after.

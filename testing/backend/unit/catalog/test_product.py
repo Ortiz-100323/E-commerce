@@ -578,6 +578,15 @@ def test_a_product_can_be_rebuilt_from_stored_state_without_events() -> None:
     assert product.pull_events() == []
 
 
+def test_bump_version_moves_to_the_next_version_without_events() -> None:
+    product = existing()
+
+    product.bump_version()
+
+    assert product.version == INITIAL_VERSION + 1
+    assert product.pull_events() == []
+
+
 def test_changes_do_not_alter_the_version() -> None:
     product = existing()
     product.rename("Trail Shoes", at=LATER)
