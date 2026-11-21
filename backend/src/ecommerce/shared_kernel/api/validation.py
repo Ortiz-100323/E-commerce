@@ -1,5 +1,5 @@
 import dataclasses
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
@@ -120,3 +120,10 @@ def field_error_from_issue(issue: ValidationIssue, location: str = "body") -> Fi
 def describe(errors: Sequence[FieldError]) -> str:
     count = len(errors)
     return "1 field is not valid." if count == 1 else f"{count} fields are not valid."
+
+
+class InvalidParameters(Exception):
+    def __init__(self, location: str, issues: Iterable[ValidationIssue]) -> None:
+        self.location = location
+        self.issues = tuple(issues)
+        super().__init__(f"{len(self.issues)} {location} issue(s)")

@@ -1,10 +1,10 @@
-from collections.abc import Iterable
 from dataclasses import replace
 from typing import Annotated
 from urllib.parse import unquote
 
 from fastapi import Header
 
+from ecommerce.shared_kernel.api.validation import InvalidParameters
 from ecommerce.shared_kernel.domain.actor import Actor
 from ecommerce.shared_kernel.domain.errors import DomainValidationError, ValidationIssue
 
@@ -16,30 +16,25 @@ ACTOR_HEADER_DESCRIPTION = (
 )
 
 
-class InvalidHeader(Exception):
-    def __init__(self, issues: Iterable[ValidationIssue]) -> None:
-        self.issues = tuple(issues)
-        super().__init__(f"{len(self.issues)} header issue(s)")
-
-
 def require_actor(
-    x_actor_name: Annotated[
-        str | None, Header(alias=ACTOR_HEADER, description=ACTOR_HEADER_DESCRIPTION)
-    ] = None,
+    x_actor_name: Annotated[str, Header(alias=ACTOR_HEADER, description=ACTOR_HEADER_DESCRIPTION)],
 ) -> Actor:
     try:
-        name = unquote(x_actor_name or "", errors="strict")
+        name = unquote(x_actor_name, errors="strict")
     except UnicodeDecodeError as error:
-        raise InvalidHeader(
+        raise InvalidParameters(
+            "header",
             [
                 ValidationIssue(
                     ACTOR_HEADER,
                     "invalid_encoding",
                     "The name must be percent-encoded UTF-8.",
                 )
-            ]
+            ],
         ) from error
     try:
         return Actor(name)
     except DomainValidationError as error:
-        raise InvalidHeader(replace(issue, field=ACTOR_HEADER) for issue in error.issues) from error
+        raise InvalidParameters(
+            "header", (replace(issue, field=ACTOR_HEADER) for issue in error.issues)
+        ) from error

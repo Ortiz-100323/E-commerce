@@ -613,3 +613,78 @@ All 17 rows of the failure table in [tasks/ECOM-004.md](tasks/ECOM-004.md) have 
 **Tests:** 67 new tests. The CI container is green: 368 backend tests, with 100% of the business-rule code tested. The running stack already has the new table.
 
 **Status:** ECOM-004 is ready for your review, not committed. Next is ECOM-005, the product API: create, edit, archive and search. It's the first ticket you can test by hand in Swagger.
+
+---
+
+## #013 — 2026-11-21 — ECOM-004 committed, ECOM-005 built: product API
+
+### User
+
+> the response is way better. commit it and let'sq go for ecom 5
+
+### Assistant
+
+**ECOM-004 is committed** as `c05380b`. **ECOM-005 is built** on `feature/ECOM-005-product-api`; it's waiting for your review and isn't committed.
+
+## ECOM-005: Product API (create, edit, archive, search)
+
+### Acceptance criteria
+
+| # | Criterion | Result | How it was proven |
+|---|---|---|---|
+| 1 | Full CRUD over HTTP; DELETE archives; archived products are hidden from the default search | ✅ Pass | One test runs the whole life of a product against the real database: create, read, edit, archive, read again, restore. The history shows all four changes with the right names. After archiving, the product disappears from the normal search and appears when you ask for archived products. |
+| 2 | A price of 0 without `gift: true` returns 422 `zero_price_requires_gift` | ✅ Pass | A free product without the gift flag is refused and nothing is saved. With the flag, it's created with the GIFT tag. Removing the flag from a free product is refused too. **One naming note** below. |
+| 3 | PUT with a stale `version` returns 409 `version-conflict` with `current_version` | ✅ Pass | Two people save version 1. The second gets 409 with `current_version: 2` and "You edited version 1, but the product is now at version 2." Their change isn't stored or logged. |
+| 4 | Creating a duplicate SKU returns 409 `duplicate-sku` | ✅ Pass | Creating `rs-001` when `RS-001` exists gives 409 with "SKU RS-001 is already taken." There's still one product. |
+| 5 | Search handles every filter, pagination and a `%` typed by the user | ✅ Pass | Tested with 5 products, one of them archived: text search over name, SKU and description; every filter, alone and combined; all 6 sort orders; and pages without overlap. Typing `%`, `_` or `\` searches for that character literally and never errors. |
+| 6 | A contract test sends bad input to every endpoint and gets Problem Details back | ✅ Pass | The test reads the API's own description and sends 29 kinds of bad input to the 10 endpoints that take input. Every answer has the standard error format. If someone adds an endpoint later, the test covers it automatically, and fails if it can't. |
+
+**Naming note (D-075):** the ticket asked for the code `zero_price_requires_gift_confirmation`. The product rules built in ECOM-002 and the error-format section of the architecture already used `zero_price_requires_gift`, so I kept one name everywhere and corrected the ticket. If you prefer the longer name, it's a one-line change.
+
+**What was built**
+- **Products can be managed over the API:** create, read, edit, archive (the "delete", which only hides) and restore.
+- **The catalogue can be searched** by text, category, price range, in stock or not, gifts only, and active or archived. Results can be sorted by name, price or date and come in pages.
+- **A list of categories**, each shown once, whatever spelling different products used.
+- **Every change says who made it** and goes into the product's history.
+- **Prices come back as text with the currency** (`"89.99"`, `"USD"`), so no cent is ever lost to rounding.
+
+**Why it was built**
+Challenge rules CC-02 (product management) and CC-05 (search). The admin screen (ECOM-007) and the shop (ECOM-008) are built on top of it.
+
+**Main goal**
+Manage products safely: no duplicate SKUs, no edit lost to a simultaneous one, no free product by accident, and every change in the history.
+
+**Human testable or background?**
+**Testable, in Swagger.** This is the first ticket you can try by hand. Your database is empty; I didn't save anything in it.
+
+**What to test**
+Open **http://localhost:8001/docs**. For each step, open the endpoint, click **"Try it out"**, fill in the fields and click **"Execute"**.
+
+1. **Create:** `POST /api/v1/products`. Type your name in **X-Actor-Name**. The example body is ready (Running Shoes, `RS-001`, 89.99). → **201**. Note the `id`; `version` is 1.
+2. **Duplicate:** execute the same thing again. → **409** "SKU RS-001 is already taken."
+3. **Free product:** change `sku` to `GC-001`, `name` to `Gift Card`, `category` to `Gifts` and `price` to `"0"`, leaving `gift: false`. → **422** `zero_price_requires_gift`. Set `gift: true` and execute again. → **201**, with `"tags": ["GIFT"]`.
+4. **No name:** empty the X-Actor-Name field. → **422** saying the header is required.
+5. **Search:** `GET /api/v1/products` with `q` = `shoes` → Running Shoes. Try `q` = `%`: no error, and nothing that isn't really a match. Try `tag` = `GIFT`, or `sort` = `-price`.
+6. **Edit:** `PUT /api/v1/products/{product_id}` with the id from step 1. In the body, set `"version": 1` and change the price to `"79.99"`. → **200**, `version` 2.
+7. **Simultaneous edit:** execute again with `"version": 1`, but change the name. → **409** `version-conflict` with `current_version: 2`.
+8. **Safe retry:** put the name back to `Running Shoes` and execute step 6 again exactly as it was (version 1, price 79.99). → **200** with the current product, because your change is already in place.
+9. **Archive:** `DELETE /api/v1/products/{product_id}`. → **200**, `"status": "ARCHIVED"`. Search again: it's gone. Search with `status` = `ARCHIVED`: it's there.
+10. **Restore:** `POST /api/v1/products/{product_id}/restore`. → **200**, `ACTIVE` again.
+11. **History:** `GET /api/v1/products/{product_id}/history`. → created, changed, archived and restored, each with your name and the time.
+12. **Categories:** `GET /api/v1/categories`. → `Gifts` and `Sports`.
+
+### Failure cases and retries
+
+All 19 rows of the failure table in [tasks/ECOM-005.md](tasks/ECOM-005.md) have tests, and all pass. These matter most for the business:
+- **Double click on "create":** one product, and the second click gets "SKU already taken".
+- **Saving again after a timeout:** if your change is already saved, you simply get the product back, with no false "someone else changed it".
+- **Saving without changing anything, or archiving twice:** no new version and no extra history entry.
+- **Two admins saving at once:** the first wins, and the second is told to reload. Nothing is silently overwritten.
+- **Bad input gets a precise message per field, all at once.** For example, a bad SKU, a name with HTML, a negative price and a weight with 4 decimals come back as four messages in one answer.
+- **A stock of "10" as text, or 1.5, or true, is refused** instead of being guessed.
+
+**Small fix during the work:** Swagger showed the `X-Actor-Name` field as optional. It's now marked required, and a missing name is reported together with any other mistakes in the same answer.
+
+**Tests:** 132 new tests. The CI container is green: 500 backend tests, with 100% of the business-rule code tested.
+
+**Status:** ECOM-005 is ready for your review, not committed. Next is ECOM-006: the frontend foundation (API client, page routing, and the "Who is reviewing?" name prompt).

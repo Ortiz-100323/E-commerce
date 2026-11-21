@@ -7,7 +7,6 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from ecommerce.shared_kernel.api.actor import InvalidHeader
 from ecommerce.shared_kernel.api.problem_details import (
     INTERNAL_ERROR,
     MALFORMED_REQUEST,
@@ -20,6 +19,7 @@ from ecommerce.shared_kernel.api.problem_details import (
 )
 from ecommerce.shared_kernel.api.validation import (
     FieldError,
+    InvalidParameters,
     describe,
     field_error_from_issue,
     field_error_from_pydantic,
@@ -53,10 +53,10 @@ async def handle_domain_validation(request: Request, exc: Exception) -> Response
     return validation_problem(request, [field_error_from_issue(issue) for issue in exc.issues])
 
 
-async def handle_invalid_header(request: Request, exc: Exception) -> Response:
-    assert isinstance(exc, InvalidHeader)
+async def handle_invalid_parameters(request: Request, exc: Exception) -> Response:
+    assert isinstance(exc, InvalidParameters)
     return validation_problem(
-        request, [field_error_from_issue(issue, location="header") for issue in exc.issues]
+        request, [field_error_from_issue(issue, location=exc.location) for issue in exc.issues]
     )
 
 
@@ -86,7 +86,13 @@ async def handle_unexpected(request: Request, exc: Exception) -> Response:
 
 def mapped_handler(mapping: ProblemMapping) -> Handler:
     async def handle(request: Request, exc: Exception) -> Response:
-        return problem_response(request, mapping.problem, headers=mapping.headers)
+        return problem_response(
+            request,
+            mapping.problem,
+            detail=None if mapping.detail is None else mapping.detail(exc),
+            extra=None if mapping.extra is None else mapping.extra(exc),
+            headers=mapping.headers,
+        )
 
     return handle
 
@@ -97,7 +103,7 @@ def install_problem_handlers(
     app.add_exception_handler(RequestValidationError, handle_request_validation)
     app.add_exception_handler(StarletteHTTPException, handle_http_exception)
     app.add_exception_handler(DomainValidationError, handle_domain_validation)
-    app.add_exception_handler(InvalidHeader, handle_invalid_header)
+    app.add_exception_handler(InvalidParameters, handle_invalid_parameters)
     app.add_exception_handler(NotFoundError, handle_not_found)
     for exception_type, mapping in mappings.items():
         app.add_exception_handler(exception_type, mapped_handler(mapping))

@@ -941,3 +941,25 @@ Template:
 - **Context:** The owner said they couldn't see, in the delivery replies, which acceptance criteria were met and how.
 - **Decision:** Every delivery reply includes a table of the ticket's acceptance criteria with the result of each (Pass, or what is missing) and one plain line on how it was proven. It comes right after the business view (D-067). The ticket's "Verification" section holds the same table with the technical detail, and the failure table (D-072) shows a result per row.
 - **Alternatives:** linking to the ticket only (rejected: the owner wants to see it in the reply).
+
+### D-075: Product API choices (ECOM-005)
+- **Date:** 2026-11-21
+- **Status:** Accepted (owner tested ECOM-005 in Swagger and accepted it in prompt #014)
+- **Decision:**
+  - **The zero-price code stays `zero_price_requires_gift`.** The ticket and §4.3 said `zero_price_requires_gift_confirmation`, but §4.6, the domain (ECOM-002, D-068) and its tests already used the shorter name. One name everywhere was more important than which one; the ticket and §4.3 now match the code. Renaming it is a one-line change if the owner prefers the longer one.
+  - **Every change returns the product.** `POST` gives 201 with a `Location` header; `PUT`, `DELETE` (archive) and restore give 200 with the body rather than 204. The screen always has the new `version` without a second request.
+  - **`PUT` has no `sku`.** The SKU is the product's identity (§6.5), so sending it is refused as an unknown field rather than silently ignored.
+  - **A retried PUT is idempotent.** If the version is stale but applying the request would change nothing, the request returns 200 with the current product. That is what a retry after a timeout looks like, and no one's change is lost. If it would change something, the request gets 409 as before.
+  - **Strict JSON types for `stock`, `version` and `gift`.** `"10"`, `1.5` or `true` as a stock, or `"yes"` as a gift, give 422. Lax parsing would have turned `true` into 1, or crashed the domain's own type checks with a 500.
+  - **Search reads go straight to SQL** through a `ProductQueries` port (`SqlAlchemyProductQueries` on the engine). They are read-only and need neither the aggregate nor a unit of work.
+  - **The search defaults to `status=ACTIVE`.** The storefront then can't show archived products by accident; the admin asks for `ALL` or `ARCHIVED`.
+  - **Pages are stable.** Every sort is tie-broken by id. `page` is capped at 100,000 and `q` at 200 characters, as abuse limits.
+  - **A minimum price above the maximum is a 422 in the query** (`invalid_range`), raised where the parameters are read. Header and query errors share `InvalidParameters`, which carries its location.
+  - **Problem mappings can add a `detail` and extra fields.** That gives `current_version` on `version-conflict` and `sku` on `duplicate-sku`.
+  - **The contract test is generated from the OpenAPI document,** so a new endpoint is covered automatically. Another test fails if any endpoint that takes input has no bad-input case.
+  - **`X-Actor-Name` is now declared required** (ECOM-004 checked it only after FastAPI). Swagger marks it as required, and a missing name is reported together with any body errors in one 422. A blank or invalid name still gets the specific messages from `Actor`.
+- **Alternatives:**
+  - 204 on DELETE (rejected: the client would need another GET for the version).
+  - Ignoring `sku` in a PUT (rejected: a silent no-op hides client bugs).
+  - Always 409 on a stale version (rejected: a retry after a timeout would show a false conflict).
+  - Search through the repository (rejected: it would load whole aggregates for a read-only list).

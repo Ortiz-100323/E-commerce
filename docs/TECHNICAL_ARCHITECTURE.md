@@ -14,6 +14,7 @@
 > | 8 | 2026-11-21 | ECOM-003: products are stored with Core tables and explicit translation instead of ORM imperative mapping (§4.1, D-071). §4.4 describes the `products` table, its constraints and optimistic locking as built. §8.3 adds the catalog layers contract. |
 > | 9 | 2026-11-21 | §8.2 makes failure cases with their responses, retries and stock safety a required part of every ticket's tests (D-072). §4.4 adds `ProductAlreadyExists` for a retried create. |
 > | 10 | 2026-11-21 | ECOM-004: the audit trail as built (§6.4, D-073). The coverage gate now includes `catalog.application`. |
+> | 11 | 2026-11-21 | ECOM-005: the product API as built (§4.5). The zero-price code is `zero_price_requires_gift` everywhere, and a retried PUT whose changes are already in place returns 200 (§4.3, D-075). |
 >
 > Every decision here also appears in [JOURNAL.md](JOURNAL.md) with its context and the alternatives considered.
 
@@ -263,7 +264,7 @@ Exact versions are pinned in Phase 0 and logged in the journal.
 
 | Use case | Notes |
 |----------|-------|
-| `CreateProduct`, `UpdateProduct`, `ArchiveProduct`, `RestoreProduct`, `GetProduct` | A price of 0 requires an explicit `gift: true`. Otherwise the request fails with 422 and the reason `zero_price_requires_gift_confirmation`. Updates must send the `version` they read; a mismatch returns 409. |
+| `CreateProduct`, `UpdateProduct`, `ArchiveProduct`, `RestoreProduct`, `GetProduct` | A price of 0 requires an explicit `gift: true`. Otherwise the request fails with 422 and the code `zero_price_requires_gift` (D-075). Updates must send the `version` they read; a mismatch returns 409, unless the changes are already in place (a retry), which returns 200. |
 | `SearchProducts` | `q` searches name, SKU and description. Filters: `category`, `min_price`, `max_price`, `in_stock` and `tag`. Supports sorting and offset pagination. |
 | `ListCategories` | Returns the distinct categories of active products. |
 | `StartImport` | Parses the file, classifies every row using the configured policies, and persists an `ImportBatch` in the `PENDING_REVIEW` state. |
@@ -328,6 +329,12 @@ Exact versions are pinned in Phase 0 and logged in the journal.
 
 - Money is always serialised as a string (for example `"29.99"`), together with a currency code.
 - Every request that changes admin or import data must send the `X-Actor-Name` header. If it is missing, the request fails with 422. The value is stored as the **actor** in the audit log (§6.4).
+- **Products as built (ECOM-005, D-075):**
+  - `POST /products` returns 201 with `Location`. `GET`, `PUT`, `DELETE` (archive) and restore return 200 with the product, so the client always holds the current `version`.
+  - A product is returned with `price` and `weight_kg` as strings, `currency: "USD"`, `tags`, `status`, `is_sellable` and `version`.
+  - `PUT` replaces every field except `sku`, which is refused as an unknown field. It needs the `version` that was read.
+  - `GET /products` takes `q`, `category`, `min_price`, `max_price`, `in_stock`, `tag`, `status` (`ACTIVE` by default, `ARCHIVED`, `ALL`), `sort` (`name`, `price` or `created_at`, with `-` for descending), `page` and `page_size` (≤ 100). It returns `{items, total, page, page_size}`.
+  - `GET /categories` returns `{items}`: the active categories, merged case-insensitively.
 
 ### 4.6 Errors: one format for everything
 

@@ -6,8 +6,12 @@ import httpx
 from fastapi import FastAPI
 from sqlalchemy.exc import OperationalError
 
+from ecommerce.catalog.api.problems import CATALOG_PROBLEMS
+from ecommerce.catalog.api.router import categories_router
 from ecommerce.catalog.api.router import router as catalog_router
+from ecommerce.catalog.application.products import ProductQueries
 from ecommerce.catalog.application.unit_of_work import CatalogUnitOfWorkFactory
+from ecommerce.catalog.infrastructure.product_queries import SqlAlchemyProductQueries
 from ecommerce.catalog.infrastructure.unit_of_work import SqlAlchemyCatalogUnitOfWorkFactory
 from ecommerce.shared_kernel.api.exception_handlers import install_problem_handlers
 from ecommerce.shared_kernel.api.health_router import router as health_router
@@ -41,6 +45,7 @@ class Dependencies:
     weather_repository: WeatherSearchRepository
     database_probe: DatabaseProbe
     catalog_unit_of_work: CatalogUnitOfWorkFactory
+    catalog_queries: ProductQueries
     clock: Clock
 
 
@@ -62,6 +67,7 @@ async def production_dependencies() -> AsyncIterator[Dependencies]:
                 catalog_unit_of_work=SqlAlchemyCatalogUnitOfWorkFactory(
                     create_session_factory(engine)
                 ),
+                catalog_queries=SqlAlchemyProductQueries(engine),
                 clock=SystemClock(),
             )
     finally:
@@ -76,14 +82,18 @@ def create_app(dependencies_factory: DependenciesFactory = production_dependenci
             app.state.weather_repository = dependencies.weather_repository
             app.state.database_probe = dependencies.database_probe
             app.state.catalog_unit_of_work = dependencies.catalog_unit_of_work
+            app.state.catalog_queries = dependencies.catalog_queries
             app.state.clock = dependencies.clock
             yield
 
     app = FastAPI(title="E-commerce API", version="0.1.0", lifespan=lifespan)
     app.add_middleware(RequestIdMiddleware)
-    install_problem_handlers(app, {**INFRASTRUCTURE_PROBLEMS, **WEATHER_PROBLEMS})
+    install_problem_handlers(
+        app, {**INFRASTRUCTURE_PROBLEMS, **CATALOG_PROBLEMS, **WEATHER_PROBLEMS}
+    )
     app.include_router(health_router, prefix=API_PREFIX)
     app.include_router(catalog_router, prefix=API_PREFIX)
+    app.include_router(categories_router, prefix=API_PREFIX)
     app.include_router(weather_router, prefix=API_PREFIX)
     return app
 

@@ -1,4 +1,4 @@
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from http import HTTPStatus
 from typing import Any
@@ -27,6 +27,8 @@ class ProblemType:
 class ProblemMapping:
     problem: ProblemType
     headers: Mapping[str, str] = field(default_factory=dict)
+    detail: Callable[[Exception], str] | None = None
+    extra: Callable[[Exception], Mapping[str, Any]] | None = None
 
 
 MALFORMED_REQUEST = ProblemType("malformed-request", 400, "The request body is not valid JSON.")
