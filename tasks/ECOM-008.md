@@ -7,7 +7,7 @@
 | Status | **Done** |
 | Depends on | ECOM-006 |
 | Architecture | §5, CC-05, CC-07 |
-| Journal | D-072, D-087 |
+| Journal | D-072, D-087, D-089 |
 | Evidence | [ECOM-008-evidence](ECOM-008-evidence/README.md) |
 
 ## Context
@@ -54,6 +54,10 @@ Shoppers find products by searching and filtering.
 | 2 | Reloading the page keeps the same search | **Pass** | The page is opened at `/?q=shoes&in_stock=true&sort=-price`, closed and opened again. The results, the search box, the check box and the sort list all come back the same. |
 | 3 | Gift products show the badge | **Pass** | Gift Card shows the **Gift** badge and the price "Free", on the card and on the product page. Other products don't. |
 | 4 | Out-of-stock products cannot be added to the cart | **Pass** | Trail Shoes (stock 0) shows "Out of stock", the button is disabled, and clicking it leaves "Cart: 0 items". A product with stock 2, clicked three times fast, stops at 2: "Only 2 in stock", disabled. With the limit loosened by one on purpose, that test fails. |
+
+### Code review round 1 (2026-11-21)
+
+**Fixed:** a valid but out-of-range page in a shared or hand-edited URL, such as `?page=999`, showed neither products nor the normal empty-search message. After the real response arrives, the shop now replaces the URL with the last available page and loads it. A regression test proves a 14-product catalog moves from page 999 to page 2 and shows products 13 and 14.
 
 ## Failure cases and retries (D-072)
 

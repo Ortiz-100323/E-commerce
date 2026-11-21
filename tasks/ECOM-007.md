@@ -7,7 +7,7 @@
 | Status | **Done** |
 | Depends on | ECOM-006 |
 | Architecture | §5, CC-02, CC-07 |
-| Journal | D-072, D-078 to D-086 |
+| Journal | D-072, D-078 to D-086, D-089 |
 | Evidence | [ECOM-007-evidence](ECOM-007-evidence/README.md) |
 
 ## Context
@@ -63,6 +63,10 @@ The admin manages products through the UI, as the challenge requires.
 | 3 | Server validation errors appear on the matching fields | **Pass** | A name with HTML comes back as a 422. The Name field is marked, shows "Remove < and > from the name.", gets the cursor, and the other values stay. A duplicate SKU appears under the SKU field. Neither causes a pop-up. |
 | 4 | A 409 version conflict shows a reload message | **Pass** | Someone else edits the product while it is open. Save shows "This product was changed by someone else since you opened it… your unsaved changes will be lost", with no pop-up. **Reload** brings the newest name and values and clears the message. A second test refreshes the page in the background before saving: the save still sends version 1 and gets the conflict, and the other person's change survives. |
 | 5 | The history page lists every change, oldest first | **Pass** | After create → someone else's edit → archive, the page lists Created (by Maria, with all the values), Changed (by Someone else: "Price 89.99 → 79.99", "Stock 10 → 3") and Archived ("Status ACTIVE → ARCHIVED"), in that order, each with its time. |
+
+### Code review round 1 (2026-11-21)
+
+**Fixed:** a hand-edited admin URL such as `?page=999` returned a valid empty page even when products existed. After a non-placeholder response, the table now replaces the URL with the last real page and loads it. A regression test starts beyond a two-page result and proves page 2 and its final product appear.
 
 ## Failure cases and retries (D-072)
 

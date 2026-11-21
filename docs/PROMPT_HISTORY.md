@@ -1352,3 +1352,45 @@ All 5 rows in [tasks/ECOM-009.md](tasks/ECOM-009.md) pass:
   It was all green on the last run.
 
 **Status:** waiting for the code review. When you share the findings, I'll file each one and fix it before the second half of the tasks (ECOM-010 onwards).
+
+---
+
+## #023 — 2026-11-21 — Code review round 1: three bugs fixed
+
+### User
+
+> Read the context of this project, undestand the journaling rules. Start a round of code review for each task developed and make notes if necessary. Our focus here is to find bugs and fixed them. Make sure to journal is up to date.
+
+### Assistant
+
+Code review round 1 is complete for ECOM-000 through ECOM-009. I fixed three bugs and recorded the per-ticket results in D-089.
+
+- **ECOM-007:** an admin URL beyond the last page (for example, `?page=999`) showed a blank table. It now redirects to the last real page.
+- **ECOM-008:** the storefront had the same out-of-range pagination bug. It now loads the last available page.
+- **ECOM-009:** the idempotent smoke test trusted the `SMOKE-TEST` SKU alone and could archive a merchant product with that SKU. It now verifies the smoke product's stable identity before changing it, or stops safely.
+
+No new defects were found in ECOM-000 through ECOM-006 during this round. The review covered task criteria and failure cases, architecture boundaries, migrations, backend/domain behavior, API contracts, frontend state and error handling.
+
+Verification is green:
+
+- all static, formatting, no-comments and architecture checks;
+- 36 tooling tests;
+- 467 backend tests, with 100% scoped coverage;
+- 89 frontend tests, with 96% line coverage;
+- production frontend build and all smoke checks after deployment.
+
+The only non-blocking tool warnings are the existing Starlette/httpx deprecation warning and Vite's 503 kB bundle-size warning.
+
+The code and regression tests are in commit `eb21825`; the review journal and ticket notes remain uncommitted. They are updated in [JOURNAL.md](docs/JOURNAL.md), [ECOM-007.md](tasks/ECOM-007.md), [ECOM-008.md](tasks/ECOM-008.md), and [ECOM-009.md](tasks/ECOM-009.md).
+
+---
+
+## #024 — 2026-11-21 — Code review journal committed
+
+### User
+
+> Great, commit it all
+
+### Assistant
+
+Committed all remaining review documentation with commit `docs: record first code review round`. The working tree is clean.

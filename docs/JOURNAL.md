@@ -1162,9 +1162,28 @@ Template:
   - **`upstream-unavailable` (502) stays in the problem catalog** for the real payment provider (§7.2). A test route that raises a 502 keeps it covered.
   - **The smoke test now goes through the catalog, and it is idempotent.**
     - It creates `SMOKE-TEST` once; later runs get the expected 409 `duplicate-sku` and reuse the product.
+    - Before reusing it, the test checks the stable smoke name, description and category. A coincidental merchant product with that SKU makes the check stop; it is never restored or archived.
     - It then restores the product, finds it by search, archives it, and checks that it has left the shop.
     - The live database therefore holds exactly one archived "Smoke test product" (in the "Smoke tests" category, visible in admin under Status: All), whose history grows by two entries per run.
 - **Alternatives:**
   - A new product per smoke run (rejected: it would fill the owner's database with test products).
   - A read-only smoke test (rejected: the ticket asks for a real create-and-find through the proxy).
   - Removing `upstream-unavailable` (rejected: checkout with a real provider will need it).
+
+### D-089: Code review round 1 for ECOM-000 through ECOM-009
+- **Date:** 2026-11-21
+- **Status:** Accepted (review and fixes requested by the owner)
+- **Scope:** every developed ticket, ECOM-000 through ECOM-009. The review checked each ticket against its acceptance criteria and failure table, inspected the architecture boundaries and migrations, and ran the complete quality suite.
+- **Results by ticket:**
+  - **ECOM-000:** container topology, proxy, database bootstrap and runner reviewed; no new defect found.
+  - **ECOM-001:** shared errors, request IDs, validation conversion, logging and quality gates reviewed; no new defect found.
+  - **ECOM-002:** product value objects, aggregate invariants, stock behavior and property tests reviewed; no new defect found.
+  - **ECOM-003:** product schema, repository, optimistic locking and Unit of Work reviewed; no new defect found.
+  - **ECOM-004:** audit mapping, transaction coupling and append-only database trigger reviewed; no new defect found.
+  - **ECOM-005:** CRUD/search schemas, problem mappings, literal wildcard search, paging and API contract reviewed; no new backend defect found.
+  - **ECOM-006:** client error parsing, retry rules, actor encoding/storage, routing and page-wide error guard reviewed; no new defect found.
+  - **ECOM-007:** fixed an out-of-range admin page that could show a blank table. It now moves to the last real page after the response; regression test added.
+  - **ECOM-008:** fixed the same out-of-range behavior in the shop; regression test added.
+  - **ECOM-009:** fixed unsafe ownership by SKU in the idempotent smoke test. It now refuses to mutate a product unless its stable smoke identity also matches; two tooling tests added.
+- **Why page correction waits for the real response:** TanStack Query keeps the previous page temporarily while a new request is running. Correcting against placeholder data could redirect using the old search's page count, so both screens wait for `isPlaceholderData` to be false.
+- **Verification:** `python testing/run.py all` passed: all static and architecture checks, 36 tooling tests, 467 backend tests with 100% scoped coverage, 89 frontend tests with 96% line coverage, and every smoke check. The production frontend image also built successfully, the local stack is healthy, and the smoke checks passed again after deployment.

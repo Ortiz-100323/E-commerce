@@ -6,7 +6,7 @@
 | Phase | 2 |
 | Status | **Done** |
 | Depends on | ECOM-007, ECOM-008 |
-| Journal | D-052, D-072, D-088 |
+| Journal | D-052, D-072, D-088, D-089 |
 
 ## Context
 
@@ -42,6 +42,10 @@ The weather feature from ECOM-000 only existed to prove the stack. Once the cata
 | 1 | No code, test, setting or route mentions weather | **Pass** | A search of the whole repository (outside `docs/` and `tasks/`, which keep the history) finds "weather" only in the migration history (0001 creates the table, 0005 drops it) and the migration tests that check it. The app, settings, routes, frontend, smoke test and the other tests are clean. The API has no weather endpoint left (the contract test counts exactly 7 endpoints that take input, all products). |
 | 2 | The smoke test proves the stack end to end through the catalog | **Pass** | Through nginx on http://frontend, it checks the page and its cache headers and the health check. Then it creates (or reuses) `SMOKE-TEST`, restores it, finds it by search, archives it and checks it left the shop. It passed twice in a row; the live database holds one `SMOKE-TEST`, with history created → archived → restored → archived. |
 | 3 | Upgrading an existing database drops the table without errors | **Pass** | Your live database upgraded from 0004 to 0005 on restart; `weather_searches` no longer exists. A migration test downgrades to 0004 (table back) and upgrades again (table gone), and the schema-drift test still finds no differences. |
+
+### Code review round 1 (2026-11-21)
+
+**Fixed:** on a duplicate `SMOKE-TEST` SKU, the smoke check previously trusted the SKU alone, then restored and archived that product. A merchant product using the same SKU could therefore be changed by the check. The check now verifies its stable name, description and category before any mutation; otherwise it stops with a collision message. Two tooling tests prove that its own product is accepted and a merchant product is refused.
 
 **Also in this ticket:**
 - `httpx` moved to the development dependencies, since production code makes no outbound calls any more.
