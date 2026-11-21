@@ -192,3 +192,101 @@ Both documents are updated. [TECHNICAL_ARCHITECTURE.md](docs/TECHNICAL_ARCHITECT
 - **A known false positive:** a big rename in a CSV, such as "Cotton T-Shirt" → "Organic Tee", will be rejected as a different product. The workaround is to rename it in the admin first.
 
 Nothing is committed yet. Phase 0 can start once you're happy with this.
+
+---
+
+## #005 — 2026-11-21 — Walking skeleton plan (ECOM-000) and the task board
+
+### User
+
+> Before any business rules, let's build a walking skeleton that proves the whole stack works end to end: backend, frontend, PostgreSQL and CI, each in its own local Docker container, all started by docker compose. Use a simple weather feature as the test case: I type a city in the React portal, the FastAPI backend fetches the weather from a public API (Open-Meteo, no key needed), saves the search in PostgreSQL and returns it, and the portal shows the result and the search history. Follow the DDD layers from TECHNICAL_ARCHITECTURE.md so we validate the structure, add a health check I can call from Swagger, and write tests with the external API mocked. Tell me how the frontend will reach the API, register these decisions in JOURNAL.md, and note that the weather feature is temporary. Also create a tasks/ folder that simulates Jira: one Markdown file per task (ECOM-001, ECOM-002...) with context, acceptance criteria, test plan, definition of done and status. Break this phase into tasks there and keep their status updated. Show me the plan and the tasks before you build. This whole skeleton should be ecom-000, its for us to set up the whole env. Do not over complicate it. Ecom-001 ahead are meant to be for our ecommerce. Our goal is for ECOM-000 be able to test the whole ap end to end into a local container. Make it with the essentials, dont over do because now we are set up our structure. Ecom-001 for instance should be starting the back end and ahead.  Get the plan for us and technical tickets for us to complete the skeleton + ecommerce accordingly to our architecture.
+
+### Assistant
+
+Written for: you, reviewing the ECOM-000 plan and the ticket backlog before anything is built.
+
+No code yet. The plan is in the tickets and the decisions are in the journal.
+
+**ECOM-000: the walking skeleton** ([tasks/ECOM-000.md](tasks/ECOM-000.md))
+
+`docker compose up --build` starts four containers:
+
+| Service | Host port | Role |
+|---|---|---|
+| `db` | 5433 | PostgreSQL 17 with a named volume. It also creates an `ecommerce_test` database for tests. |
+| `backend` | 8001 | FastAPI. It runs the migrations, then starts. Swagger is at `http://localhost:8001/docs`. |
+| `frontend` | 3000 | nginx serves the React build and forwards `/api/` to the backend. |
+| `ci` | — | Runs `testing/run.py all` once and exits with the result. |
+
+Your other project uses ports 8000 and 8080, so I avoided them.
+
+**How the frontend reaches the API (D-054).** The browser only talks to the frontend container. The React code calls relative URLs such as `/api/v1/weather/searches`, and nginx forwards anything under `/api/` to `backend:8000` on the compose network. The browser sees one origin, so there's no CORS setup and no API URL built into the bundle. When you run the frontend natively, Vite's dev proxy does the same job.
+
+**The weather feature is temporary.** It lives in its own `weather` context and uses all four DDD layers, so import-linter checks the structure from day one. ECOM-009 deletes it once the catalog can take over the end-to-end role. The endpoints:
+- `GET /api/v1/health`: callable from Swagger. Returns 200 when the database is up, 503 when it's down.
+- `POST /api/v1/weather/searches`: searches a city and saves the result.
+- `GET /api/v1/weather/searches`: returns the history.
+
+**Tests.**
+- Open-Meteo is mocked in the unit, adapter and API tests.
+- The repository is tested against `ecommerce_test`.
+- The frontend specs live in `testing/frontend`.
+- The `ci` container runs a smoke test through nginx that does one real Lisbon search. That's the only test that calls the real Open-Meteo.
+
+**Left out to keep it lean:**
+- mypy strict, the Problem Details error format and Testcontainers move to ECOM-001.
+- TanStack Query and React Router move to ECOM-006.
+- The CSV analysis scripts move to ECOM-010.
+- Playwright and GitHub Actions move to ECOM-016.
+
+**Tickets** ([tasks/README.md](tasks/README.md) is the board). ECOM-000 is To Do; the rest are in the Backlog.
+- **Phase 1, backend:** 001 foundation (shared kernel, error format, quality gates), 002 catalog domain, 003 persistence, 004 audit trail, 005 product CRUD and search API.
+- **Phase 2, UI:** 006 frontend foundation, 007 admin product screens, 008 storefront search, 009 remove the weather feature.
+- **Phase 3, CSV import:** 010 parsing and classification, 011 review workflow and commit, 012 import screens.
+- **Phase 4, purchase:** 013 ordering and checkout, 014 idempotency key and stock locking, 015 purchase screens.
+- **Phases 5–6:** 016 hardening, Playwright and GitHub Actions; 017 README and delivery.
+
+**Journal:** I added D-052 to D-059. D-053 records the four separate containers and supersedes the old "one app image" decisions (D-018, D-029 and the Q-13 answer). CC-08 is still met, because the whole app runs locally in Docker with one command. TECHNICAL_ARCHITECTURE.md still describes the single image; I'll update it to revision 5 once you approve this plan.
+
+**Two choices you may want to change:**
+1. **The `ci` container starts with every `docker compose up`**, as you asked. It runs once and exits while the app keeps running. The alternative is a compose profile, so `up` starts only the app and you run CI on demand.
+2. **The smoke test needs internet access**, because of the one real Open-Meteo call. I think that's worth it, since it proves the backend container can reach the outside world. If you'd rather it work offline, I'll mock that call as well.
+
+**A slip on my side:** one of my shell commands included an empty inline `python` call, which breaks PR-04. It hung without running anything, I stopped it, and I redid the journal edits without it.
+
+Nothing is committed. Once you approve, I'll start building ECOM-000.
+
+---
+
+## #006 — 2026-11-21 — Building ECOM-000
+
+### User
+
+> go ahead, start ECOM-000
+
+### Assistant
+
+ECOM-000 is built and waiting for your review. `docker compose up --build` starts all four containers, and the CI container passes every check, including a real weather search through the whole stack.
+
+**Try it.** The stack is running now:
+- http://localhost:3000: type a city and search.
+- http://localhost:8001/docs: call `GET /api/v1/health` from Swagger.
+- `docker compose run --rm ci`: runs every check again.
+
+**What the CI container runs.** It exited with code 0 on `docker compose up --build`, and again on `docker compose run --rm ci`:
+- ruff, import-linter (both layer contracts kept), the TypeScript check and the no-comments check;
+- 18 tests for the runner and the comment checker;
+- 39 backend tests, 4 of them against PostgreSQL. Open-Meteo is mocked in all of them;
+- 6 frontend tests;
+- 4 smoke checks through nginx, including one real Lisbon search that then appears in the history.
+
+**All 9 acceptance criteria pass**, and the ticket has a verification table. A few of them I checked by hand: the history survived `docker compose down` and `up`, and the health check returned 503 with the database stopped, then 200 once it came back. One gap: I didn't click through the portal in a real browser. I sent the same requests through the nginx proxy and the page's behaviour is covered by the frontend tests, but it's worth a quick look yourself.
+
+**Things you should know:**
+- **One decision for you.** Starlette now warns that its test client should use a package called `httpx2`. My attempt to add it was blocked as an unvetted dependency, so the warning stays. You can allow the package, or leave the warning until it matters.
+- **Windows quirks.** The PostgreSQL driver needs a different event loop on Windows, so the backend tests switch to it on Windows only. Vitest breaks when Git Bash starts it with a lowercase `c:` path, so run the frontend tests with `python testing/run.py frontend`. The containers aren't affected by either.
+- **A slip I caught.** I wrote a `# noqa` comment into the migration setup. I caught it before running any checks, and the code now uses the import instead.
+
+**Docs updated:** journal entry D-060 (pinned versions and the choices I made while building), the ticket's verification section, the board (ECOM-000 is In Review), and a README with the run instructions and the CSV download date.
+
+Nothing is committed. Once you accept ECOM-000, I'll mark it Done and update TECHNICAL_ARCHITECTURE.md to revision 5 (four containers). ECOM-001 comes next. Should I commit ECOM-000 now?

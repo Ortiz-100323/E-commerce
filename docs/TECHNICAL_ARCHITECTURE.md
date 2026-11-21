@@ -1,6 +1,6 @@
 # Technical Architecture
 
-> **Status:** Proposed, pending review. No code has been written yet.
+> **Status:** Accepted. ECOM-000 (the walking skeleton) is built; work is tracked as tickets in [tasks/](../tasks/README.md).
 >
 > | Revision | Date | What changed |
 > |---|---|---|
@@ -8,6 +8,7 @@
 > | 2 | 2026-11-21 | Your answers to Q-01, Q-03, Q-06, Q-08, Q-09 and Q-10 are incorporated: PostgreSQL, the import review workflow, the gift tag, the `testing/` runner, and `Documents/` kept out of git. |
 > | 3 | 2026-11-21 | Q-14 answered. Added an **append-only audit trail** that records how every value was and what it became (§6.4). Q-02, Q-07, Q-11, Q-12 and Q-13 are closed on their defaults. |
 > | 4 | 2026-11-21 | Went deeper on four points: the idempotency key (§7.2), preventing oversold stock (§7.3), one error format for everything (§4.6), and CSV warnings versus errors plus the SKU identity check (§6.2, §6.5). The sample's expected numbers were updated (§2). |
+> | 5 | 2026-11-21 | ECOM-000 is built. Four containers (`db`, `backend`, `frontend`, `ci`) replace the single app image (§3, §10, D-053). The frontend reaches the API through an nginx proxy (D-054). One health endpoint (§4.5, D-056). The repository layout (§9) and the phased plan (§12) now match the code and the tickets. |
 >
 > Every decision here also appears in [JOURNAL.md](JOURNAL.md) with its context and the alternatives considered.
 
@@ -26,7 +27,7 @@
 | **CC-05** | **Search for Products.** | `GET /api/v1/products?q=…` with filters and pagination, plus a storefront search UI. |
 | **CC-06** | **Purchase products**, with the payment faked (no real provider). | The `ordering` bounded context, with a `PaymentGateway` port and a `FakePaymentGateway`. |
 | **CC-07** | **UI required** for product CRUD, search and purchase. | A React SPA with two areas: Admin (CRUD and import review) and Storefront (search, cart and checkout). |
-| **CC-08** | The application must be **runnable as a Docker container**. | The application ships as **one Docker image** that serves both the API and the SPA. Its PostgreSQL runs as a companion container, and one command starts both: `docker compose up`. See §10 and Q-13. |
+| **CC-08** | The application must be **runnable as a Docker container**. | The application runs locally in Docker with one command, `docker compose up --build`. It starts four containers: PostgreSQL, the backend, the frontend and a CI runner. See §10 and D-053. |
 | **CC-09** | The README documents **decisions, approach and alternatives considered**. | The README summarises them and links to `docs/JOURNAL.md`. |
 | **CC-10** | AI is allowed, but **comments must be removed from the code**. | Source and test code contain zero comments. This is enforced by `testing/scripts/check_no_comments.py` in CI. See §8.4. |
 | **CC-11** | The solution is delivered in a **GitHub repository**. | `github.com/Ortiz-100323/E-commerce`, which is already set as `origin`. |
@@ -112,14 +113,20 @@ This becomes the golden acceptance test for the importer.
 
 ## 3. High-level architecture
 
-The system is a **modular monolith**: one application image, two bounded contexts and a shared kernel. It is backed by PostgreSQL.
+The backend is a **modular monolith**: two bounded contexts and a shared kernel, backed by PostgreSQL. Each part runs in its own container (D-053).
 
 ```
                 ┌──────────────────────────────────────────────┐
-  Browser ───▶  │  app container (FastAPI)                     │
-  (React SPA)   │   /            → static SPA (built React)    │
-                │   /api/v1/*    → REST API                    │
-                │   /health /ready                             │
+  Browser ───▶  │  frontend container (nginx, port 3000)       │
+                │   /         → built React SPA                │
+                │   /api/*    → proxied to backend:8000        │
+                └───────────────────┬──────────────────────────┘
+                                    │ compose network (same origin, no CORS)
+                ┌───────────────────▼──────────────────────────┐
+                │  backend container (FastAPI, port 8001)      │
+                │   /api/v1/*      → REST API                  │
+                │   /api/v1/health → liveness + database check │
+                │   /docs          → Swagger                   │
                 │                                              │
                 │  ┌───────────── catalog ──────────────┐      │
                 │  │ Product, ImportBatch               │      │
@@ -138,6 +145,8 @@ The system is a **modular monolith**: one application image, two bounded context
                 ┌───────────────────▼──────────────────────────┐
                 │  db container: PostgreSQL 17 (named volume)  │
                 └──────────────────────────────────────────────┘
+
+  ci container: runs testing/run.py all against the stack, then exits.
 ```
 
 ### 3.1 Bounded contexts
@@ -294,7 +303,7 @@ Exact versions are pinned in Phase 0 and logged in the journal.
 | DELETE | `/imports/{id}` | Discard the batch |
 | POST | `/orders` | Checkout. The `Idempotency-Key` header is required. |
 | GET | `/orders/{id}` | Order detail |
-| GET | `/health`, `/ready` | Liveness, and readiness (the DB is reachable) |
+| GET | `/health` | Returns 200 when the app and the database are up, 503 when the database is down (D-056) |
 
 - Every error uses one format, **RFC 9457 Problem Details**. See §4.6.
 
@@ -868,59 +877,67 @@ E-commerce/
 │   └── src/{app,api,features,components}/
 ├── testing/                        ← every test and every script (PR-03, PR-04)
 │   ├── run.py                      (the single runner)
-│   ├── backend/{unit,integration,api,architecture}/ + conftest.py
-│   ├── frontend/                   (Vitest + RTL + MSW specs)
-│   ├── e2e/                        (Playwright)
-│   ├── fixtures/                   (sample_products.csv + edge-case CSVs)
-│   └── scripts/                    (check_no_comments.py, profile_csv.py, simulate_import.py, smoke_test.py)
+│   ├── Dockerfile                  (the ci image: Python, uv and Node)
+│   ├── tooling/                    (tests for run.py and the helper scripts)
+│   ├── backend/{unit,infrastructure,integration,api}/ + conftest.py, fakes.py
+│   ├── frontend/                   (Vitest + RTL specs, setup.ts)
+│   ├── e2e/                        (Playwright, from ECOM-016)
+│   ├── fixtures/                   (sample_products.csv + edge-case CSVs, from ECOM-010)
+│   └── scripts/                    (check_no_comments.py, smoke_test.py; profile_csv.py, simulate_import.py from ECOM-010)
+├── docker/postgres/                (init script that creates the ecommerce_test database)
 ├── docs/                           (TECHNICAL_ARCHITECTURE.md, JOURNAL.md, PROMPT_HISTORY.md)
+├── tasks/                          (the task board: one Markdown file per ticket)
 ├── Documents/                      (git-ignored: the challenge PDF and CSV as received)
-├── Dockerfile                      (multi-stage build: node build → python runtime, non-root)
-├── docker-compose.yml              (app + db)
-├── .dockerignore                   (excludes testing/, docs/, Documents/, node_modules, .git)
+├── backend/Dockerfile              (Python + uv; runs migrations, then uvicorn)
+├── frontend/Dockerfile             (Node build → nginx), frontend/nginx.conf (serves the SPA, proxies /api/)
+├── docker-compose.yml              (db, backend, frontend, ci)
+├── .dockerignore                   (for the ci build context: excludes docs/, tasks/, Documents/, node_modules, .git)
 ├── .gitignore
-├── .github/workflows/ci.yml        (calls testing/run.py)
+├── .github/workflows/ci.yml        (from ECOM-016: runs the same compose stack and ci container)
 └── README.md
 ```
 
-**A note on `testing/frontend`.** Vitest runs from `frontend/` with `include` set to `../testing/frontend/**`. The spec files live outside `frontend/`, but imports such as `react` must still resolve from `frontend/node_modules`. A smoke spec in Phase 0 proves this works before any feature work starts. If the setup turns out to be fragile, the fallback will be logged in the journal.
+**A note on `testing/frontend`.** Vitest runs from `frontend/` and picks up specs in `../testing/frontend`. A small plugin in `vite.config.ts` resolves the specs' package imports (such as `react`) from `frontend/node_modules`. Vitest must be started with the real path casing on Windows, which `run.py` guarantees (D-060).
 
 ---
 
 ## 10. Delivery: Docker and CI
 
-### Dockerfile
+### Containers (D-053)
 
-The **Dockerfile** builds **one application image** in three stages:
+`docker-compose.yml` defines four services. `docker compose up --build` starts all of them.
 
-1. `node:22-alpine` builds the SPA.
-2. `python:3.13-slim` with `uv` installs the dependencies.
-3. The runtime stage copies in the venv and the SPA's `dist` folder. It runs as a **non-root** user and has a `HEALTHCHECK` on `/health`. Its entrypoint runs `alembic upgrade head` and then starts `uvicorn`.
+| Service | Built from | Host port | Notes |
+|---|---|---|---|
+| `db` | `postgres:17-alpine` | 5433 | Named volume `pgdata`, a `pg_isready` healthcheck, and an init script that creates `ecommerce_test` |
+| `backend` | `backend/Dockerfile` (`python:3.13-slim` + uv) | 8001 | Runs as a non-root user. Runs `alembic upgrade head`, then uvicorn. Its healthcheck calls `/api/v1/health`. Starts after `db` is healthy. |
+| `frontend` | `frontend/Dockerfile` (`node:22-alpine` build → `nginx:1.28-alpine`) | 3000 | Serves the SPA and proxies `/api/` to `backend:8000`. Starts after `backend` is healthy. |
+| `ci` | `testing/Dockerfile` (`python:3.13-slim` + uv + Node 22) | — | Waits for the other three to be healthy, runs `python testing/run.py all`, then exits with its result |
 
-### docker-compose.yml
+Host ports 8000 and 8080 are avoided because other local projects use them.
 
-**docker-compose.yml** defines two services:
-- `db`: `postgres:17-alpine`, with the named volume `pgdata` and a `pg_isready` healthcheck.
-- `app`: the image above, which starts only after `db` is healthy. It reads its connection from `DATABASE_URL` and listens on port 8000.
+### How the frontend reaches the API (D-054)
+
+The browser only talks to the frontend container. React calls relative URLs (`/api/v1/...`), and nginx forwards them to the backend over the compose network. There is one origin, so no CORS and no API URL built into the bundle. In native development, Vite's dev-server proxy does the same.
 
 ### Running it
 
-- **Start everything with one command:** `docker compose up --build`.
-- **Run the app container alone:** `docker run -e DATABASE_URL=… -p 8000:8000 <image>` works against any reachable PostgreSQL.
-- **Seed data (optional):** `SEED_SAMPLE_CSV=true` loads the sample when the stack first starts. It goes through the same import with policies set to auto-resolve. It is off by default, so reviewers can try the review workflow themselves.
+- **Everything:** `docker compose up --build`.
+- **The checks again:** `docker compose run --rm ci`.
+- **Seed data (optional, from ECOM-011):** `SEED_SAMPLE_CSV=true` loads the sample when the stack first starts. It goes through the same import with policies set to auto-resolve. It is off by default, so reviewers can try the review workflow themselves.
 
-### CI (GitHub Actions)
+### CI (D-055)
 
-CI calls `python testing/run.py all`. The pipeline runs these steps in order:
+CI runs locally in the `ci` container. `python testing/run.py all` runs these steps in order:
 
-1. ruff
-2. mypy
-3. import-linter
-4. no-comments check
-5. pytest, with Testcontainers
-6. eslint, tsc and Vitest
-7. docker build
-8. Playwright against the compose stack
+1. ruff (lint and format), import-linter and `tsc` (mypy joins in ECOM-001, ESLint in ECOM-006)
+2. the no-comments check
+3. tests for the runner and helper scripts
+4. pytest, against the `ecommerce_test` database on the compose `db`
+5. Vitest
+6. the smoke test through the frontend's nginx (Playwright joins in ECOM-016)
+
+GitHub Actions arrives in ECOM-016 and runs the same compose stack and `ci` container.
 
 ---
 
@@ -941,7 +958,7 @@ CI calls `python testing/run.py all`. The pipeline runs these steps in order:
 | Q-07 | Accepted the default: **no authentication** (a known gap). The actor is the name the reviewer enters. | D-038, D-040 |
 | Q-11 | Accepted the default: **guest checkout** with name and email. | D-038 |
 | Q-12 | Accepted the default: a **weight of 0 is flagged** for review. A stock of 0 is not. | D-038 |
-| Q-13 | Accepted the default: **one app image plus PostgreSQL**, started together with `docker compose up`. | D-038 |
+| Q-13 | Accepted the default: **one app image plus PostgreSQL**, started together with `docker compose up`. *Superseded:* the owner later chose four containers. | D-038, D-053 |
 
 ### 11.2 Still open for you
 
@@ -968,28 +985,27 @@ These rules belong to the business, not to engineering. We built a working defau
 
 ## 12. Phased plan
 
-Each phase is a vertical slice that ends with green CI and a **review gate with you**. Every phase follows TDD, with the tests in `testing/` written first.
+Each phase is a vertical slice that ends with green CI and a **review gate with you**. Every phase follows TDD, with the tests in `testing/` written first. Each phase is split into tickets on the [task board](../tasks/README.md) (D-058, D-059):
 
-### Phase 0: Walking skeleton
+| Phase | Tickets |
+|---|---|
+| 0 | ECOM-000 (done) |
+| 1 | ECOM-001 to ECOM-005 |
+| 2 | ECOM-006 to ECOM-009 |
+| 3 | ECOM-010 to ECOM-012 |
+| 4 | ECOM-013 to ECOM-015 |
+| 5 | ECOM-016 |
+| 6 | ECOM-017 |
 
-- **Repository setup**
-  - The repo layout from §9.
-  - `.gitignore`, which includes `Documents/`, and `.dockerignore`.
-- **Runner and helper scripts.** All of these are written test-first:
-  - `testing/run.py`.
-  - `check_no_comments.py`.
-  - `profile_csv.py` and `simulate_import.py`, which codify the Session 1 analysis.
-- **Backend**
-  - Set up `uv`, ruff, mypy, import-linter and pytest.
-  - **First tests:** `GET /health` returns 200, and `GET /ready` reaches PostgreSQL through Testcontainers.
-- **Frontend**
-  - Set up Vite, React, TypeScript, ESLint and Vitest.
-  - **First test:** the app shell renders from `testing/frontend`.
-- **Delivery**
-  - The Dockerfile and `docker-compose.yml` (app + db).
-  - CI calling `run.py all`.
-  - A README stub that includes the CSV download date (2026-11-20).
-- **Exit criteria:** `docker compose up` shows the shell page, `/ready` is green, and CI is green.
+### Phase 0: Walking skeleton (ECOM-000, done)
+
+- Four containers started by `docker compose up --build`: `db`, `backend`, `frontend` and `ci`.
+- A **temporary weather feature** runs through every DDD layer: the portal sends a city, the backend asks Open-Meteo, saves the search in PostgreSQL and returns it, and the portal shows the result and the history. It is removed in ECOM-009.
+- `GET /api/v1/health`, callable from Swagger.
+- `testing/run.py`, `check_no_comments.py`, `smoke_test.py`, ruff, import-linter and tsc.
+- A README with run instructions and the CSV download date (2026-11-20).
+- Moved to later tickets: mypy, the Problem Details format and the Testcontainers decision (ECOM-001); ESLint, TanStack Query and React Router (ECOM-006); `profile_csv.py` and `simulate_import.py` (ECOM-010); Playwright and GitHub Actions (ECOM-016).
+- **Exit criteria (met):** the `ci` container exits 0 against the running stack, including a real search end to end.
 
 ### Phase 1: Catalog core (backend)
 

@@ -208,7 +208,7 @@ Template:
 
 ### D-018: Single Docker image serving API and SPA
 - **Date:** 2026-11-21
-- **Status:** Partially superseded by D-029. The single app image stands; the database is now a companion container.
+- **Status:** Superseded by D-053. (Earlier: partially superseded by D-029; the single app image stood and the database became a companion container.)
 - **Decision:** A multi-stage build (node build → Python runtime). FastAPI serves `/api` and the static SPA, which means same-origin and no CORS in production. The image runs as a non-root user, has a `HEALTHCHECK`, runs Alembic on start, and keeps the SQLite file in the `/data` volume. Optional `SEED_SAMPLE_CSV` defaults to off.
 - **Alternatives considered:**
   - Separate nginx and API containers: more moving parts, and the challenge says "a docker container".
@@ -320,7 +320,7 @@ Template:
 
 ### D-029: Deployment is one app image plus a PostgreSQL container via compose
 - **Date:** 2026-11-21
-- **Status:** Accepted. Q-13 was accepted on its default (D-038). This supersedes the single-container part of D-018.
+- **Status:** Superseded by D-053. (Earlier: accepted; Q-13 was accepted on its default in D-038, and this superseded the single-container part of D-018.)
 - **Decision:**
   - The multi-stage app image still serves both the API and the SPA.
   - `docker-compose.yml` runs two services: `db` (postgres:17-alpine, with a healthcheck) and `app` (`depends_on: service_healthy`).
@@ -445,7 +445,7 @@ Template:
   - **Q-07:** there is no authentication. This is documented as a known gap.
   - **Q-11:** guest checkout, asking for name and email.
   - **Q-12:** a weight of 0 is flagged for review. A stock of 0 is not flagged.
-  - **Q-13:** CC-08 is read as one app image plus a PostgreSQL container, started together with `docker compose up`.
+  - **Q-13:** CC-08 is read as one app image plus a PostgreSQL container, started together with `docker compose up`. *(Superseded by D-053: four containers.)*
 
 ### D-039: Append-only audit trail fed by domain events, written in the same transaction
 - **Date:** 2026-11-21
@@ -667,3 +667,112 @@ Template:
   - The way the warnings are counted changed, so those were counted by hand.
   - Phase 0's `testing/scripts/simulate_import.py` re-verifies every number before the golden test is written.
   - No ad-hoc scripts were run in this round, in line with PR-04.
+
+---
+
+## 2026-11-21: Session 2 (walking skeleton plan and the task board)
+
+### D-052: ECOM-000 is a walking skeleton with a temporary weather feature
+- **Date:** 2026-11-21
+- **Status:** Accepted (user accepted ECOM-000 on 2026-11-21).
+- **Context:** Before any business rules, the owner wants proof that the whole stack works end to end: backend, frontend, PostgreSQL and CI, each in its own container.
+- **Decision:**
+  - A small weather feature is the test case. The user types a city, the backend looks it up on Open-Meteo (public, no key), saves the search in PostgreSQL and returns it, and the portal shows the result and the history.
+  - The backend uses the DDD layers (§3.2) inside a temporary `weather` bounded context, so the structure and `import-linter` are validated before real work.
+  - **The weather feature is temporary.** ECOM-009 deletes it, with a migration that drops its table, once the catalog can play the same end-to-end role.
+- **Alternatives considered:**
+  - A static "hello" page with only a health check: it would not prove the database write path, an outbound HTTP call, or the layering.
+  - Starting directly with products: the first business ticket would also have to debug the infrastructure.
+- **Consequences:** Some throwaway code. Every container, the proxy, migrations and the CI flow are proven before ECOM-001.
+
+### D-053: Four containers: `db`, `backend`, `frontend` and `ci`, all started by `docker compose`
+- **Date:** 2026-11-21
+- **Status:** Accepted (user). This supersedes D-018, D-029 and the Q-13 answer in D-038.
+- **Context:** The owner asked for each part to run in its own local container.
+- **Decision:**
+  - `db`: `postgres:17-alpine`, a named volume, a `pg_isready` healthcheck, and an init script that also creates `ecommerce_test`. Host port 5433.
+  - `backend`: Python 3.13 with uv; runs `alembic upgrade head`, then uvicorn. Host port 8001 (8000 is taken by another project), so Swagger is at `http://localhost:8001/docs`.
+  - `frontend`: a multi-stage build (Node builds the SPA, nginx serves it and proxies `/api/`). Host port 3000.
+  - `ci`: runs the full suite once and exits with its result (D-055).
+  - `docker compose up --build` starts all four.
+- **Alternatives considered:**
+  - One image serving both the API and the SPA (D-018/D-029): fewer containers, but frontend and backend could not be built, scaled or replaced independently, which the owner explicitly wants.
+  - A `ci` service behind a compose profile: cleaner, but the owner asked for everything to start with compose.
+- **Consequences:** CC-08 is still met: the application runs locally in Docker with one command. §3, §9, §10 and §12 of the architecture describe the old single image; they get revision 5 once this plan is approved.
+
+### D-054: The frontend reaches the API through an nginx reverse proxy on the same origin
+- **Date:** 2026-11-21
+- **Status:** Accepted (user accepted ECOM-000 on 2026-11-21).
+- **Decision:**
+  - The browser only talks to the `frontend` container. The React code calls relative URLs (`/api/v1/...`).
+  - nginx forwards every `/api/` request to `http://backend:8000` over the compose network, keeping the path.
+  - Natively (`npm run dev`), Vite's dev-server proxy forwards `/api` to the backend in the same way.
+- **Alternatives considered:**
+  - The browser calls `http://localhost:8001` directly, with CORS enabled: it needs CORS configuration and an API URL baked into the build at compile time, which differs per environment.
+  - A runtime `config.js` holding the API URL: it solves the build-time URL, but still needs CORS.
+- **Consequences:** No CORS, no environment-specific build, and the same relative URLs everywhere. The backend's port is published only for Swagger and debugging.
+
+### D-055: CI runs locally in its own container through `testing/run.py`
+- **Date:** 2026-11-21
+- **Status:** Accepted (user accepted ECOM-000 on 2026-11-21).
+- **Decision:**
+  - `testing/Dockerfile` builds a `ci` image with Python 3.13, uv and Node 22, containing `backend/`, `frontend/` and `testing/`.
+  - It waits for `backend` and `frontend` to be healthy, runs `python testing/run.py all`, and exits with its code. `docker compose run --rm ci` reruns it.
+  - `run.py all` runs, in order: ruff, import-linter, the no-comments check, backend pytest, frontend build and Vitest, and the smoke test against the running stack.
+  - GitHub Actions is deferred to ECOM-016, where it will run the same compose stack and `ci` container.
+- **Alternatives considered:** Running the tests on the host only: it does not prove that the containers work together, which is the point of ECOM-000.
+
+### D-056: One health endpoint, `GET /api/v1/health`, which also reports the database
+- **Date:** 2026-11-21
+- **Status:** Accepted (user accepted ECOM-000 on 2026-11-21). This refines the `/health` and `/ready` pair in §4.5.
+- **Decision:** It returns 200 `{"status":"ok","database":"up"}`, or 503 with `"database":"down"`. It sits under `/api/v1`, so it shows in Swagger and is reachable through the proxy. The backend's Docker healthcheck calls it.
+- **Alternatives considered:** Separate liveness and readiness endpoints: useful for an orchestrator that restarts containers, which we don't have. They can be split later without breaking clients.
+
+### D-057: Skeleton tests mock Open-Meteo; integration tests use the compose database for now
+- **Date:** 2026-11-21
+- **Status:** Accepted (user accepted ECOM-000 on 2026-11-21). The Testcontainers question is decided in ECOM-001.
+- **Decision:**
+  - Use-case and API tests replace the `WeatherProvider` port with a fake. The Open-Meteo adapter is tested against `httpx.MockTransport`, with no extra dependency.
+  - The only test that calls the real Open-Meteo is the smoke test, because it proves the backend container can reach the internet.
+  - Integration tests run against the `ecommerce_test` database on the compose `db` service. Testcontainers (§4.1) would need the Docker socket inside the `ci` container, which adds risk to the skeleton; ECOM-001 decides whether to adopt it.
+  - Frontend tests stub `fetch`; MSW arrives in ECOM-006.
+- **Alternatives considered:** `respx` for mocking httpx: nice, but `MockTransport` is built in.
+
+### D-058: A `tasks/` folder simulates Jira
+- **Date:** 2026-11-21
+- **Status:** Accepted (user)
+- **Decision:**
+  - One Markdown file per ticket (`ECOM-000.md`, `ECOM-001.md`, …), each with context, scope, acceptance criteria, test plan, definition of done and status.
+  - `tasks/README.md` is the board, listing every ticket with its phase, dependencies and status.
+  - Statuses: Backlog, To Do, In Progress, In Review, Done. A ticket reaches Done only after the owner accepts it.
+  - **ECOM-000** sets up the environment. **ECOM-001 onwards** build the e-commerce application.
+- **Consequences:** The ticket files and the board must be updated whenever work moves.
+
+### D-059: ECOM-000 stays lean; the architecture's phases map to tickets ECOM-001 to ECOM-017
+- **Date:** 2026-11-21
+- **Status:** Accepted (user accepted ECOM-000 on 2026-11-21).
+- **Context:** The owner asked for the essentials only in the skeleton.
+- **Decision:**
+  - ECOM-000 includes the four containers, the weather feature through every layer, Alembic, ruff, import-linter, the no-comments check, `run.py`, the smoke test and a short README.
+  - Deferred from §12 Phase 0: mypy strict, the Problem Details format and Testcontainers (ECOM-001); TanStack Query and React Router (ECOM-006); `profile_csv.py` and `simulate_import.py` (ECOM-010); Playwright and GitHub Actions (ECOM-016).
+  - Phases 1–6 become: Phase 1 = ECOM-001 to 005, Phase 2 = 006 to 009, Phase 3 = 010 to 012, Phase 4 = 013 to 015, Phase 5 = 016, Phase 6 = 017.
+- **Alternatives considered:** The full Phase 0 from §12 in one ticket: a larger skeleton that would delay the end-to-end proof.
+
+## 2026-11-21: Session 2, round 2 (building ECOM-000)
+
+### D-060: Versions pinned and implementation choices made while building ECOM-000
+- **Date:** 2026-11-21
+- **Status:** Accepted (user accepted ECOM-000 on 2026-11-21).
+- **Versions.** Lock files (`backend/uv.lock`, `frontend/package-lock.json`) hold the exact versions. The main ones:
+  - Backend: Python 3.13, FastAPI 0.165.0, Starlette 1.10.0, Pydantic 2.14.4, SQLAlchemy 2.1.9, psycopg 3.3.9, Alembic 1.20.1, httpx 0.28.1, uvicorn 0.54.0. Dev: pytest 9.2.0, pytest-asyncio 1.5.0, ruff 0.17.6, import-linter 2.17.
+  - Frontend: React 19.3.1, Vite 8.3.8, TypeScript 7.0.2, Vitest 5.1.1, Testing Library (React 16.3.3, user-event 14.6.13, jest-dom 8.0.0), jsdom 29.1.1.
+  - Images: `postgres:17-alpine`, `python:3.13-slim`, `node:22-alpine`, `node:22-bookworm-slim`, `nginx:1.28-alpine`, `ghcr.io/astral-sh/uv:0.11.29`.
+- **Choices:**
+  - **Composition root with a dependencies factory.** `create_app(dependencies_factory)` receives an async context manager that yields the adapters. Production wires PostgreSQL, httpx and Open-Meteo; tests pass fakes. The routers read the adapters from `app.state` and build the use cases per request.
+  - **No Unit of Work yet.** The weather repository opens its own transaction per call. The shared Unit of Work arrives in ECOM-001.
+  - **SQLAlchemy Core for the weather table.** The repository maps rows to domain objects by hand. Imperative ORM mapping is kept for the real aggregates (ECOM-003).
+  - **Migrations run on container start** (`alembic upgrade head`, then uvicorn), and the integration tests run them against `ecommerce_test` before testing.
+  - **Windows-only test settings.** psycopg's async driver can't use Windows' default event loop, so `testing/backend/conftest.py` gives pytest-asyncio a selector loop on Windows only. The containers run Linux and are unaffected.
+  - **Frontend tests in `testing/frontend`.** A small Vite plugin in `vite.config.ts` resolves the specs' package imports (`react`, Testing Library) from `frontend/node_modules`, the risk §9 flagged. `vitest` itself is left to Vitest. Vitest must also be started with the true path casing (`C:\…`); `run.py` guarantees that, while a Git Bash cwd of `c:\…` loads `vitest` twice.
+  - **Ruff runs with `--config backend/pyproject.toml`** over `backend/` and `testing/`, with `ecommerce` and `fakes` declared as first-party for import sorting.
+- **Known leftover:** Starlette 1.10 warns that its `TestClient` should use `httpx2`. Adding that package was blocked as unvetted, so the warning stays until the owner decides.
