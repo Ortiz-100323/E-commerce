@@ -6,7 +6,6 @@ import { ProductHistoryPage } from '../features/admin/products/ProductHistoryPag
 import { ProductsTablePage } from '../features/admin/products/ProductsTablePage'
 import { ProductDetailPage } from '../features/storefront/ProductDetailPage'
 import { StorefrontPage } from '../features/storefront/StorefrontPage'
-import { WeatherPage } from '../features/weather/WeatherPage'
 import { AppShell } from './AppShell'
 import { NotFoundPage } from './NotFoundPage'
 
@@ -27,7 +26,6 @@ export const routes: RouteObject[] = [
           { path: 'products/:productId/history', element: <ProductHistoryPage /> },
         ],
       },
-      { path: 'weather', element: <WeatherPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

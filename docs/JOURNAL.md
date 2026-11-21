@@ -1144,3 +1144,27 @@ Template:
 - **Alternatives:**
   - Searching on every keystroke (rejected for now: an explicit Search is simpler to test and sends fewer requests; it can move to ECOM-018).
   - Hiding archived product pages with a 404 (rejected: an old shared link would look broken instead of explaining).
+
+### D-088: Removing the weather feature (ECOM-009)
+- **Date:** 2026-11-21
+- **Status:** Accepted (owner accepted ECOM-009 in prompt #022)
+- **Decision:**
+  - **Deleted:**
+    - the `weather` context (domain, application, infrastructure, API);
+    - its Open-Meteo client and settings (`open_meteo_*_url`, `http_timeout_seconds`);
+    - the page at `/weather`, its API client;
+    - its 5 test files and its fakes;
+    - its import-linter contract (5 contracts become 4).
+  - **Migration 0005** drops `weather_searches` and its index. Its downgrade recreates them exactly as 0001 made them, so the history stays reversible.
+  - **The only remaining mentions** are the migration history (0001 creates the table, 0005 drops it) and the migration tests that check it. Rewriting history would break existing databases.
+  - **`httpx` moved to the development dependencies.** Production code no longer calls out to anything; the tests still use it (TestClient, ASGITransport). The lock file changed only in that grouping.
+  - **The shared error tests no longer lean on the weather endpoint.** The 7 problem-details tests that used it as a convenient target now use small routes built inside the test, and every check is kept.
+  - **`upstream-unavailable` (502) stays in the problem catalog** for the real payment provider (§7.2). A test route that raises a 502 keeps it covered.
+  - **The smoke test now goes through the catalog, and it is idempotent.**
+    - It creates `SMOKE-TEST` once; later runs get the expected 409 `duplicate-sku` and reuse the product.
+    - It then restores the product, finds it by search, archives it, and checks that it has left the shop.
+    - The live database therefore holds exactly one archived "Smoke test product" (in the "Smoke tests" category, visible in admin under Status: All), whose history grows by two entries per run.
+- **Alternatives:**
+  - A new product per smoke run (rejected: it would fill the owner's database with test products).
+  - A read-only smoke test (rejected: the ticket asks for a real create-and-find through the proxy).
+  - Removing `upstream-unavailable` (rejected: checkout with a real provider will need it).

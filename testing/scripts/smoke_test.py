@@ -3,25 +3,49 @@ import json
 import re
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Callable, Sequence
 from typing import Any
 
 TIMEOUT_SECONDS = 20
-SMOKE_CITY = "Lisbon"
+SMOKE_SKU = "SMOKE-TEST"
+SMOKE_ACTOR = "Smoke test"
+SMOKE_PRODUCT = {
+    "sku": SMOKE_SKU,
+    "name": "Smoke test product",
+    "description": "Created by the smoke test. It stays archived between runs.",
+    "category": "Smoke tests",
+    "price": "1.00",
+    "stock": 1,
+    "weight_kg": "0.1",
+    "gift": False,
+}
+SMOKE_IDENTITY = (SMOKE_PRODUCT["name"], SMOKE_PRODUCT["description"], SMOKE_PRODUCT["category"])
 
 
 class SmokeFailure(Exception):
     pass
 
 
-def call(method: str, url: str, body: object | None = None) -> tuple[int, str]:
+def is_owned_smoke_product(product: dict[str, Any]) -> bool:
+    identity = (product.get("name"), product.get("description"), product.get("category"))
+    return identity == SMOKE_IDENTITY
+
+
+def call(
+    method: str, url: str, body: object | None = None, headers: dict[str, str] | None = None
+) -> tuple[int, str]:
     data = json.dumps(body).encode("utf-8") if body is not None else None
     request = urllib.request.Request(
         url,
         data=data,
         method=method,
-        headers={"Content-Type": "application/json", "Accept": "application/json, text/html"},
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/html",
+            **(headers or {}),
+        },
     )
     try:
         with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
@@ -42,7 +66,16 @@ def expect(condition: bool, message: str) -> None:
 
 
 def run(base_url: str) -> int:
+    api = f"{base_url}/api/v1"
+    actor = {"X-Actor-Name": SMOKE_ACTOR}
     state: dict[str, Any] = {}
+
+    def search(status: str) -> list[dict[str, Any]]:
+        query = urllib.parse.urlencode({"q": SMOKE_SKU, "status": status})
+        code, body = call("GET", f"{api}/products?{query}")
+        expect(code == 200, f"search answered {code}: {body}")
+        items: list[dict[str, Any]] = json.loads(body)["items"]
+        return [item for item in items if item["sku"] == SMOKE_SKU]
 
     def portal_loads() -> None:
         status, body = call("GET", f"{base_url}/")
@@ -61,30 +94,40 @@ def run(base_url: str) -> int:
         expect("immutable" in header, f"the app bundle has Cache-Control {header!r}")
 
     def health_is_up() -> None:
-        status, body = call("GET", f"{base_url}/api/v1/health")
+        status, body = call("GET", f"{api}/health")
         expect(status == 200, f"expected 200, got {status}: {body}")
         expect(json.loads(body) == {"status": "ok", "database": "up"}, body)
 
-    def real_search_is_saved() -> None:
-        status, body = call("POST", f"{base_url}/api/v1/weather/searches", {"city": SMOKE_CITY})
-        expect(status == 201, f"expected 201, got {status}: {body}")
-        search = json.loads(body)
-        expect(search["city"] == SMOKE_CITY, body)
-        expect(isinstance(search["temperature_c"], int | float), body)
-        state["id"] = search["id"]
+    def smoke_product_exists() -> None:
+        status, body = call("POST", f"{api}/products", SMOKE_PRODUCT, actor)
+        expect(status in (201, 409), f"create answered {status}: {body}")
+        if status == 409:
+            expect(json.loads(body)["type"].endswith("duplicate-sku"), body)
+        found = search("ALL")
+        expect(len(found) == 1, f"expected one {SMOKE_SKU}, found {len(found)}")
+        expect(
+            is_owned_smoke_product(found[0]),
+            f"{SMOKE_SKU} belongs to another product; choose a different smoke-test SKU",
+        )
+        state["id"] = found[0]["id"]
 
-    def search_appears_in_history() -> None:
-        status, body = call("GET", f"{base_url}/api/v1/weather/searches?limit=5")
-        expect(status == 200, f"expected 200, got {status}: {body}")
-        history = json.loads(body)
-        expect(bool(history) and history[0]["id"] == state.get("id"), body)
+    def restored_product_is_found_by_search() -> None:
+        status, body = call("POST", f"{api}/products/{state['id']}/restore", None, actor)
+        expect(status == 200, f"restore answered {status}: {body}")
+        expect([item["id"] for item in search("ACTIVE")] == [state["id"]], "not found by search")
+
+    def archived_product_leaves_the_shop() -> None:
+        status, body = call("DELETE", f"{api}/products/{state['id']}", None, actor)
+        expect(status == 200, f"archive answered {status}: {body}")
+        expect(search("ACTIVE") == [], f"{SMOKE_SKU} is still in the shop after archiving")
 
     checks: list[tuple[str, Callable[[], None]]] = [
         ("portal loads through nginx", portal_loads),
         ("the page is never served stale", page_is_never_stale),
         ("health check reports the database up", health_is_up),
-        (f"real search for {SMOKE_CITY} is saved", real_search_is_saved),
-        ("the search is first in the history", search_appears_in_history),
+        (f"the {SMOKE_SKU} product exists (created once, then reused)", smoke_product_exists),
+        ("a restored product is found by search", restored_product_is_found_by_search),
+        ("an archived product leaves the shop", archived_product_leaves_the_shop),
     ]
     for name, check in checks:
         try:

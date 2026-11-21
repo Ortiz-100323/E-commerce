@@ -2,7 +2,7 @@
 
 A code challenge: an e-commerce application with a FastAPI backend (Domain-Driven Design), a React frontend and PostgreSQL, built test-first.
 
-> **Status:** walking skeleton ([ECOM-000](tasks/ECOM-000.md)). The only feature is a **temporary weather lookup** that proves the stack works end to end. It is removed in [ECOM-009](tasks/ECOM-009.md).
+> **Status:** the catalog is in place: product management with an audit trail (admin at http://localhost:3000/admin) and a searchable shop with a simple cart (http://localhost:3000). CSV import and checkout come next. Progress is tracked on the [task board](tasks/README.md).
 
 The sample CSV provided with the challenge was downloaded on **2026-11-20**.
 
@@ -63,12 +63,12 @@ python testing/run.py all
 
 | Command | What it runs |
 |---|---|
-| `lint` | ruff, import-linter (layer rules) and the TypeScript type check |
+| `lint` | ruff, import-linter (layer rules), mypy, the TypeScript type check, Prettier and the raw-HTML check |
 | `nocomments` | Fails if any source or test file contains a comment |
 | `tooling` | Tests for the runner and the helper scripts |
-| `backend` | pytest. The integration tests need `docker compose up -d db`. |
-| `frontend` | Vitest |
-| `smoke` | End-to-end checks through http://localhost:3000. Needs the full stack, and makes one real call to Open-Meteo. |
+| `backend` | pytest, with a 95% coverage gate on the domain and application code. The integration tests need `docker compose up -d db`. |
+| `frontend` | Vitest, with an 80% coverage gate |
+| `smoke` | End-to-end checks through http://localhost:3000. Needs the full stack. It creates one product, `SMOKE-TEST`, on its first run and reuses it (restore, search, archive) on every later run. |
 
 All tests live in `testing/`.
 

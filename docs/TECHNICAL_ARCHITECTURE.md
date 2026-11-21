@@ -20,6 +20,7 @@
 > | 14 | 2026-11-21 | Gifts are always free: the gift invariant is now two-way, in the domain, the API and the database, and migration 0004 fixed the existing data (§4.2, §4.4, D-083). The page is served with `Cache-Control: no-cache` (D-084). |
 > | 15 | 2026-11-21 | The frontend coverage gate (≥ 80%, §8.2) is enforced by `run.py frontend` with `@vitest/coverage-v8` (D-086). |
 > | 16 | 2026-11-21 | ECOM-008: the shop search page, with every filter in the URL, and a minimal cart that never holds more than the stock shown (D-087). |
+> | 17 | 2026-11-21 | ECOM-009: the temporary weather feature is removed (§4.6, §8.3, §12, D-088). |
 >
 > Every decision here also appears in [JOURNAL.md](JOURNAL.md) with its context and the alternatives considered.
 
@@ -419,12 +420,12 @@ Domain validation **collects every issue before raising**, rather than stopping 
 | `validation-error` | 422 | Pydantic or domain validation failed | `errors[]` |
 | `idempotency-key-reused` | 422 | §7.2 | — |
 | `internal-error` | 500 | An unexpected failure | — |
-| `upstream-unavailable` | 502 | An external service failed. Today that is only Open-Meteo, for the temporary weather feature. | — |
+| `upstream-unavailable` | 502 | An external service failed. No context uses it since the weather feature was removed (ECOM-009); it stays for the real payment provider (§7.2). | — |
 | `service-unavailable` | 503 | The database is unreachable, or a lock wait timed out (§7.3) | Header `Retry-After` |
 
 **How errors reach the handlers (built in ECOM-001, D-062).**
 - The shared kernel provides the base errors: `DomainValidationError` (a list of `ValidationIssue`) becomes `validation-error`, and `NotFoundError` becomes `not-found`, with its optional `detail`.
-- Each context also gives the composition root a table from its own exception types to problem types. The weather context maps `WeatherUnavailable` to `upstream-unavailable`, and `main.py` maps the database's `OperationalError` to `service-unavailable`. Later contexts add their entries (for example `version-conflict`) the same way.
+- Each context also gives the composition root a table from its own exception types to problem types. The catalog maps `VersionConflict`, `DuplicateSku` and `ProductAlreadyExists` (ECOM-005), and `main.py` maps the database's `OperationalError` to `service-unavailable`. Later contexts add their entries the same way.
 - An HTTP status with no type in the catalog uses `about:blank`, with the standard status phrase as its title, as RFC 9457 recommends.
 - Every problem response also carries the `X-Request-ID` header, including 500s, which bypass the middleware.
 
@@ -868,7 +869,7 @@ None of this is needed for the fake gateway. It is recorded here so the design i
 2. `*.application` does not import `infrastructure` or `api`.
 3. `ordering` does not import `catalog.domain`.
 
-Each context gets its own **layers** contract (`api | infrastructure` → `application` → `domain`), and one **forbidden** contract keeps every `domain` and `application` package free of frameworks. Today these cover `weather` and `shared_kernel` (ECOM-001) and `catalog` (domain in ECOM-002; application and infrastructure in ECOM-003). `catalog.api` joins in ECOM-005 and `ordering` when it arrives. A further contract stops `catalog.domain` from importing anything in the project except `shared_kernel.domain`. An architecture test (`testing/backend/architecture`) reads every `*/domain` package and fails if it imports anything outside the standard library, its own package and `shared_kernel.domain`.
+Each context gets its own **layers** contract (`api | infrastructure` → `application` → `domain`), and one **forbidden** contract keeps every `domain` and `application` package free of frameworks. Today these cover `shared_kernel` (ECOM-001) and `catalog` (domain in ECOM-002; application and infrastructure in ECOM-003; `catalog.api` in ECOM-004). The `weather` contract was removed with the feature in ECOM-009, and `ordering` joins when it arrives. A further contract stops `catalog.domain` from importing anything in the project except `shared_kernel.domain`. An architecture test (`testing/backend/architecture`) reads every `*/domain` package and fails if it imports anything outside the standard library, its own package and `shared_kernel.domain`.
 
 **mypy** runs in strict mode, with the Pydantic plugin, over `backend/src` and `backend/migrations`.
 
@@ -1055,7 +1056,7 @@ Each phase is a vertical slice that ends with green CI and a **review gate with 
 ### Phase 0: Walking skeleton (ECOM-000, done)
 
 - Four containers started by `docker compose up --build`: `db`, `backend`, `frontend` and `ci`.
-- A **temporary weather feature** runs through every DDD layer: the portal sends a city, the backend asks Open-Meteo, saves the search in PostgreSQL and returns it, and the portal shows the result and the history. It is removed in ECOM-009.
+- A **temporary weather feature** runs through every DDD layer: the portal sends a city, the backend asks Open-Meteo, saves the search in PostgreSQL and returns it, and the portal shows the result and the history. It was removed in ECOM-009 (D-088): migration 0005 drops its table, and the smoke test now goes through the catalog.
 - `GET /api/v1/health`, callable from Swagger.
 - `testing/run.py`, `check_no_comments.py`, `smoke_test.py`, ruff, import-linter and tsc.
 - A README with run instructions and the CSV download date (2026-11-20).

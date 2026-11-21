@@ -2,7 +2,6 @@ from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass
 
-import httpx
 from fastapi import FastAPI
 from sqlalchemy.exc import OperationalError
 
@@ -25,12 +24,6 @@ from ecommerce.shared_kernel.infrastructure.database import (
 from ecommerce.shared_kernel.infrastructure.logging import configure_logging
 from ecommerce.shared_kernel.infrastructure.request_id_middleware import RequestIdMiddleware
 from ecommerce.shared_kernel.infrastructure.settings import Settings
-from ecommerce.weather.api.problems import WEATHER_PROBLEMS
-from ecommerce.weather.api.router import router as weather_router
-from ecommerce.weather.application.ports import WeatherProvider
-from ecommerce.weather.domain.repository import WeatherSearchRepository
-from ecommerce.weather.infrastructure.open_meteo import OpenMeteoWeatherProvider
-from ecommerce.weather.infrastructure.repository import SqlAlchemyWeatherSearchRepository
 
 API_PREFIX = "/api/v1"
 
@@ -41,8 +34,6 @@ INFRASTRUCTURE_PROBLEMS: Mapping[type[Exception], ProblemMapping] = {
 
 @dataclass(frozen=True)
 class Dependencies:
-    weather_provider: WeatherProvider
-    weather_repository: WeatherSearchRepository
     database_probe: DatabaseProbe
     catalog_unit_of_work: CatalogUnitOfWorkFactory
     catalog_queries: ProductQueries
@@ -57,19 +48,12 @@ async def production_dependencies() -> AsyncIterator[Dependencies]:
     settings = Settings()
     engine = create_engine(settings.database_url)
     try:
-        async with httpx.AsyncClient(timeout=settings.http_timeout_seconds) as client:
-            yield Dependencies(
-                weather_provider=OpenMeteoWeatherProvider(
-                    client, settings.open_meteo_geocoding_url, settings.open_meteo_forecast_url
-                ),
-                weather_repository=SqlAlchemyWeatherSearchRepository(engine),
-                database_probe=SqlAlchemyDatabaseProbe(engine),
-                catalog_unit_of_work=SqlAlchemyCatalogUnitOfWorkFactory(
-                    create_session_factory(engine)
-                ),
-                catalog_queries=SqlAlchemyProductQueries(engine),
-                clock=SystemClock(),
-            )
+        yield Dependencies(
+            database_probe=SqlAlchemyDatabaseProbe(engine),
+            catalog_unit_of_work=SqlAlchemyCatalogUnitOfWorkFactory(create_session_factory(engine)),
+            catalog_queries=SqlAlchemyProductQueries(engine),
+            clock=SystemClock(),
+        )
     finally:
         await engine.dispose()
 
@@ -78,8 +62,6 @@ def create_app(dependencies_factory: DependenciesFactory = production_dependenci
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         async with dependencies_factory() as dependencies:
-            app.state.weather_provider = dependencies.weather_provider
-            app.state.weather_repository = dependencies.weather_repository
             app.state.database_probe = dependencies.database_probe
             app.state.catalog_unit_of_work = dependencies.catalog_unit_of_work
             app.state.catalog_queries = dependencies.catalog_queries
@@ -88,13 +70,10 @@ def create_app(dependencies_factory: DependenciesFactory = production_dependenci
 
     app = FastAPI(title="E-commerce API", version="0.1.0", lifespan=lifespan)
     app.add_middleware(RequestIdMiddleware)
-    install_problem_handlers(
-        app, {**INFRASTRUCTURE_PROBLEMS, **CATALOG_PROBLEMS, **WEATHER_PROBLEMS}
-    )
+    install_problem_handlers(app, {**INFRASTRUCTURE_PROBLEMS, **CATALOG_PROBLEMS})
     app.include_router(health_router, prefix=API_PREFIX)
     app.include_router(catalog_router, prefix=API_PREFIX)
     app.include_router(categories_router, prefix=API_PREFIX)
-    app.include_router(weather_router, prefix=API_PREFIX)
     return app
 
 

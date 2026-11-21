@@ -36,6 +36,6 @@ def test_database_url() -> str:
 async def engine(test_database_url: str) -> AsyncIterator[AsyncEngine]:
     engine = create_engine(test_database_url)
     async with engine.begin() as connection:
-        await connection.execute(text("TRUNCATE weather_searches, products, audit_log"))
+        await connection.execute(text("TRUNCATE products, audit_log"))
     yield engine
     await engine.dispose()

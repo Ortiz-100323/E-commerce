@@ -146,6 +146,20 @@ describe('the shop search', () => {
     expect(router.state.location.search).toBe('?page=2')
   })
 
+  it('moves a page beyond the results back to the last page', async () => {
+    fakeCatalog(
+      Array.from({ length: 14 }, (_, index) => ({
+        sku: `P-${index + 1}`,
+        name: `Product ${String(index + 1).padStart(2, '0')}`,
+      })),
+    )
+    const { router } = renderApp('/?page=999')
+
+    await waitForNames(['Product 13', 'Product 14'])
+    expect(router.state.location.search).toBe('?page=2')
+    expect(screen.getByText('Page 2 of 2')).toBeInTheDocument()
+  })
+
   it('offers to clear the filters when nothing matches', async () => {
     fakeCatalog(CATALOG)
     renderApp('/?q=nothing')

@@ -30,3 +30,8 @@ def runner() -> ModuleType:
 @pytest.fixture(scope="session")
 def no_raw_html() -> ModuleType:
     return load_module("scripts/check_no_raw_html.py", "check_no_raw_html")
+
+
+@pytest.fixture(scope="session")
+def smoke_test() -> ModuleType:
+    return load_module("scripts/smoke_test.py", "smoke_test")

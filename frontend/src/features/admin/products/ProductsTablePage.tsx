@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router'
 
 import type { Product, ProductQuery } from '../../../api/products'
@@ -84,6 +84,19 @@ export function ProductsTablePage() {
 
   const data = list.data
   const pages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1
+
+  useEffect(() => {
+    if (!data || list.isPlaceholderData || page <= pages) {
+      return
+    }
+    const next = new URLSearchParams(params)
+    if (pages === 1) {
+      next.delete('page')
+    } else {
+      next.set('page', String(pages))
+    }
+    setParams(next, { replace: true })
+  }, [data, list.isPlaceholderData, page, pages, params, setParams])
 
   return (
     <section aria-labelledby="admin-products-title">

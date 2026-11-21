@@ -131,6 +131,21 @@ describe('the products table', () => {
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
   })
 
+  it('moves a page beyond the results back to the last page', async () => {
+    asReviewer()
+    fakeCatalog(
+      Array.from({ length: 25 }, (_, index) => ({
+        sku: `P-${String(index + 1).padStart(2, '0')}`,
+        name: `Product ${String(index + 1).padStart(2, '0')}`,
+      })),
+    )
+    const { router } = renderApp('/admin/products?page=999')
+
+    expect(await screen.findByText('Page 2 of 2 · 25 products')).toBeInTheDocument()
+    expect(screen.getByRole('row', { name: 'P-25' })).toBeInTheDocument()
+    expect(router.state.location.search).toBe('?page=2')
+  })
+
   it('offers to try again when the products cannot be loaded', async () => {
     expectErrorNotifications()
     asReviewer()

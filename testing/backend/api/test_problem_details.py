@@ -1,7 +1,8 @@
 import logging
+from typing import Annotated
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.exc import OperationalError
 
@@ -11,11 +12,10 @@ from ecommerce.shared_kernel.domain.errors import (
     NotFoundError,
     ValidationIssue,
 )
-from ecommerce.weather.application.errors import CityNotFound, WeatherUnavailable
-from fakes import FakeWeatherProvider, dependencies_factory
+from fakes import dependencies_factory
 from problems import assert_problem, problem_client
 
-SEARCHES = "/api/v1/weather/searches"
+SIGNUPS = "/test/signups"
 
 
 class Line(BaseModel):
@@ -28,11 +28,24 @@ class Order(BaseModel):
     lines: list[Line]
 
 
+class Signup(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(max_length=10)
+
+
 def app_with_test_routes() -> FastAPI:
     app = create_app(dependencies_factory())
 
     async def create_order(order: Order) -> dict[str, int]:
         return {"lines": len(order.lines)}
+
+    async def sign_up(signup: Signup) -> dict[str, str]:
+        if not signup.name.strip():
+            raise DomainValidationError([ValidationIssue("name", "required", "Type a name.")])
+        return {"name": signup.name}
+
+    async def list_items(limit: Annotated[int, Query(ge=1)] = 10) -> dict[str, int]:
+        return {"limit": limit}
 
     async def explode() -> None:
         raise RuntimeError("secret internals")
@@ -43,6 +56,12 @@ def app_with_test_routes() -> FastAPI:
     async def missing() -> None:
         raise NotFoundError()
 
+    async def missing_with_detail() -> None:
+        raise NotFoundError("Order not found.")
+
+    async def upstream_down() -> None:
+        raise HTTPException(status_code=502)
+
     async def domain_invalid() -> None:
         raise DomainValidationError(
             [
@@ -52,9 +71,13 @@ def app_with_test_routes() -> FastAPI:
         )
 
     app.add_api_route("/test/orders", create_order, methods=["POST"])
+    app.add_api_route(SIGNUPS, sign_up, methods=["POST"])
+    app.add_api_route("/test/items", list_items)
     app.add_api_route("/test/explode", explode)
     app.add_api_route("/test/database-down", database_down)
     app.add_api_route("/test/missing", missing)
+    app.add_api_route("/test/missing-with-detail", missing_with_detail)
+    app.add_api_route("/test/upstream-down", upstream_down)
     app.add_api_route("/test/domain-invalid", domain_invalid)
     return app
 
@@ -75,9 +98,9 @@ def test_wrong_method_is_a_method_not_allowed_problem() -> None:
 
 
 def test_broken_json_is_a_malformed_request() -> None:
-    with problem_client() as client:
+    with problem_client(app_with_test_routes()) as client:
         response = client.post(
-            SEARCHES, content=b'{"city":', headers={"Content-Type": "application/json"}
+            SIGNUPS, content=b'{"name":', headers={"Content-Type": "application/json"}
         )
 
     body = assert_problem(response, 400, "malformed-request")
@@ -85,15 +108,15 @@ def test_broken_json_is_a_malformed_request() -> None:
 
 
 def test_missing_field_is_a_validation_error_with_field_errors() -> None:
-    with problem_client() as client:
-        response = client.post(SEARCHES, json={})
+    with problem_client(app_with_test_routes()) as client:
+        response = client.post(SIGNUPS, json={})
 
     body = assert_problem(response, 422, "validation-error")
     assert body["detail"] == "1 field is not valid."
     assert body["errors"] == [
         {
             "location": "body",
-            "field": "city",
+            "field": "name",
             "code": "required",
             "message": "Field required",
             "params": {},
@@ -104,22 +127,22 @@ def test_missing_field_is_a_validation_error_with_field_errors() -> None:
 @pytest.mark.parametrize(
     ("payload", "field", "code"),
     [
-        ({"city": 5}, "city", "not_a_string"),
-        ({"city": "Lisbon", "country": "PT"}, "country", "unknown_field"),
-        ({"city": "x" * 1001}, "city", "too_long"),
+        ({"name": 5}, "name", "not_a_string"),
+        ({"name": "Ann", "country": "PT"}, "country", "unknown_field"),
+        ({"name": "x" * 11}, "name", "too_long"),
     ],
 )
 def test_schema_errors_use_stable_codes(payload: object, field: str, code: str) -> None:
-    with problem_client() as client:
-        response = client.post(SEARCHES, json=payload)
+    with problem_client(app_with_test_routes()) as client:
+        response = client.post(SIGNUPS, json=payload)
 
     body = assert_problem(response, 422, "validation-error")
     assert [(error["field"], error["code"]) for error in body["errors"]] == [(field, code)]
 
 
 def test_query_errors_point_at_the_query_parameter() -> None:
-    with problem_client() as client:
-        response = client.get(SEARCHES, params={"limit": 0})
+    with problem_client(app_with_test_routes()) as client:
+        response = client.get("/test/items", params={"limit": 0})
 
     body = assert_problem(response, 422, "validation-error")
     assert body["errors"][0]["location"] == "query"
@@ -150,21 +173,21 @@ def test_every_validation_issue_is_reported_at_once() -> None:
 
 
 def test_domain_rule_errors_share_the_validation_format() -> None:
-    with problem_client() as client:
-        response = client.post(SEARCHES, json={"city": "   "})
+    with problem_client(app_with_test_routes()) as client:
+        response = client.post(SIGNUPS, json={"name": "   "})
 
     body = assert_problem(response, 422, "validation-error")
     assert body["errors"][0]["location"] == "body"
-    assert body["errors"][0]["field"] == "city"
+    assert body["errors"][0]["field"] == "name"
     assert body["errors"][0]["code"] == "required"
 
 
 def test_not_found_errors_from_the_domain_are_not_found_problems() -> None:
-    with problem_client(provider=FakeWeatherProvider(error=CityNotFound())) as client:
-        response = client.post(SEARCHES, json={"city": "Atlantis"})
+    with problem_client(app_with_test_routes()) as client:
+        response = client.get("/test/missing-with-detail")
 
     body = assert_problem(response, 404, "not-found")
-    assert body["detail"] == "City not found."
+    assert body["detail"] == "Order not found."
 
 
 def test_not_found_without_detail_omits_it() -> None:
@@ -176,8 +199,8 @@ def test_not_found_without_detail_omits_it() -> None:
 
 
 def test_upstream_failure_is_an_upstream_unavailable_problem() -> None:
-    with problem_client(provider=FakeWeatherProvider(error=WeatherUnavailable("down"))) as client:
-        response = client.post(SEARCHES, json={"city": "Lisbon"})
+    with problem_client(app_with_test_routes()) as client:
+        response = client.get("/test/upstream-down")
 
     assert_problem(response, 502, "upstream-unavailable")
 

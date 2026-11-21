@@ -5,15 +5,13 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from ecommerce.main import create_app
-from fakes import FakeWeatherProvider, dependencies_factory
+from fakes import dependencies_factory
 
 PROBLEM_PREFIX = "urn:ecommerce:problem:"
 
 
-def problem_client(
-    app: FastAPI | None = None, provider: FakeWeatherProvider | None = None
-) -> TestClient:
-    application = app or create_app(dependencies_factory(provider=provider))
+def problem_client(app: FastAPI | None = None) -> TestClient:
+    application = app or create_app(dependencies_factory())
     return TestClient(application, raise_server_exceptions=False)
 
 

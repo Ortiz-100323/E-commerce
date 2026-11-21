@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router'
 
 import { useCategories, useProductList } from '../../api/productQueries'
@@ -119,6 +119,12 @@ export function StorefrontPage() {
 
   const data = list.data
   const pages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1
+
+  useEffect(() => {
+    if (data && !list.isPlaceholderData && search.page > pages) {
+      setParams(toSearchParams({ ...search, page: pages }), { replace: true })
+    }
+  }, [data, list.isPlaceholderData, pages, search, setParams])
 
   return (
     <section aria-labelledby="shop-title">

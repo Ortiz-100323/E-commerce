@@ -167,5 +167,5 @@ def test_the_contract_covers_every_endpoint_that_takes_input() -> None:
         if operation.get("parameters") or "requestBody" in operation
     }
 
-    assert len(taking_input) >= 9
+    assert len(taking_input) == 7
     assert taking_input <= covered

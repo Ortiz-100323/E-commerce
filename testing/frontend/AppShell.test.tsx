@@ -47,13 +47,6 @@ describe('the app shell', () => {
     expect(await screen.findByRole('heading', { name: 'Shop' })).toBeInTheDocument()
   })
 
-  it('keeps the temporary weather page at /weather', async () => {
-    renderApp('/weather')
-
-    expect(await screen.findByRole('heading', { name: /weather/i })).toBeInTheDocument()
-    expect(screen.getByRole('navigation', { name: 'Main' })).toBeInTheDocument()
-  })
-
   it('shows "Page not found" for an unknown address, inside the shell', async () => {
     renderApp('/no/such/page')
 

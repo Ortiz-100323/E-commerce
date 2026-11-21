@@ -129,3 +129,15 @@ def clear(url: str) -> None:
             connection.execute(text("TRUNCATE products, audit_log"))
     finally:
         engine.dispose()
+
+
+def test_the_weather_migration_drops_the_table_and_can_be_undone(test_database_url: str) -> None:
+    config = alembic_config(test_database_url)
+    try:
+        command.downgrade(config, "0004")
+        assert "weather_searches" in table_names(test_database_url)
+    finally:
+        upgrade_to_head(test_database_url)
+
+    assert "weather_searches" not in table_names(test_database_url)
+    assert {"products", "audit_log"} <= table_names(test_database_url)

@@ -1260,3 +1260,95 @@ All 13 rows of the failure table in [tasks/ECOM-008.md](tasks/ECOM-008.md) have 
 **Tests:** 19 new tests for the shop. The CI container is green: all checks, 34 tooling, 505 backend and 94 frontend tests (96% coverage), and the smoke checks. Every test also checks the whole page for errors, as you asked.
 
 **Status:** ECOM-008 is ready for your review, not committed. Next is ECOM-009: removing the temporary weather feature from ECOM-000.
+
+---
+
+## #021 — 2026-11-21 — ECOM-008 accepted and committed, ECOM-009 built: weather removed
+
+### User
+
+> It is working pretty well. Commit and lets go for next. Store the evidences.
+>
+> *(Two screenshots attached, now stored as [01-category-gifts-filter.png](../tasks/ECOM-008-evidence/01-category-gifts-filter.png) and [02-sorted-price-high-to-low.png](../tasks/ECOM-008-evidence/02-sorted-price-high-to-low.png).)*
+
+### Assistant
+
+**ECOM-008 is committed** as `ee13bf8`. Your two screenshots are filed in [tasks/ECOM-008-evidence/](tasks/ECOM-008-evidence/README.md) as a passed test record:
+- Category **Gifts** showed 2 free gifts with the badge;
+- sorting by price showed all 7 products, with Trail Shoes "Out of stock" first.
+
+The record also notes why the Gifts category shows 2 while "Gifts only" shows 3: "shoes for gift" is in the Sports category. Both filters behave as designed.
+
+**ECOM-009 is built** on `feature/ECOM-009-remove-weather`; it's waiting for your review and isn't committed.
+
+## ECOM-009: Remove the temporary weather feature
+
+### Acceptance criteria
+
+| # | Criterion | Result | How it was proven |
+|---|---|---|---|
+| 1 | No code, test, setting or route mentions weather | ✅ Pass | A search of the whole project finds "weather" only in the database migration history: one step created the table, the new one drops it. They must keep their names, or existing databases couldn't upgrade. The app, settings, pages, API and other tests are clean. |
+| 2 | The smoke test proves the stack end to end through the catalog | ✅ Pass | Through the website, it now creates a test product, finds it by search, archives it, and checks that it left the shop. It ran twice in a row: the second run reused the same product instead of creating another. |
+| 3 | Upgrading an existing database drops the table without errors | ✅ Pass | Your own database upgraded without errors, and the weather table is gone. A test also checks that the step can be undone and redone cleanly. |
+
+**What was built**
+- **Removed:**
+  - the weather lookup (its page, its code and its 46 tests);
+  - its database table;
+  - the connection to the outside weather service.
+
+  The system now contains only the store.
+- **A better end-to-end check.** Every CI run now proves the real store through the website: create a product, find it, archive it. Before, it looked up the weather in Lisbon.
+- **Idempotent, as you asked for writes:** the check creates its test product **once** ("Smoke test product", SKU `SMOKE-TEST`), then reuses it on every run, so your database doesn't fill up with test products.
+
+**Why it was built**
+The weather demo did its job on day one: it proved the containers, database, API and website work together. Now the store proves that. Keeping the demo would mean dead code, and an outside service that could make our checks fail for reasons that have nothing to do with the store.
+
+**Main goal**
+A smaller, cleaner system that contains only the store, with an end-to-end check that tests the store itself.
+
+**Human testable or background?**
+**Mostly background.** You can see it in two places.
+
+**What to test**
+1. Open **http://localhost:3000/weather**. → "Page not found".
+2. In **Admin**, set Status to **All**. → One archived **"Smoke test product"** (category "Smoke tests"), made by the automatic checks. Its **History** shows the actor "Smoke test". It stays archived, so the shop never shows it.
+
+### Failure cases and retries
+
+All 5 rows in [tasks/ECOM-009.md](tasks/ECOM-009.md) pass:
+- running the check again reuses its product;
+- an archived test product is restored, found and archived again;
+- your database upgraded cleanly;
+- the step can be undone;
+- the old weather address simply says "Page not found".
+
+**Tests:** the CI container is green: all checks, 34 tooling, 467 backend (39 weather tests removed, 1 added) and 87 frontend tests (7 removed), and the new store smoke test.
+
+**Status:** ECOM-009 is ready for your review, not committed. That completes Phase 2 (the catalog screens). Next is **ECOM-010**: the CSV import, which reads the sample file, classifies every row and applies the import rules.
+
+---
+
+## #022 — 2026-11-21 — ECOM-009 committed; pause for an external code review
+
+### User
+
+> commit and wait. Codex will do a code review in our changes so we can go for the next half of tasks
+
+### Assistant
+
+**ECOM-009 is committed** on `feature/ECOM-009-remove-weather`. I've stopped here and won't start ECOM-010 until you say so.
+
+**What the reviewer will find**
+- **One branch per ticket,** each built on the previous one. `feature/ECOM-009-remove-weather` holds everything from ECOM-000 to ECOM-009; nothing is merged into `main`.
+- **Each ticket in `tasks/`** has its acceptance criteria, its failure and retry table, a verification table with how each criterion was proven, and a business view. ECOM-007 and ECOM-008 also have your test evidence.
+- **`docs/JOURNAL.md`** holds every decision (D-001 to D-088), including the bugs and how they were fixed (D-080, D-081, D-084). `docs/PROMPT_HISTORY.md` holds every prompt and reply, #001 to #022.
+- **`python testing/run.py all`** (or `docker compose run --rm ci`) runs every check:
+  - lint, types and layer rules;
+  - the no-comments and raw-HTML checks;
+  - 34 tooling, 467 backend and 87 frontend tests, with coverage gates;
+  - the smoke test through the website.
+
+  It was all green on the last run.
+
+**Status:** waiting for the code review. When you share the findings, I'll file each one and fix it before the second half of the tasks (ECOM-010 onwards).
