@@ -35,3 +35,13 @@ def no_raw_html() -> ModuleType:
 @pytest.fixture(scope="session")
 def smoke_test() -> ModuleType:
     return load_module("scripts/smoke_test.py", "smoke_test")
+
+
+@pytest.fixture(scope="session")
+def profile_csv() -> ModuleType:
+    return load_module("scripts/profile_csv.py", "profile_csv")
+
+
+@pytest.fixture(scope="session")
+def simulate_import() -> ModuleType:
+    return load_module("scripts/simulate_import.py", "simulate_import")

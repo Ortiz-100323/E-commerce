@@ -91,7 +91,30 @@ def bad_requests() -> Iterator[Any]:
                 422,
                 id=f"{method} {path} missing header {parameter['name']}",
             )
-        if "requestBody" in operation:
+        body_types = operation.get("requestBody", {}).get("content", {})
+        if "text/csv" in body_types:
+            yield pytest.param(
+                method,
+                with_path(path),
+                {"json": {"name": "x"}},
+                415,
+                id=f"{method} {path} JSON instead of CSV",
+            )
+            yield pytest.param(
+                method,
+                with_path(path),
+                {"content": b"", "headers": {"content-type": "text/csv"}},
+                422,
+                id=f"{method} {path} empty CSV",
+            )
+            yield pytest.param(
+                method,
+                with_path(path),
+                {"content": b"\xff\xfe", "headers": {"content-type": "text/csv"}},
+                422,
+                id=f"{method} {path} CSV that is not UTF-8",
+            )
+        if "application/json" in body_types:
             yield pytest.param(
                 method,
                 with_path(path),
@@ -167,5 +190,5 @@ def test_the_contract_covers_every_endpoint_that_takes_input() -> None:
         if operation.get("parameters") or "requestBody" in operation
     }
 
-    assert len(taking_input) == 7
+    assert len(taking_input) == 8
     assert taking_input <= covered

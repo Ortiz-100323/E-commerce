@@ -33,7 +33,7 @@ A ticket moves to **Done** only after the owner accepts it at its review gate.
 | [ECOM-007](ECOM-007.md) | Admin product UI: table, form, gift dialog, history | 2 | ECOM-006 | Done |
 | [ECOM-008](ECOM-008.md) | Storefront search UI | 2 | ECOM-006 | Done |
 | [ECOM-009](ECOM-009.md) | Remove the temporary weather feature | 2 | ECOM-007, ECOM-008 | Done |
-| [ECOM-010](ECOM-010.md) | CSV import: parsing, classification and policies | 3 | ECOM-005 | Backlog |
+| [ECOM-010](ECOM-010.md) | CSV import: parsing, classification and policies | 3 | ECOM-005 | In Review (committed; tested with ECOM-012) |
 | [ECOM-011](ECOM-011.md) | CSV import: review workflow, commit and audit | 3 | ECOM-010 | Backlog |
 | [ECOM-012](ECOM-012.md) | CSV import UI: upload and review screen | 3 | ECOM-011, ECOM-006 | Backlog |
 | [ECOM-013](ECOM-013.md) | Ordering: Order aggregate, fake payment and checkout | 4 | ECOM-005 | Backlog |

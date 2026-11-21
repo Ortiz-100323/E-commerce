@@ -36,6 +36,10 @@ NOT_FOUND = ProblemType("not-found", 404, "The resource was not found.")
 METHOD_NOT_ALLOWED = ProblemType(
     "method-not-allowed", 405, "The method is not allowed for this resource."
 )
+PAYLOAD_TOO_LARGE = ProblemType("payload-too-large", 413, "The upload is too large.")
+UNSUPPORTED_MEDIA_TYPE = ProblemType(
+    "unsupported-media-type", 415, "The upload is not in a supported format."
+)
 VALIDATION_ERROR = ProblemType("validation-error", 422, "The request is not valid.")
 INTERNAL_ERROR = ProblemType("internal-error", 500, "An unexpected error occurred.")
 UPSTREAM_UNAVAILABLE = ProblemType(
@@ -51,6 +55,8 @@ PROBLEMS_BY_STATUS = {
         MALFORMED_REQUEST,
         NOT_FOUND,
         METHOD_NOT_ALLOWED,
+        PAYLOAD_TOO_LARGE,
+        UNSUPPORTED_MEDIA_TYPE,
         VALIDATION_ERROR,
         INTERNAL_ERROR,
         UPSTREAM_UNAVAILABLE,

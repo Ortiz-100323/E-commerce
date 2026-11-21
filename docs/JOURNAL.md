@@ -1187,3 +1187,31 @@ Template:
   - **ECOM-009:** fixed unsafe ownership by SKU in the idempotent smoke test. It now refuses to mutate a product unless its stable smoke identity also matches; two tooling tests added.
 - **Why page correction waits for the real response:** TanStack Query keeps the previous page temporarily while a new request is running. Correcting against placeholder data could redirect using the old search's page count, so both screens wait for `isPlaceholderData` to be false.
 - **Verification:** `python testing/run.py all` passed: all static and architecture checks, 36 tooling tests, 467 backend tests with 100% scoped coverage, 89 frontend tests with 96% line coverage, and every smoke check. The production frontend image also built successfully, the local stack is healthy, and the smoke checks passed again after deployment.
+
+### D-090: CSV import, part 1: preview and classification (ECOM-010)
+- **Date:** 2026-11-21
+- **Status:** Proposed (part of the ECOM-010 review)
+- **Decision:**
+  - **The sample was re-verified before any code.** `profile_csv.py` confirmed every format fact in §2: UTF-8 without BOM, CRLF, no final newline, 97 data rows, blank lines 62–63, and the RS-001 and BS-021 duplicates. `simulate_import.py` then reproduced the expected report exactly: 84 create, 6 review, 2 rejected, 3 superseded, 2 blank and 3 warnings. A first look with Git Bash's `sed` had suggested LF line endings; that was wrong, because `sed` strips carriage returns before showing them. The script reads the raw bytes.
+  - **The rules live in the domain** (`catalog/domain/importing/`), as pure functions over strings. Field checks reuse the product's own value objects and translate their codes into the §6.2 taxonomy (`markup_not_allowed` → `markup_in_name`, `too_small` → `negative_value`, and so on), so a product rule exists in one place only. The import adds only what the value objects can't know: currency symbols, `free`, whole numbers written as `12.0`, and the empty/zero review policies.
+  - **The identity check** uses a pure-Python trigram similarity built the same way as `pg_trgm`, checked against PostgreSQL's documented value (`similarity('word', 'two words') = 0.363636`), after NFKC, case-fold and whitespace normalisation.
+  - **ECOM-010 ships a read-only preview,** `POST /api/v1/imports/preview`. Stored batches and the review come in ECOM-011. The owner can already try the classification in Swagger, and nothing is ever written.
+  - **The file is the request body (`text/csv`), not a multipart form.** FastAPI needs the `python-multipart` package for form uploads, and adding a package needs the owner's approval; the raw body needs nothing extra. Swagger still shows a file picker. ECOM-011's `POST /imports` can use either.
+  - **File-level errors:**
+    - 413 `payload-too-large` (with `max_bytes`; the body stops being read once it passes the limit);
+    - 415 `unsupported-media-type`;
+    - the 422 cases are the standard `validation-error` with one entry on the field `file` (`invalid_encoding`, `empty_file`, `missing_columns`, `duplicate_columns`, `too_many_rows`, `malformed_csv`), so the frontend's existing form-error handling shows them without any new code.
+  - **Accepted media types:** `text/csv`, `application/csv` and `application/vnd.ms-excel`. Windows browsers label `.csv` files with the last one.
+  - **Codes for policy variants not named in §6.2:**
+    - `sku_already_exists` (`create_only`);
+    - the warning `zero_price_accepted_as_gift` (`accept_as_gift`);
+    - the review codes reused as errors by the `reject` variants;
+    - `duplicate_sku_in_file` as an error under `reject_all`;
+    - `unsupported_currency` when the `$` is refused.
+  - **Settings** are read by `ImportSettings` (prefix `IMPORT_`, as in §6.3), plus `IMPORT_SKU_SIMILARITY_THRESHOLD`. Pydantic validates them at start-up, so a typo stops the backend with the setting's name instead of silently using a default.
+  - **Fixtures are byte-exact:** `.gitattributes` marks `testing/fixtures/**` as `-text`, because the repository-wide LF normalisation would otherwise rewrite the CRLF, BOM and Latin-1 test files.
+  - **`same_file_already_pending`** needs stored batches, so it moves to ECOM-011.
+- **Alternatives:**
+  - Multipart now (rejected: a new package without approval).
+  - Classifying in the database with SQL `similarity()` (rejected: the rule couldn't be unit-tested without PostgreSQL, and the preview would need a round trip per row).
+  - Separate import-only validation rules (rejected: two copies of the product rules would drift apart).

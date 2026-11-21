@@ -1394,3 +1394,75 @@ The code and regression tests are in commit `eb21825`; the review journal and ti
 ### Assistant
 
 Committed all remaining review documentation with commit `docs: record first code review round`. The working tree is clean.
+
+---
+
+## #025 — 2026-11-21 — ECOM-010 built: CSV import preview and classification
+
+### User
+
+> You can start nexxt one
+
+### Assistant
+
+**Correction to #022 first.** The reply I actually gave in #022 differed from the entry recorded there, which I wrote before committing. In fact:
+- my commit `eb21825` also picked up Codex's in-progress code fixes, which were already on disk: the out-of-range page fixes for the admin table and the shop, and the smoke-test ownership check, with their tests;
+- I verified that commit separately, on a copy outside the working folder: 36 tooling, 467 backend and 89 frontend tests and the smoke test, all green. The #022 entry says 34 tooling and 87 frontend tests;
+- I left Codex's documentation untouched while it worked. Codex later committed it as `89ebe6a` (D-089, entries #023 and #024).
+
+**ECOM-010 is built** on `feature/ECOM-010-csv-import`, which starts from that review commit. It's waiting for your review and isn't committed.
+
+## ECOM-010: CSV import, part 1 (read the file, judge every row)
+
+### Acceptance criteria
+
+| # | Criterion | Result | How it was proven |
+|---|---|---|---|
+| 1 | The sample on an empty database gives 2 blank, 2 rejected, 6 needs review, 84 create and 3 superseded rows | ✅ Pass | Exactly these numbers, checked three ways: by the simulation script before any test existed, by a test that also checks each line number, and by the API on an empty real database. |
+| 2 | Exactly 3 warnings (1 `$` removed, 2 duplicate SKUs) and 0 identity conflicts | ✅ Pass | Lines 4, 36 and 89, and nothing else. |
+| 3 | Every warning, review and error code has its own test | ✅ Pass | All of them, including every file-level code. The one exception is "same file already pending", which needs stored imports, so it comes in ECOM-011. |
+| 4 | Each file-level error returns the right status, and nothing is created | ✅ Pass | 413 for a file over 5 MB, 415 for a file that isn't CSV, and 422 for the six unreadable cases: not UTF-8, empty, missing column, repeated column, too many rows, broken quotes. After each one, the database is unchanged. |
+| 5 | Changing a setting changes the result, with no code change | ✅ Pass | Only environment settings, on the sample. For example, "reject zero prices" turns 2 review rows into rejections, "accept zero price as gift" creates 86, and "reject duplicate SKUs" rejects 7. A misspelt setting stops the system at start-up and names the setting. |
+
+**Checked first, as the ticket asks:** a new script profiled the sample, and every fact in the architecture held. My own first quick look had wrongly suggested different line endings; the script, which reads the raw bytes, showed I was mistaken. That's recorded in the journal too.
+
+**What was built**
+- **Send a product file, get a verdict for every row:**
+  - which products would be **created**;
+  - which would be **updated**, with the exact before → after of each field;
+  - which rows **need a person** (price 0, empty name, weight 0…), with a suggestion such as "confirm as a free gift";
+  - which are **refused**, with a clear reason;
+  - which are **duplicates** of a later row.
+- **Nothing is saved yet.** It's a preview; keeping the import, reviewing rows and committing them come in ECOM-011.
+- **The rules are settings** (for example `IMPORT_ZERO_PRICE_POLICY`). Changing one changes the result, without a programmer.
+- **Protection against a wrong SKU:** if a row's SKU belongs to a clearly different product in your catalog, the row is refused, so it can never overwrite that product. For example: "SKU RS-001 is "Running Shoes" in the catalog, but this row describes "Yoga Mat"".
+
+**Why it was built**
+Challenge rules CC-03 and CC-04. The sample file is deliberately messy, and every row must be accounted for, never silently dropped or guessed.
+
+**Main goal**
+A trustworthy, explainable verdict for every row of a file, with rules the business can tune.
+
+**Human testable or background?**
+**Testable** in Swagger.
+
+**What to test** (http://localhost:8001/docs → **imports → POST /api/v1/imports/preview**)
+1. **Try it out**, choose the sample file `Documents/Code Challenge E-Commerce.csv`, and **Execute**. → `summary` shows **83 create and 1 update**, not 84 and 0: your catalog already has RS-001, so that row becomes an update. You'll also see 6 needs review, 2 rejected, 3 superseded and 2 blank.
+2. In the response, find **line 36** (RS-001). → `"outcome": "update"`, with `changes` showing the new description, and the category moving from Sports to Footwear.
+3. Find **line 7** (YM-015, price "free"). → `needs_review`, with the suggestion `gift`.
+4. Find **line 20** (the `<script>` name). → `rejected`, `markup_in_name`.
+5. **A broken file:** save a small file with only the line `name,sku` and preview it. → **422**, field `file`, `missing_columns`, listing the 5 missing columns.
+6. Check your products in Admin. → Nothing changed: it's only a preview.
+
+### Failure cases and retries
+
+All 12 rows in [tasks/ECOM-010.md](tasks/ECOM-010.md) pass. These matter most for the business:
+- **A bad row never breaks the file.** It's listed with every problem it has, all at once.
+- **Retrying is always safe:** the same file gives exactly the same report, because nothing is stored.
+- **Stock:** negative stock, decimal stock and impossible stock are refused; `12.0` is accepted as 12, with a note.
+
+**Tests:** 161 new backend tests and 10 new tool tests. The CI container is green: all checks, 44 tooling, 628 backend tests (100% of the business rules covered, import rules included), 89 frontend tests, and the smoke checks.
+
+**One approval for ECOM-011:** uploading a file through a normal form (multipart) needs the package **`python-multipart`**. The preview gets around it by sending the file as the request body, which Swagger supports. **May I add `python-multipart`** (pinned to a release at least two weeks old) for ECOM-011, or should ECOM-011 keep the same raw-body upload?
+
+**Status:** ECOM-010 is ready for your review, not committed. Next is ECOM-011: keeping an import, reviewing and correcting rows, confirming updates, and committing it all in one safe transaction with a full audit trail.

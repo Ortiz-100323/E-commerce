@@ -1,3 +1,4 @@
+from collections.abc import Collection
 from typing import Any
 
 from sqlalchemy import ColumnElement, any_, func, literal, or_, select
@@ -9,7 +10,9 @@ from ecommerce.catalog.application.products import (
     ProductView,
     StatusFilter,
 )
+from ecommerce.catalog.domain.importing.classification import ExistingProduct
 from ecommerce.catalog.domain.product import ProductStatus
+from ecommerce.catalog.domain.value_objects import ProductTag
 from ecommerce.catalog.infrastructure.orm import products
 from ecommerce.catalog.infrastructure.product_repository import to_product
 
@@ -92,3 +95,24 @@ class SqlAlchemyProductQueries:
         )
         async with self._engine.connect() as connection:
             return list((await connection.execute(statement)).scalars().all())
+
+    async def existing_by_skus(self, skus: Collection[str]) -> dict[str, ExistingProduct]:
+        statement = select(products).where(products.c.sku.in_(sorted(skus)))
+        async with self._engine.connect() as connection:
+            rows = (await connection.execute(statement)).mappings().all()
+        return {
+            row["sku"]: ExistingProduct(
+                product_id=row["id"],
+                version=row["version"],
+                sku=row["sku"],
+                name=row["name"],
+                description=row["description"],
+                category=row["category"],
+                price=row["price"],
+                stock=row["stock"],
+                weight_kg=row["weight_kg"],
+                gift=ProductTag.GIFT.value in row["tags"],
+                archived=row["status"] == ProductStatus.ARCHIVED.value,
+            )
+            for row in rows
+        }

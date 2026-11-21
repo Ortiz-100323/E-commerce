@@ -21,6 +21,7 @@
 > | 15 | 2026-11-21 | The frontend coverage gate (≥ 80%, §8.2) is enforced by `run.py frontend` with `@vitest/coverage-v8` (D-086). |
 > | 16 | 2026-11-21 | ECOM-008: the shop search page, with every filter in the URL, and a minimal cart that never holds more than the stock shown (D-087). |
 > | 17 | 2026-11-21 | ECOM-009: the temporary weather feature is removed (§4.6, §8.3, §12, D-088). |
+> | 18 | 2026-11-21 | ECOM-010: the sample's profile and expected report are re-verified (§2); file-level import errors reach the client as 413, 415 or a 422 on the field `file` (§6.2, D-090). |
 >
 > Every decision here also appears in [JOURNAL.md](JOURNAL.md) with its context and the alternatives considered.
 
@@ -115,7 +116,7 @@ The import also produces **3 warnings**:
 
 The SKU identity check (§6.5) fires **0** times, because every in-file duplicate keeps the same name.
 
-The 2 blank and 3 superseded rows came from the profile verified in Session 1. The new warning taxonomy (§6.2) was counted by hand. Phase 0 re-verifies all of it with `testing/scripts/simulate_import.py`.
+The 2 blank and 3 superseded rows came from the profile verified in Session 1. The new warning taxonomy (§6.2) was counted by hand. **Re-verified in ECOM-010 (D-090):** `testing/scripts/profile_csv.py` confirmed every format fact above, and `testing/scripts/simulate_import.py` reproduced this report exactly, line by line.
 
 After the user resolves the 6 review rows, the import can create up to **90 products**. Re-importing the same file afterwards reports **84 unchanged**.
 
@@ -523,6 +524,8 @@ upload ──▶ parse & classify ──▶ ImportBatch(PENDING_REVIEW)
 - handling CRLF or LF line endings.
 
 #### File-level errors: the whole upload is refused and no batch is created
+
+How they reach the client (ECOM-010, D-090): 413 is the problem type `payload-too-large` (with `max_bytes`), 415 is `unsupported-media-type`, and every 422 below is a standard `validation-error` with one entry whose `field` is `file` and whose `code` is the code in this table.
 
 | Code | When | Status |
 |------|------|--------|
