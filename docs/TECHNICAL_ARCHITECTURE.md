@@ -10,6 +10,7 @@
 > | 4 | 2026-11-21 | Went deeper on four points: the idempotency key (§7.2), preventing oversold stock (§7.3), one error format for everything (§4.6), and CSV warnings versus errors plus the SKU identity check (§6.2, §6.5). The sample's expected numbers were updated (§2). |
 > | 5 | 2026-11-21 | ECOM-000 is built. Four containers (`db`, `backend`, `frontend`, `ci`) replace the single app image (§3, §10, D-053). The frontend reaches the API through an nginx proxy (D-054). One health endpoint (§4.5, D-056). The repository layout (§9) and the phased plan (§12) now match the code and the tickets. |
 > | 6 | 2026-11-21 | ECOM-001: integration tests use the compose database instead of Testcontainers (§4.1, §7.3, §8.1, D-061). The problem catalog gains `upstream-unavailable`, and §4.6 explains how errors reach the handlers (D-062). Layer contracts and mypy strict (§8.3, D-066). |
+> | 7 | 2026-11-21 | ECOM-002: the catalog domain is built. §4.2 gains upper limits that match the database columns, the `revise` behaviour, and the rules for no-op changes and archived products (D-068). §8.3 adds the catalog domain contract and an import test. |
 >
 > Every decision here also appears in [JOURNAL.md](JOURNAL.md) with its context and the alternatives considered.
 
@@ -202,9 +203,9 @@ Exact versions are pinned in Phase 0 and logged in the journal.
 | `Description` | Trimmed, 0–2000 characters. No control characters except newline. |
 | `Category` | Trimmed, 1–80 characters. Compared case-insensitively. The canonical form is the first spelling seen. |
 | `Money` | A `Decimal` with at most 2 decimal places, in currency `USD` (CQ-06). |
-| `Price` | `Money` that is **≥ 0**. A price of 0 is only legal together with the GIFT tag (see the invariant below). |
-| `StockQuantity` | An integer ≥ 0. |
-| `Weight` | A `Decimal` in kg, ≥ 0, with at most 3 decimal places. |
+| `Price` | `Money` that is **≥ 0** and at most 9,999,999,999.99, the largest value `NUMERIC(12,2)` holds. A price of 0 is only legal together with the GIFT tag (see the invariant below). |
+| `StockQuantity` | An integer ≥ 0 and at most 2,147,483,647 (a PostgreSQL `INTEGER`). |
+| `Weight` | A `Decimal` in kg, ≥ 0 and at most 9,999,999.999 (`NUMERIC(10,3)`), with at most 3 decimal places. |
 | `ProductTag` | A closed enum. It currently has one value, `GIFT`, and grows only when needed. |
 
 **The `Product` aggregate** belongs to catalog.
@@ -222,6 +223,13 @@ Exact versions are pinned in Phase 0 and logged in the journal.
   - `ProductChanged`, which carries each changed field's value before and after
   - `ProductArchived`, `ProductRestored`
   - `StockDecreased`, which carries the order reference
+- **Built in ECOM-002 (D-068):**
+  - `revise(...)` changes several fields at once, collects every issue, checks the gift rule on the final state and records **one** `ProductChanged`. `rename`, `reprice`, `recategorize`, `mark_as_gift` and `unmark_gift` are one-field revisions. `restock(n)` adds `n` units; a full edit sets the stock level with `revise(stock=…)`.
+  - A change to the value a field already has records nothing. That includes another spelling of the same category, which keeps the original spelling. Archiving an archived product and restoring an active one also record nothing.
+  - An archived product can still be edited, but `decrease_stock` raises `ProductNotSellable`.
+  - The SKU never changes after creation.
+  - The domain never changes `version`; the repository increments it on save (ECOM-003). Each behaviour receives the time as `at`, so the domain never reads a clock.
+  - Events carry plain values (strings, integers, tuples), ready for the audit log.
 
 **The `ImportBatch` aggregate** also belongs to catalog. It models the review workflow described in §6.
 - **State:** `ImportBatchId`, file name, file SHA-256, upload time, `reviewer`, `status` and `rows[]`.
@@ -825,7 +833,7 @@ None of this is needed for the fake gateway. It is recorded here so the design i
 2. `*.application` does not import `infrastructure` or `api`.
 3. `ordering` does not import `catalog.domain`.
 
-Each context gets its own **layers** contract (`api | infrastructure` → `application` → `domain`), and one **forbidden** contract keeps every `domain` and `application` package free of frameworks. Today these cover `weather` and `shared_kernel` (ECOM-001); `catalog` and `ordering` are added as they arrive.
+Each context gets its own **layers** contract (`api | infrastructure` → `application` → `domain`), and one **forbidden** contract keeps every `domain` and `application` package free of frameworks. Today these cover `weather` and `shared_kernel` (ECOM-001) and `catalog.domain` (ECOM-002); `catalog`'s other layers and `ordering` are added as they arrive. A further contract stops `catalog.domain` from importing anything in the project except `shared_kernel.domain`. An architecture test (`testing/backend/architecture`) reads every `*/domain` package and fails if it imports anything outside the standard library, its own package and `shared_kernel.domain`.
 
 **mypy** runs in strict mode, with the Pydantic plugin, over `backend/src` and `backend/migrations`.
 

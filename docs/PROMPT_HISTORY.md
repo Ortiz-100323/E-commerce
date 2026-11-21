@@ -382,3 +382,62 @@ Mostly background, about 80%. You can see the error messages and the reference n
 - A reference number sent in by a caller is kept only if it looks safe. Otherwise we issue a new one, so nobody can write junk into our logs.
 
 **Status:** ready for your review, not committed yet. Once you're happy, tell me to commit, and I'll start ECOM-002 (the product catalog rules: name, price, stock and so on).
+
+---
+
+## #009 — 2026-11-21 — ECOM-001 committed; building ECOM-002
+
+### User
+
+> you can commit and start the next one
+
+### Assistant
+
+**ECOM-001 is committed** as `8efe709` on its branch, and its decisions are marked accepted. **ECOM-002 is built and waiting for your review** on `feature/ECOM-002-catalog-domain`. It isn't committed yet.
+
+## ECOM-002: Product rules
+
+**What was built**
+The rules that decide what a valid product is and what can happen to it:
+- the checks on every product field;
+- the actions on a product: rename, change the price, change the category, restock, mark or unmark as a gift, archive, restore and sell stock;
+- a record of every change, with the old and the new value, ready for the product history.
+
+**Why it was built**
+These rules are the heart of the catalog. The admin screen, the CSV import and checkout will all go through them, so a bad product can't get in by any route.
+
+**Main goal**
+An invalid product can never exist, stock never goes below zero, a free product is always a deliberate gift, and every change leaves a trace.
+
+**Human testable or background?**
+**Background only.** There is nothing to click yet: products are saved in ECOM-003 and reachable through the API in ECOM-005. Automatic tests check the behaviour.
+
+**What to test: a rules review.** Read these rules and tell me whether any should change.
+
+*A product*
+1. **SKU:** letters, digits and single hyphens, saved in upper case (`wm-042` becomes `WM-042`), up to 64 characters. **It never changes after creation.**
+2. **Name:** required, up to 200 characters, no `<` or `>`, and no line breaks or tabs. Text that looks like code is saved as plain text.
+3. **Description:** optional, up to 2,000 characters; line breaks are allowed.
+4. **Category:** required, up to 80 characters. "electronics" and "Electronics" are the same category, and the first spelling is kept.
+5. **Price:** US dollars and cents, never negative. **A price of 0 is allowed only for a gift**, and the gift tag can't be removed while the price is 0. A paid product can also be a gift.
+6. **Stock:** a whole number, never negative. 0 is normal: the product is simply out of stock.
+7. **Weight:** in kg, up to 3 decimals (grams), never negative. 0 is allowed, for example for a digital product.
+
+*What happens to it*
+
+8. **Restock** adds units to the current stock.
+9. **Selling more than is in stock is refused**, and the stock stays as it was.
+10. **A product can be sold only when it is active and has stock.**
+11. **An archived product can't be sold, but it can still be edited**, so it can be fixed before it is restored.
+12. **Every change is recorded** with its old and new value. Saving a value that didn't change records nothing, and one edit of several fields is one history entry.
+13. **Every problem in a form is reported at once**, not one at a time.
+
+Three of these are my own judgement, so please confirm them: **11** (archived products stay editable), **4** (category spelling) and **5** (a paid product can also be a gift).
+
+**Tests:** 93 new tests, 2,377 cases including the generated ones. The CI container is green, with 2,500 backend tests.
+
+**A decision for you: two testing tools.** The ticket plans two standard Python testing tools: `hypothesis`, which generates test cases automatically, and `pytest-cov`, which measures how much code the tests cover. Claude Code's permission check blocked adding them, so it's your call. For now, the generated cases come from a fixed-seed random generator, and coverage isn't measured (D-069). If you agree, say so and I'll add them; you may get a permission prompt.
+
+**A slip, a third time:** one command again started with a stray `python -` and hung. Nothing changed; I stopped it and checked the file. Since then, every file change in this ticket has gone through the editor tool, and I saved this as a standing rule in my memory.
+
+**Status:** ECOM-002 is ready for your review, not committed. Next is ECOM-003: saving products in the database.

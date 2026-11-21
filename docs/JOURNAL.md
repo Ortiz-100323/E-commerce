@@ -849,3 +849,40 @@ Template:
   - Each ticket gets a "Business view" section with the same five points, so the report stays with the ticket.
 - **Alternatives:** keep technical replies and rely on the verification table. Rejected: the table proves the criteria but doesn't tell a business tester what to do.
 
+### D-068: Choices made while building the catalog domain (ECOM-002)
+- **Date:** 2026-11-21
+- **Status:** Accepted (owner, prompt #010)
+- **Decision:**
+  - **Upper limits that match the database columns:** price up to 9,999,999,999.99 (`NUMERIC(12,2)`), stock up to 2,147,483,647 (`INTEGER`), weight up to 9,999,999.999 kg (`NUMERIC(10,3)`). A valid domain object can then always be saved; without the limits, an oversized value would pass the domain and fail in the database as a 500. The code is `too_large`, with `max` in `params`.
+  - **`revise(...)`** changes several fields in one step and records one `ProductChanged`. The admin's full edit (PUT, ECOM-005) needs it: one save becomes one history entry, every issue is reported at once, and a price of 0 can be set together with the gift tag without worrying about order. The single-field behaviours in the ticket call `revise`.
+  - **`restock(n)` adds `n` units** (n ≥ 1), as the word suggests. Setting an absolute stock level is `revise(stock=…)`.
+  - **No-op changes record nothing**, so the history only shows real changes. Another spelling of the same category counts as no change and keeps the original spelling, matching "the canonical form is the first spelling seen". `archive` and `restore` are idempotent.
+  - **Archived products can be edited but not sold.** The admin may fix a product before restoring it; `decrease_stock` on an archived product raises `ProductNotSellable` (reason `archived`), which becomes `product-not-sellable` at checkout.
+  - **The SKU is immutable.** It is the identity used by the importer (§6.5); changing it means a new product.
+  - **The domain does not touch `version`.** The repository increments it when it saves (ECOM-003), so several behaviours in one request still count as one version.
+  - **Time is passed in** as `at` on every behaviour; the domain never reads a clock.
+  - **Events carry plain values** (strings for money and weight, integers, sorted tuples for tags), ready to be written to `audit_log` as JSON.
+  - **Programming errors are not validation errors.** A float, a boolean or text where a whole number is expected raises `TypeError`; a `decrease_stock` quantity below 1 raises `ValueError` (the order validates quantities first).
+  - **Text rules:** a name rejects every control character (line breaks and tabs included); a description allows `\n` only, so a carriage return is rejected. Browsers' textareas already give `\n`.
+  - **`IssueCollector`** joins the shared kernel: it runs each value-object constructor and keeps the issues instead of stopping at the first one. The CSV importer (ECOM-010) will reuse it.
+- **Alternatives:** separate events per field on a full edit (rejected: one save would appear as up to seven history entries); `version` incremented by every behaviour (rejected: a two-field edit would jump two versions).
+
+### D-069: Property tests and the coverage gate without new packages, for now
+- **Date:** 2026-11-21
+- **Status:** Superseded by D-070
+- **Context:** ECOM-002 plans `hypothesis` property tests and a 95% domain coverage gate (`pytest-cov`). Adding the two dev packages was blocked by Claude Code's permission check, so it needs the owner's approval.
+- **Decision (temporary):**
+  - The property tests use the standard library's `random` with a fixed seed: 300 generated cases per property for SKU normalisation, price and stock, and 150 stock-decrease cases. They are deterministic, so a failure always reproduces.
+  - Coverage is **not measured** yet. Every value-object rule and every behaviour has a test, but there is no number to show.
+- **Next step:** if the owner approves, add `hypothesis` and `pytest-cov`, turn the seeded tests into hypothesis strategies, and add `--cov-fail-under=95` for the domain packages to `run.py backend`.
+
+### D-070: hypothesis and pytest-cov adopted, with a domain coverage gate
+- **Date:** 2026-11-21
+- **Status:** Accepted (owner approved both packages in prompt #010)
+- **Decision:**
+  - Dev dependencies: `hypothesis` 6.170.17 and `pytest-cov` 7.1.0.
+  - The seeded generators from D-069 became hypothesis strategies. A project profile in `testing/backend/conftest.py` runs 200 examples per property, with no deadline so a slow Windows run doesn't fail spuriously. The stock property now plays a random sequence of sales and restocks, which is stronger than one decrease.
+  - `run.py backend` measures `catalog.domain` and `shared_kernel.domain` and fails below **95%** (§8.2). Each context's application layer joins the gate when it arrives, and the whole-backend 85% gate comes with ECOM-016.
+  - `.hypothesis/` and `.coverage` are ignored by git and Docker.
+- **Result:** 100% coverage of both domain packages.
+

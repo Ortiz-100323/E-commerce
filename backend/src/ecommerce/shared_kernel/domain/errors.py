@@ -1,5 +1,5 @@
 import dataclasses
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -37,3 +37,18 @@ class NotFoundError(DomainError):
     def __init__(self, detail: str | None = None) -> None:
         self.detail = detail
         super().__init__(detail or "Not found.")
+
+
+class IssueCollector:
+    def __init__(self) -> None:
+        self.issues: list[ValidationIssue] = []
+
+    def attempt[V, T](self, factory: Callable[[V], T], raw: V) -> T | None:
+        try:
+            return factory(raw)
+        except DomainValidationError as error:
+            self.issues.extend(error.issues)
+            return None
+
+    def add(self, issue: ValidationIssue) -> None:
+        self.issues.append(issue)

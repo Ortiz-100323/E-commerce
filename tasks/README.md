@@ -23,7 +23,7 @@ A ticket moves to **Done** only after the owner accepts it at its review gate.
 |---|---|---|---|---|
 | [ECOM-000](ECOM-000.md) | Walking skeleton: four containers, weather test feature, local CI | 0 | — | Done |
 | [ECOM-001](ECOM-001.md) | Backend foundation: shared kernel, Problem Details errors, quality gates | 1 | ECOM-000 | Done |
-| [ECOM-002](ECOM-002.md) | Catalog domain: value objects and the Product aggregate | 1 | ECOM-001 | Backlog |
+| [ECOM-002](ECOM-002.md) | Catalog domain: value objects and the Product aggregate | 1 | ECOM-001 | Done |
 | [ECOM-003](ECOM-003.md) | Catalog persistence: schema, repository and Unit of Work | 1 | ECOM-002 | Backlog |
 | [ECOM-004](ECOM-004.md) | Audit trail: append-only log and product history | 1 | ECOM-003 | Backlog |
 | [ECOM-005](ECOM-005.md) | Product CRUD and search API | 1 | ECOM-004 | Backlog |

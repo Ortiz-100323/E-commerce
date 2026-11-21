@@ -68,8 +68,19 @@ def tooling_steps() -> list[Step]:
     return pytest_steps("tooling tests", "testing/tooling")
 
 
+COVERED_PACKAGES = ["ecommerce.catalog.domain", "ecommerce.shared_kernel.domain"]
+COVERAGE_THRESHOLD = 95
+
+
 def backend_steps() -> list[Step]:
-    return pytest_steps("backend tests", "testing/backend")
+    coverage = [f"--cov={package}" for package in COVERED_PACKAGES]
+    return pytest_steps(
+        "backend tests",
+        "testing/backend",
+        *coverage,
+        "--cov-report=term-missing:skip-covered",
+        f"--cov-fail-under={COVERAGE_THRESHOLD}",
+    )
 
 
 def frontend_steps() -> list[Step]:

@@ -3,6 +3,10 @@ import sys
 from collections.abc import Callable, Mapping
 
 import pytest
+from hypothesis import settings
+
+settings.register_profile("project", max_examples=200, deadline=None)
+settings.load_profile("project")
 
 
 def pytest_asyncio_loop_factories(

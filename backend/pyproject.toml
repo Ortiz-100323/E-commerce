@@ -21,10 +21,12 @@ packages = ["src/ecommerce"]
 
 [dependency-groups]
 dev = [
+    "hypothesis>=6.170.17",
     "import-linter>=2.17",
     "mypy>=2.4.1",
     "pytest>=9.2.0",
     "pytest-asyncio>=1.5.0",
+    "pytest-cov>=7.1.0",
     "ruff>=0.17.6",
 ]
 
@@ -68,9 +70,21 @@ layers = [
 ]
 
 [[tool.importlinter.contracts]]
+name = "Catalog domain depends only on the shared kernel domain"
+type = "forbidden"
+source_modules = ["ecommerce.catalog.domain"]
+forbidden_modules = [
+    "ecommerce.weather",
+    "ecommerce.shared_kernel.application",
+    "ecommerce.shared_kernel.infrastructure",
+    "ecommerce.shared_kernel.api",
+]
+
+[[tool.importlinter.contracts]]
 name = "Domain and application stay free of frameworks"
 type = "forbidden"
 source_modules = [
+    "ecommerce.catalog.domain",
     "ecommerce.weather.domain",
     "ecommerce.weather.application",
     "ecommerce.shared_kernel.domain",

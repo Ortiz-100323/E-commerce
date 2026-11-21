@@ -94,3 +94,7 @@ def test_money_compares_and_knows_zero() -> None:
     assert Money.zero().is_zero
     assert Money.of("1.00") > Money.of("0.99")
     assert not Money.of("0.01").is_zero
+
+
+def test_money_reads_as_amount_and_currency() -> None:
+    assert str(Money.of("5")) == "5.00 USD"
