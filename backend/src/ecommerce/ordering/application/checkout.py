@@ -1,0 +1,265 @@
+import hashlib
+import json
+from collections.abc import Sequence
+from dataclasses import dataclass, field
+from datetime import date, datetime, timedelta
+from http import HTTPStatus
+from uuid import UUID
+
+from ecommerce.ordering.application.errors import IdempotencyKeyReused
+from ecommerce.ordering.application.ports import (
+    PaymentGateway,
+    SaleProduct,
+    TransientErrors,
+)
+from ecommerce.ordering.application.unit_of_work import (
+    OrderingUnitOfWork,
+    OrderingUnitOfWorkFactory,
+)
+from ecommerce.ordering.domain.errors import (
+    NotEnoughStock,
+    OrderNotFound,
+    ProductsNotSellable,
+    ShortItem,
+    UnsellableItem,
+)
+from ecommerce.ordering.domain.order import (
+    Order,
+    OrderId,
+    OrderLine,
+    RequestedLine,
+    merge_lines,
+    new_order_id,
+)
+from ecommerce.ordering.domain.payment import PaymentCard
+from ecommerce.ordering.domain.value_objects import Customer, OrderStatus
+from ecommerce.shared_kernel.application.ports import Clock
+from ecommerce.shared_kernel.domain.errors import (
+    DomainValidationError,
+    IssueCollector,
+    ValidationIssue,
+)
+from ecommerce.shared_kernel.domain.money import Money
+
+KEY_LIFETIME = timedelta(hours=24)
+DEFAULT_DECLINE_REASON = "card_declined"
+ATTEMPTS = 2
+
+
+@dataclass(frozen=True, kw_only=True, repr=False)
+class CardDetails:
+    number: str
+    expiry_month: int
+    expiry_year: int
+    cvc: str
+
+    def __repr__(self) -> str:
+        return "CardDetails(****)"
+
+
+@dataclass(frozen=True, kw_only=True)
+class CheckoutCommand:
+    idempotency_key: UUID
+    customer_name: str
+    customer_email: str
+    lines: tuple[tuple[str, int], ...]
+    card: CardDetails | None = field(default=None)
+
+
+@dataclass(frozen=True, kw_only=True)
+class CheckoutResult:
+    order: Order
+    replayed: bool
+
+
+@dataclass(frozen=True, kw_only=True)
+class PreparedCheckout:
+    customer: Customer
+    lines: tuple[RequestedLine, ...]
+    card: PaymentCard | None
+
+
+def response_status(order: Order) -> int:
+    if order.status is OrderStatus.PAYMENT_FAILED:
+        return HTTPStatus.PAYMENT_REQUIRED
+    return HTTPStatus.CREATED
+
+
+def fingerprint(customer: Customer, lines: Sequence[RequestedLine], last4: str | None) -> str:
+    canonical = {
+        "card_last4": last4,
+        "customer": {"email": customer.email.strip().lower(), "name": customer.name.strip()},
+        "lines": [[line.sku, line.quantity] for line in lines],
+    }
+    text = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def prepare(command: CheckoutCommand, today: date) -> PreparedCheckout:
+    collector = IssueCollector()
+    customer = collector.attempt(
+        lambda raw: Customer.of(raw[0], raw[1]), (command.customer_name, command.customer_email)
+    )
+    lines = collector.attempt(merge_lines, command.lines)
+    card = None
+    details = command.card
+    if details is not None:
+        card = collector.attempt(
+            lambda raw: PaymentCard.of(
+                raw.number, raw.expiry_month, raw.expiry_year, raw.cvc, today=today
+            ),
+            details,
+        )
+    if collector.issues:
+        raise DomainValidationError(collector.issues)
+    assert customer is not None and lines is not None
+    return PreparedCheckout(customer=customer, lines=lines, card=card)
+
+
+def check_sellable(lines: Sequence[RequestedLine], products: dict[str, SaleProduct]) -> None:
+    unsellable: list[UnsellableItem] = []
+    short: list[ShortItem] = []
+    for line in lines:
+        product = products.get(line.sku)
+        if product is None:
+            unsellable.append(UnsellableItem(line.sku, "unknown"))
+        elif not product.active:
+            unsellable.append(UnsellableItem(line.sku, "archived"))
+        elif product.stock == 0:
+            unsellable.append(UnsellableItem(line.sku, "out_of_stock"))
+        elif line.quantity > product.stock:
+            short.append(ShortItem(line.sku, line.quantity, product.stock))
+    if unsellable:
+        raise ProductsNotSellable(unsellable)
+    if short:
+        raise NotEnoughStock(short)
+
+
+def payment_required(total: Money) -> DomainValidationError:
+    return DomainValidationError(
+        [
+            ValidationIssue(
+                "payment",
+                "required",
+                f"This order costs {total.amount} {total.currency}. Enter a card to pay.",
+                params={"total": str(total.amount)},
+            )
+        ]
+    )
+
+
+async def place_order(
+    work: OrderingUnitOfWork, prepared: PreparedCheckout, payments: PaymentGateway, now: datetime
+) -> Order:
+    products = await work.catalog.lock_for_sale([line.sku for line in prepared.lines])
+    check_sellable(prepared.lines, products)
+    order = Order.place(
+        order_id=new_order_id(),
+        customer=prepared.customer,
+        lines=[
+            OrderLine(
+                sku=line.sku,
+                product_id=products[line.sku].product_id,
+                name=products[line.sku].name,
+                unit_price=Money(products[line.sku].price),
+                quantity=line.quantity,
+                gift=products[line.sku].gift,
+            )
+            for line in prepared.lines
+        ],
+        at=now,
+    )
+    if order.total.is_zero:
+        order.mark_paid(payment_reference=None, card_last4=None, at=now)
+        await take_stock(work, order, now)
+        return order
+    card = prepared.card
+    if card is None:
+        raise payment_required(order.total)
+    result = await payments.charge(order.total, card, str(order.id))
+    if not result.approved:
+        order.mark_payment_failed(
+            reason=result.decline_reason or DEFAULT_DECLINE_REASON, card_last4=card.last4, at=now
+        )
+        return order
+    await take_stock(work, order, now)
+    order.mark_paid(payment_reference=result.reference, card_last4=card.last4, at=now)
+    return order
+
+
+async def take_stock(work: OrderingUnitOfWork, order: Order, now: datetime) -> None:
+    for line in order.lines:
+        await work.catalog.decrease_stock(
+            line.sku, line.quantity, order_reference=str(order.id), at=now
+        )
+
+
+class Checkout:
+    def __init__(
+        self,
+        ordering: OrderingUnitOfWorkFactory,
+        payments: PaymentGateway,
+        clock: Clock,
+        *,
+        key_lifetime: timedelta = KEY_LIFETIME,
+        transient: TransientErrors | None = None,
+    ) -> None:
+        self._ordering = ordering
+        self._payments = payments
+        self._clock = clock
+        self._key_lifetime = key_lifetime
+        self._transient = transient
+
+    async def execute(self, command: CheckoutCommand) -> CheckoutResult:
+        now = self._clock.now()
+        prepared = prepare(command, now.date())
+        key_fingerprint = fingerprint(
+            prepared.customer,
+            prepared.lines,
+            None if prepared.card is None else prepared.card.last4,
+        )
+        attempt = 1
+        while True:
+            try:
+                return await self._attempt(command.idempotency_key, key_fingerprint, prepared, now)
+            except Exception as error:
+                if attempt >= ATTEMPTS or not self._is_transient(error):
+                    raise
+                attempt += 1
+
+    def _is_transient(self, error: Exception) -> bool:
+        return self._transient is not None and self._transient.is_transient(error)
+
+    async def _attempt(
+        self, key: UUID, key_fingerprint: str, prepared: PreparedCheckout, now: datetime
+    ) -> CheckoutResult:
+        async with self._ordering() as work:
+            existing = await work.idempotency.claim(
+                key, key_fingerprint, now=now, expires_at=now + self._key_lifetime
+            )
+            if existing is not None:
+                if existing.fingerprint != key_fingerprint:
+                    raise IdempotencyKeyReused()
+                stored = await work.orders.get(OrderId(existing.order_id))
+                if stored is None:
+                    raise OrderNotFound(existing.order_id)
+                return CheckoutResult(order=stored, replayed=True)
+            order = await place_order(work, prepared, self._payments, now)
+            await work.orders.add(order)
+            await work.idempotency.record(
+                key, order_id=order.id, response_status=response_status(order)
+            )
+            await work.commit()
+        return CheckoutResult(order=order, replayed=False)
+
+
+class GetOrder:
+    def __init__(self, ordering: OrderingUnitOfWorkFactory) -> None:
+        self._ordering = ordering
+
+    async def execute(self, order_id: UUID) -> Order:
+        async with self._ordering() as work:
+            order = await work.orders.get(OrderId(order_id))
+        if order is None:
+            raise OrderNotFound(order_id)
+        return order

@@ -8,12 +8,19 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from ecommerce.catalog.domain.importing.policies import ImportPolicies
 from ecommerce.catalog.infrastructure.product_queries import SqlAlchemyProductQueries
 from ecommerce.catalog.infrastructure.unit_of_work import SqlAlchemyCatalogUnitOfWorkFactory
+from ecommerce.integration.catalog_sales import CatalogSales
 from ecommerce.main import API_PREFIX, create_app
+from ecommerce.ordering.application.ports import PaymentGateway
+from ecommerce.ordering.infrastructure.payment_gateway import FakePaymentGateway
+from ecommerce.ordering.infrastructure.transient import DatabaseTransientErrors
+from ecommerce.ordering.infrastructure.unit_of_work import SqlAlchemyOrderingUnitOfWorkFactory
 from ecommerce.shared_kernel.api.actor import ACTOR_HEADER
+from ecommerce.shared_kernel.application.ports import Clock
 from ecommerce.shared_kernel.infrastructure.database import create_session_factory
-from fakes import SequenceClock, dependencies_factory
+from fakes import dependencies_factory
 
 PRODUCTS = f"{API_PREFIX}/products"
+ORDERS = f"{API_PREFIX}/orders"
 CATEGORIES = f"{API_PREFIX}/categories"
 IMPORT_PREVIEW = f"{API_PREFIX}/imports/preview"
 IMPORTS = f"{API_PREFIX}/imports"
@@ -45,15 +52,23 @@ def update_body(version: int, **overrides: Any) -> dict[str, Any]:
 @asynccontextmanager
 async def live_api(
     engine: AsyncEngine,
-    clock: SequenceClock | None = None,
+    clock: Clock | None = None,
     policies: ImportPolicies | None = None,
+    payments: PaymentGateway | None = None,
+    lock_timeout_ms: int = 5000,
 ) -> AsyncIterator[httpx.AsyncClient]:
+    sessions = create_session_factory(engine)
     factory = dependencies_factory(
-        catalog=SqlAlchemyCatalogUnitOfWorkFactory(create_session_factory(engine)),
+        catalog=SqlAlchemyCatalogUnitOfWorkFactory(sessions),
         queries=SqlAlchemyProductQueries(engine),
         clock=clock,
         existing=SqlAlchemyProductQueries(engine),
         policies=policies,
+        ordering=SqlAlchemyOrderingUnitOfWorkFactory(
+            sessions, CatalogSales, lock_timeout_ms=lock_timeout_ms
+        ),
+        payments=payments or FakePaymentGateway(),
+        transient=DatabaseTransientErrors(),
     )
     app = create_app(factory)
     async with app.router.lifespan_context(app):

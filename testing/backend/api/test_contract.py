@@ -6,12 +6,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from ecommerce.main import API_PREFIX, create_app
+from ecommerce.ordering.api.router import IDEMPOTENCY_HEADER
 from ecommerce.shared_kernel.api.actor import ACTOR_HEADER
 from fakes import dependencies_factory
 
 PROBLEM_FIELDS = {"type", "title", "status", "instance", "request_id"}
 VALID_ID = "00000000-0000-4000-8000-000000000001"
-ACTOR = {ACTOR_HEADER: "Contract Test"}
+ACTOR = {ACTOR_HEADER: "Contract Test", IDEMPOTENCY_HEADER: VALID_ID}
 CHANGE_METHODS = {"post", "put", "patch", "delete"}
 BAD_VALUES = {"integer": "abc", "number": "abc", "boolean": "maybe"}
 
@@ -93,7 +94,7 @@ def bad_requests() -> Iterator[Any]:
                 method,
                 with_path(path, operation),
                 {"json": {}},
-                422,
+                400 if parameter["name"] == IDEMPOTENCY_HEADER else 422,
                 id=f"{method} {path} missing header {parameter['name']}",
             )
         body_types = operation.get("requestBody", {}).get("content", {})
@@ -214,5 +215,15 @@ def test_the_contract_covers_every_endpoint_that_takes_input() -> None:
         if operation.get("parameters") or "requestBody" in operation
     }
 
-    assert len(taking_input) == 13
+    assert len(taking_input) == 15
     assert taking_input <= covered
+
+
+def test_checkout_takes_an_idempotency_key_and_no_actor() -> None:
+    checkout = OPENAPI["paths"][f"{API_PREFIX}/orders"]["post"]
+
+    headers = [
+        (parameter["name"], parameter["required"]) for parameter in parameters(checkout, "header")
+    ]
+
+    assert headers == [(IDEMPOTENCY_HEADER, False)]

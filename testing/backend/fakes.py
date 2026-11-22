@@ -19,8 +19,13 @@ from ecommerce.catalog.domain.product import Product, ProductId
 from ecommerce.catalog.domain.value_objects import Sku
 from ecommerce.catalog.infrastructure.csv_reader import CsvImportReader
 from ecommerce.main import Dependencies
+from ecommerce.ordering.application.checkout import KEY_LIFETIME
+from ecommerce.ordering.application.ports import PaymentGateway, TransientErrors
+from ecommerce.ordering.application.unit_of_work import OrderingUnitOfWorkFactory
 from ecommerce.shared_kernel.application.audit import ActorRequired, AuditEntry, JsonObject
+from ecommerce.shared_kernel.application.ports import Clock
 from ecommerce.shared_kernel.domain.actor import Actor
+from ordering_fakes import InMemoryOrderingState, NoTransientErrors, RecordingPaymentGateway
 
 FIXED_NOW = datetime(2026, 11, 21, 12, 0, tzinfo=UTC)
 
@@ -198,11 +203,14 @@ class InMemoryCatalog:
 def dependencies_factory(
     *,
     database_up: bool = True,
-    clock: SequenceClock | None = None,
+    clock: Clock | None = None,
     catalog: CatalogUnitOfWorkFactory | None = None,
     queries: ProductQueries | None = None,
     existing: ExistingProducts | None = None,
     policies: ImportPolicies | None = None,
+    ordering: OrderingUnitOfWorkFactory | None = None,
+    payments: PaymentGateway | None = None,
+    transient: TransientErrors | None = None,
 ) -> Callable[[], AbstractAsyncContextManager[Dependencies]]:
     dependencies = Dependencies(
         database_probe=FakeDatabaseProbe(database_up),
@@ -212,6 +220,10 @@ def dependencies_factory(
         import_reader=CsvImportReader(),
         import_policies=policies or ImportPolicies(),
         clock=clock or SequenceClock(),
+        ordering_unit_of_work=ordering or InMemoryOrderingState(),
+        payment_gateway=payments or RecordingPaymentGateway(),
+        transient_errors=transient or NoTransientErrors(),
+        idempotency_key_lifetime=KEY_LIFETIME,
     )
 
     @asynccontextmanager

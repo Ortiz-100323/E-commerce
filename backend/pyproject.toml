@@ -39,7 +39,7 @@ src = ["src", "../testing"]
 select = ["E", "F", "I", "B", "UP"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["ecommerce", "fakes", "problems"]
+known-first-party = ["checkout_support", "ecommerce", "fakes", "ordering_fakes", "problems"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -80,11 +80,43 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
+name = "Ordering layers: api and infrastructure depend on application, which depends on domain"
+type = "layers"
+layers = [
+    "ecommerce.ordering.api | ecommerce.ordering.infrastructure",
+    "ecommerce.ordering.application",
+    "ecommerce.ordering.domain",
+]
+
+[[tool.importlinter.contracts]]
+name = "Ordering domain depends only on the shared kernel domain"
+type = "forbidden"
+source_modules = ["ecommerce.ordering.domain"]
+forbidden_modules = [
+    "ecommerce.shared_kernel.application",
+    "ecommerce.shared_kernel.infrastructure",
+    "ecommerce.shared_kernel.api",
+]
+
+[[tool.importlinter.contracts]]
+name = "Ordering never reaches into the catalog, and the catalog never reaches into ordering"
+type = "independence"
+modules = ["ecommerce.ordering", "ecommerce.catalog"]
+
+[[tool.importlinter.contracts]]
+name = "Contexts never import the integration adapters or the composition root"
+type = "forbidden"
+source_modules = ["ecommerce.ordering", "ecommerce.catalog", "ecommerce.shared_kernel"]
+forbidden_modules = ["ecommerce.integration", "ecommerce.main"]
+
+[[tool.importlinter.contracts]]
 name = "Domain and application stay free of frameworks"
 type = "forbidden"
 source_modules = [
     "ecommerce.catalog.domain",
     "ecommerce.catalog.application",
+    "ecommerce.ordering.domain",
+    "ecommerce.ordering.application",
     "ecommerce.shared_kernel.domain",
     "ecommerce.shared_kernel.application",
 ]

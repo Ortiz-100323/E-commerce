@@ -5,6 +5,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 from collections.abc import Callable, Sequence
 from typing import Any
 
@@ -22,6 +23,20 @@ SMOKE_PRODUCT = {
     "gift": False,
 }
 SMOKE_IDENTITY = (SMOKE_PRODUCT["name"], SMOKE_PRODUCT["description"], SMOKE_PRODUCT["category"])
+DECLINED_TEST_CARD = "4000 0000 0000 0002"
+
+
+def smoke_order() -> dict[str, Any]:
+    return {
+        "customer": {"name": SMOKE_ACTOR, "email": "smoke-test@example.com"},
+        "lines": [{"sku": SMOKE_SKU, "quantity": 1}],
+        "payment": {
+            "card_number": DECLINED_TEST_CARD,
+            "expiry_month": 12,
+            "expiry_year": 2099,
+            "cvc": "123",
+        },
+    }
 
 
 class SmokeFailure(Exception):
@@ -121,6 +136,19 @@ def run(base_url: str) -> int:
         expect(status == 200, f"archive answered {status}: {body}")
         expect(search("ACTIVE") == [], f"{SMOKE_SKU} is still in the shop after archiving")
 
+    def checkout_needs_an_idempotency_key() -> None:
+        status, body = call("POST", f"{api}/orders", smoke_order())
+        expect(status == 400, f"checkout without a key answered {status}: {body}")
+        expect(json.loads(body)["type"].endswith("idempotency-key-missing"), body)
+
+    def archived_product_cannot_be_bought() -> None:
+        key = {"Idempotency-Key": str(uuid.uuid4())}
+        status, body = call("POST", f"{api}/orders", smoke_order(), key)
+        expect(status == 409, f"buying an archived product answered {status}: {body}")
+        problem = json.loads(body)
+        expect(problem["type"].endswith("product-not-sellable"), body)
+        expect(problem["items"] == [{"sku": SMOKE_SKU, "reason": "archived"}], body)
+
     checks: list[tuple[str, Callable[[], None]]] = [
         ("portal loads through nginx", portal_loads),
         ("the page is never served stale", page_is_never_stale),
@@ -128,6 +156,11 @@ def run(base_url: str) -> int:
         (f"the {SMOKE_SKU} product exists (created once, then reused)", smoke_product_exists),
         ("a restored product is found by search", restored_product_is_found_by_search),
         ("an archived product leaves the shop", archived_product_leaves_the_shop),
+        (
+            "checkout refuses a request without an Idempotency-Key",
+            checkout_needs_an_idempotency_key,
+        ),
+        ("an archived product cannot be bought", archived_product_cannot_be_bought),
     ]
     for name, check in checks:
         try:

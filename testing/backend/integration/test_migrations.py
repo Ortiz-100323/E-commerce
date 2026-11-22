@@ -155,3 +155,16 @@ def test_the_import_batches_migration_downgrades_and_upgrades_cleanly(
         upgrade_to_head(test_database_url)
 
     assert {"import_batches", "import_batch_rows"} <= table_names(test_database_url)
+
+
+def test_the_orders_migration_downgrades_and_upgrades_cleanly(test_database_url: str) -> None:
+    tables = {"orders", "order_lines", "idempotency_keys"}
+    config = alembic_config(test_database_url)
+    try:
+        command.downgrade(config, "0006")
+        assert tables.isdisjoint(table_names(test_database_url))
+        assert "import_batches" in table_names(test_database_url)
+    finally:
+        upgrade_to_head(test_database_url)
+
+    assert tables <= table_names(test_database_url)

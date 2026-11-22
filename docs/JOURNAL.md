@@ -1291,3 +1291,42 @@ Template:
   - An "Undo skip" button (rejected: a skipped review row with an empty name cannot go back unchanged; correcting or confirming it is the real decision, and the server records it).
 - **Test-first proof:** the 5 new or changed component tests failed on the old screen (no Skipped tab, skipped rows still in their tab) and pass now.
 - **Other remarks:** the owner said the user experience needs improving. That goes to ECOM-018 (D-082), with what the screenshots show.
+
+### D-095: Ordering, fake payment and checkout plan (ECOM-013)
+- **Date:** 2026-11-22
+- **Status:** Accepted (owner, prompt #030: "go, build 13 and 14 together, your defaults are fine"). Built as planned; see D-096 for ECOM-014.
+- **Context:** the owner accepted ECOM-010 to ECOM-012 and asked to move to the next ticket. ECOM-013 builds the `ordering` context (CC-06); ECOM-014 adds the idempotency key and the concurrency tests.
+- **Decision (proposed):**
+  - **No catalog import from `ordering`, not even an indirect one.** The `CatalogGateway` port is ordering's own, with its own `SaleProduct` snapshot. The adapter that implements it with the catalog's repository lives in `ecommerce/integration/`, outside both contexts, and is wired in `main.py`. import-linter forbids `ordering → catalog` and `catalog → ordering`. It is stricter than §8.3, because import-linter also follows indirect imports, and an adapter inside `ordering` would reach `catalog.domain` through `catalog.application`.
+  - **One transaction for the whole checkout:** lock the products in SKU order (the existing `lock_by_skus`, D-093), check, price from the locked rows, charge the fake gateway, decrease stock only when approved, and save the order and the audit entries. A declined order is stored as `PAYMENT_FAILED` and answered with 402.
+  - **Every cart problem in one answer:** unknown, archived and out-of-stock SKUs are reported together as `product-not-sellable` (the new reason `unknown` replaces a 404 for an unknown SKU); quantities above the stock are reported together as `insufficient-stock`.
+  - **Client prices are ignored:** extra fields in a line are dropped by the schema, so they can never be read.
+  - **Zero-total orders** are paid without a card and without calling the gateway (CQ-01). A cart above 0 without a card gets 422.
+  - **The card:** number, expiry and CVC are validated (Luhn, not expired, 3–4 digits). Only the last 4 digits are stored; the CVC is never stored; the card's text form is masked so it can't reach a log.
+  - **Audit actor "Shop checkout":** shoppers don't log in, and a customer's name in the append-only log would be personal data that can never be removed (CQ-09). The order id goes in each entry's context; the customer's details stay in the `orders` table.
+- **Alternatives:**
+  - The adapter inside `ordering.infrastructure` (rejected: it reaches catalog's domain indirectly, which the contract forbids).
+  - Building ECOM-013 and ECOM-014 one after the other with a test in between (not chosen: the owner asked for both together in prompt #030, which also removes the window where a retried checkout creates a second order).
+  - Product ids instead of SKUs in the request (rejected: §7.1 and the stock problems speak in SKUs, and the cart already keeps the SKU).
+
+### D-096: Checkout safety as built: idempotency key, lock timeout and deadlock retry (ECOM-014)
+- **Date:** 2026-11-22
+- **Status:** Accepted (owner, prompt #031: "I agreee with the out of stock"); the owner will test it through the ECOM-015 screens
+- **Context:** the owner asked to build ECOM-013 and ECOM-014 together with the proposed defaults (prompt #030). §7.2 and §7.3 describe the design; this entry records how it was built and where it differs.
+- **Decision:**
+  - **One use case, one transaction.** `Checkout` validates the request, opens the unit of work, claims the key, places the order and records the outcome before committing. The key, the order, the stock change and the audit entries commit or roll back together. A refused checkout (409 or 422) leaves no key behind, so the shopper can fix the cart and retry with the same key.
+  - **Claiming a key:**
+    - `INSERT … ON CONFLICT DO NOTHING RETURNING key` claims a new key. A second request with the same key waits on the primary key until the first commits, then reads the stored outcome and replays it.
+    - An expired key is taken over with `UPDATE … WHERE expires_at <= now`, so the 24-hour rule needs no clean-up job.
+    - There is no `IN_PROGRESS` state, as §7.2 planned.
+  - **A replay rebuilds the answer from the stored order:** 201 with the order, or 402 with the failed order, plus `Idempotent-Replayed: true`. An order never changes once settled, so the body is identical; only `request_id` differs on a 402, because it identifies the request.
+  - **The fingerprint** is a SHA-256 of the canonical request (trimmed name, lower-cased email, lines merged and sorted, the card's last 4). The full card number is never part of it (§7.2).
+  - **400 for a missing or malformed key.** The header is declared optional and checked by the endpoint's own dependency, which runs before the body is validated. So a request without a key gets `idempotency-key-missing` even if its body is also wrong.
+  - **Lock timeout:** `SET LOCAL lock_timeout` at the start of every checkout transaction (5 s, the `CHECKOUT_LOCK_TIMEOUT_MS` setting). PostgreSQL's lock-timeout error is an `OperationalError`, which the existing mapping already answers with 503 and `Retry-After: 1`.
+  - **Deadlock retry once:** the application asks a `TransientErrors` port whether an error may be retried; the infrastructure answers yes only for PostgreSQL's `DeadlockDetected`. The application never imports the database driver.
+  - **The last unit gives `product-not-sellable`, not `insufficient-stock`:** once the stock is 0, ECOM-013's rule applies (out of stock → `product-not-sellable`, reason `out_of_stock`). §7.3's example showed `insufficient-stock`; that problem is still used when some stock is left but not enough.
+  - **Live smoke checks** were added for the owner's stack, and neither writes anything: checkout without a key gets 400, and buying the archived SMOKE-TEST product gets 409.
+- **Alternatives:**
+  - A separate `IdempotentCheckout` class around `Checkout` (rejected: both need the same unit of work and transaction; one class is simpler, and the order steps stay in their own function, `place_order`).
+  - Storing the whole response body against the key (rejected: the order is already stored and immutable, so the answer can be rebuilt, and nothing about a customer is duplicated).
+  - Catching the database's deadlock error inside the application (rejected: it would import the driver into the application layer, which the layer contract forbids).

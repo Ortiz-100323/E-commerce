@@ -73,6 +73,8 @@ def tooling_steps() -> list[Step]:
 COVERED_PACKAGES = [
     "ecommerce.catalog.domain",
     "ecommerce.catalog.application",
+    "ecommerce.ordering.domain",
+    "ecommerce.ordering.application",
     "ecommerce.shared_kernel.domain",
 ]
 COVERAGE_THRESHOLD = 95

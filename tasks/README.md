@@ -36,8 +36,8 @@ A ticket moves to **Done** only after the owner accepts it at its review gate.
 | [ECOM-010](ECOM-010.md) | CSV import: parsing, classification and policies | 3 | ECOM-005 | Done |
 | [ECOM-011](ECOM-011.md) | CSV import: review workflow, commit and audit | 3 | ECOM-010 | Done |
 | [ECOM-012](ECOM-012.md) | CSV import UI: upload and review screen | 3 | ECOM-011, ECOM-006 | Done |
-| [ECOM-013](ECOM-013.md) | Ordering: Order aggregate, fake payment and checkout | 4 | ECOM-005 | Backlog |
-| [ECOM-014](ECOM-014.md) | Checkout safety: idempotency key and stock locking | 4 | ECOM-013 | Backlog |
+| [ECOM-013](ECOM-013.md) | Ordering: Order aggregate, fake payment and checkout | 4 | ECOM-005 | In Review (committed; tested with ECOM-015) |
+| [ECOM-014](ECOM-014.md) | Checkout safety: idempotency key and stock locking | 4 | ECOM-013 | In Review (committed; tested with ECOM-015) |
 | [ECOM-015](ECOM-015.md) | Purchase UI: cart, checkout and confirmation | 4 | ECOM-014, ECOM-006 | Backlog |
 | [ECOM-016](ECOM-016.md) | Hardening, Playwright E2E and GitHub Actions | 5 | ECOM-012, ECOM-015 | Backlog |
 | [ECOM-017](ECOM-017.md) | README and delivery | 6 | ECOM-016 | Backlog |

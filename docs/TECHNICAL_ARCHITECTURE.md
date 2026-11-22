@@ -26,6 +26,7 @@
 > | 20 | 2026-11-21 | ECOM-012: the import screens as built: upload, review tabs, inline corrections, update confirmations, and 409s explained on the page (§5, D-092). |
 > | 21 | 2026-11-21 | Review fixes through ECOM-012: confirmations bind to the outcome the reviewer saw, selected-file media types reach server validation unchanged, and absent SKUs are protected with shared transaction advisory locks (§4.4, §4.5, D-093). |
 > | 22 | 2026-11-22 | The owner's portal test of the import: skipped rows leave their tab for a new **Skipped** tab, where a decision can still be changed (§5, D-094). |
+> | 23 | 2026-11-22 | ECOM-013 and ECOM-014: ordering, the fake payment and the checkout safety net as built. The catalog adapter lives outside both contexts, `ordering` and `catalog` never import each other, an unknown SKU is `product-not-sellable`, and the last unit gives `out_of_stock` (§3.1, §4.5, §4.6, §7.2, §7.3, §8.3, D-095, D-096). |
 >
 > Every decision here also appears in [JOURNAL.md](JOURNAL.md) with its context and the alternatives considered.
 
@@ -175,6 +176,8 @@ The backend is a **modular monolith**: two bounded contexts and a shared kernel,
 | **shared_kernel** | Value objects and abstractions that both contexts use. | — |
 
 `ordering` never imports catalog's domain. It reaches the catalog through an **anti-corruption port** called `CatalogGateway`, which offers two operations: get a sellable product snapshot, and lock and decrease stock.
+
+**As built (ECOM-013, D-095):** the port belongs to `ordering.application`, with ordering's own `SaleProduct` snapshot. Its implementation, `ecommerce/integration/catalog_sales.py`, sits outside both contexts and uses the catalog's `lock_by_skus` and `Product.decrease_stock`; `main.py` wires it in. import-linter checks that `ordering` and `catalog` never import each other, not even indirectly, and that no context imports `ecommerce.integration` or `main`.
 
 Both contexts share one database transaction through a Unit of Work.
 
@@ -351,6 +354,12 @@ Exact versions are pinned in Phase 0 and logged in the journal.
   - `POST /imports` takes the file as a `text/csv` body, like the preview, with an optional `file_name` query parameter; it returns 201 with `Location` and the whole batch. No multipart package is needed.
   - Every row in a batch lists the `actions` it allows; `PATCH /imports/{id}/rows/{line}` takes `{"action": "confirm" | "correct" | "skip", "expected_outcome"?, "values"?}` and returns the row with the batch summary (`pending_lines`, `committable`). A confirm requires the outcome shown to the reviewer; if reclassification has changed it, the old command is a safe no-op (D-093).
   - `POST /imports/{id}/commit` and `DELETE /imports/{id}` return the whole batch; repeating either is a safe retry.
+- **Orders as built (ECOM-013 and ECOM-014, D-095, D-096):**
+  - `POST /orders` takes `{customer: {name, email}, lines: [{sku, quantity}], payment?: {card_number, expiry_month, expiry_year, cvc}}` with 1 to 50 lines. Unknown fields inside a line (such as a price) are ignored and never read; unknown fields anywhere else give 422. No `X-Actor-Name`: the audit actor is "Shop checkout".
+  - It needs an `Idempotency-Key` UUID header; a missing or malformed key gives 400 before anything else.
+  - Answers: 201 with `Location` and the order (`PAID`); 402 `payment-declined` with `order_id` and the failed order; 409 `product-not-sellable` or `insufficient-stock`; 422 for bad input or a reused key; 503 after a 5-second lock wait. A replay carries `Idempotent-Replayed: true`.
+  - An order is returned with its customer, its lines (SKU, product id, name, unit price, quantity, gift, line total), total, currency, card last 4, payment reference, decline reason, and created and settled times. Money is sent as strings.
+  - `GET /orders/{id}` returns the order, or 404.
 
 ### 4.6 Errors: one format for everything
 
@@ -422,7 +431,7 @@ Domain validation **collects every issue before raising**, rather than stopping 
 | `version-conflict` | 409 | A stale `version` on PUT | `current_version` |
 | `duplicate-sku` | 409 | Creating a product with an SKU that is already taken | `sku` |
 | `insufficient-stock` | 409 | Checkout (§7.3) | `items[] {sku, requested, available}` |
-| `product-not-sellable` | 409 | The product is archived, or has 0 stock | `items[] {sku, reason}` |
+| `product-not-sellable` | 409 | A SKU is unknown, archived or has 0 stock; every such line is listed (D-095) | `items[] {sku, reason}`, reason `unknown`, `archived` or `out_of_stock` |
 | `import-not-committable` | 409 | Rows are still unresolved | `pending_lines[]` |
 | `import-stale-rows` | 409 | A product changed after the preview | `lines[]` |
 | `import-not-pending` | 409 | The import was already committed, discarded or has expired | `import_status` |
@@ -807,6 +816,7 @@ None of this is needed for the fake gateway. It is recorded here so the design i
 - After a 402, the same key replays the 402.
 - A missing or malformed key gives 400.
 - An expired key is treated as new.
+**As built (ECOM-014, D-096):** every test above passes, plus a replayed 402. The claim is `INSERT … ON CONFLICT DO NOTHING`; an expired key is taken over with a conditional `UPDATE`; a replay rebuilds the answer from the stored order, which never changes once settled. The key's lifetime and the lock timeout are the settings `CHECKOUT_IDEMPOTENCY_KEY_HOURS` (24) and `CHECKOUT_LOCK_TIMEOUT_MS` (5000).
 
 ### 7.3 Stock: never sell what we no longer have
 
@@ -848,6 +858,7 @@ None of this is needed for the fake gateway. It is recorded here so the design i
 - **Opposite order.** Carts {A, B} and {B, A} are submitted in parallel. Both succeed, and there is no deadlock.
 - **Stale admin edit.** An admin saves after a checkout has changed the product, and gets 409.
 - **Database guard.** A direct SQL `UPDATE` to stock = -1 is rejected by the CHECK constraint.
+**As built (ECOM-014, D-096):** every test above passes. Two details differ from the text:- Once the stock reaches 0, the losing checkouts get `product-not-sellable` (reason `out_of_stock`), as ECOM-013 decided, not `insufficient-stock`. `insufficient-stock` is still the answer when some stock is left but not enough; a second race test (2 units each, 3 in stock) proves it.- The latch test waits for PostgreSQL to report a backend waiting on a lock, then checks the second checkout hasn't finished. It never sleeps for a guessed amount of time. A third test uses a 200 ms `lock_timeout` to prove the 503 with `Retry-After: 1`.
 
 ---
 
@@ -887,7 +898,7 @@ None of this is needed for the fake gateway. It is recorded here so the design i
 2. `*.application` does not import `infrastructure` or `api`.
 3. `ordering` does not import `catalog.domain`.
 
-Each context gets its own **layers** contract (`api | infrastructure` → `application` → `domain`), and one **forbidden** contract keeps every `domain` and `application` package free of frameworks. Today these cover `shared_kernel` (ECOM-001) and `catalog` (domain in ECOM-002; application and infrastructure in ECOM-003; `catalog.api` in ECOM-004). The `weather` contract was removed with the feature in ECOM-009, and `ordering` joins when it arrives. A further contract stops `catalog.domain` from importing anything in the project except `shared_kernel.domain`. An architecture test (`testing/backend/architecture`) reads every `*/domain` package and fails if it imports anything outside the standard library, its own package and `shared_kernel.domain`.
+Each context gets its own **layers** contract (`api | infrastructure` → `application` → `domain`), and one **forbidden** contract keeps every `domain` and `application` package free of frameworks. Today these cover `shared_kernel` (ECOM-001) and `catalog` (domain in ECOM-002; application and infrastructure in ECOM-003; `catalog.api` in ECOM-004). The `weather` contract was removed with the feature in ECOM-009. `ordering` joined in ECOM-013 with its own layers contract, a contract keeping `ordering.domain` to `shared_kernel.domain`, an **independence** contract (`ordering` and `catalog` never import each other, directly or indirectly), and a contract stopping every context from importing `ecommerce.integration` or `main`: 8 contracts in all. A further contract stops `catalog.domain` from importing anything in the project except `shared_kernel.domain`. An architecture test (`testing/backend/architecture`) reads every `*/domain` package and fails if it imports anything outside the standard library, its own package and `shared_kernel.domain`.
 
 **mypy** runs in strict mode, with the Pydantic plugin, over `backend/src` and `backend/migrations`.
 

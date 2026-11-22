@@ -1,6 +1,7 @@
 from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass
+from datetime import timedelta
 
 from fastapi import FastAPI
 from sqlalchemy.exc import OperationalError
@@ -22,6 +23,15 @@ from ecommerce.catalog.infrastructure.csv_reader import CsvImportReader
 from ecommerce.catalog.infrastructure.import_settings import ImportSettings
 from ecommerce.catalog.infrastructure.product_queries import SqlAlchemyProductQueries
 from ecommerce.catalog.infrastructure.unit_of_work import SqlAlchemyCatalogUnitOfWorkFactory
+from ecommerce.integration.catalog_sales import CatalogSales
+from ecommerce.ordering.api.problems import ORDERING_PROBLEMS
+from ecommerce.ordering.api.router import router as orders_router
+from ecommerce.ordering.application.ports import PaymentGateway, TransientErrors
+from ecommerce.ordering.application.unit_of_work import OrderingUnitOfWorkFactory
+from ecommerce.ordering.infrastructure.payment_gateway import FakePaymentGateway
+from ecommerce.ordering.infrastructure.settings import CheckoutSettings
+from ecommerce.ordering.infrastructure.transient import DatabaseTransientErrors
+from ecommerce.ordering.infrastructure.unit_of_work import SqlAlchemyOrderingUnitOfWorkFactory
 from ecommerce.shared_kernel.api.exception_handlers import install_problem_handlers
 from ecommerce.shared_kernel.api.health_router import router as health_router
 from ecommerce.shared_kernel.api.problem_details import SERVICE_UNAVAILABLE, ProblemMapping
@@ -51,6 +61,10 @@ class Dependencies:
     import_reader: ImportFileReader
     import_policies: ImportPolicies
     clock: Clock
+    ordering_unit_of_work: OrderingUnitOfWorkFactory
+    payment_gateway: PaymentGateway
+    transient_errors: TransientErrors
+    idempotency_key_lifetime: timedelta
 
 
 DependenciesFactory = Callable[[], AbstractAsyncContextManager[Dependencies]]
@@ -60,17 +74,25 @@ DependenciesFactory = Callable[[], AbstractAsyncContextManager[Dependencies]]
 async def production_dependencies() -> AsyncIterator[Dependencies]:
     settings = Settings()
     policies = ImportSettings().policies()
+    checkout = CheckoutSettings()
     engine = create_engine(settings.database_url)
+    sessions = create_session_factory(engine)
     queries = SqlAlchemyProductQueries(engine)
     try:
         yield Dependencies(
             database_probe=SqlAlchemyDatabaseProbe(engine),
-            catalog_unit_of_work=SqlAlchemyCatalogUnitOfWorkFactory(create_session_factory(engine)),
+            catalog_unit_of_work=SqlAlchemyCatalogUnitOfWorkFactory(sessions),
             catalog_queries=queries,
             existing_products=queries,
             import_reader=CsvImportReader(),
             import_policies=policies,
             clock=SystemClock(),
+            ordering_unit_of_work=SqlAlchemyOrderingUnitOfWorkFactory(
+                sessions, CatalogSales, lock_timeout_ms=checkout.lock_timeout_ms
+            ),
+            payment_gateway=FakePaymentGateway(),
+            transient_errors=DatabaseTransientErrors(),
+            idempotency_key_lifetime=checkout.idempotency_key_lifetime,
         )
     finally:
         await engine.dispose()
@@ -87,18 +109,24 @@ def create_app(dependencies_factory: DependenciesFactory = production_dependenci
             app.state.import_reader = dependencies.import_reader
             app.state.import_policies = dependencies.import_policies
             app.state.clock = dependencies.clock
+            app.state.ordering_unit_of_work = dependencies.ordering_unit_of_work
+            app.state.payment_gateway = dependencies.payment_gateway
+            app.state.transient_errors = dependencies.transient_errors
+            app.state.idempotency_key_lifetime = dependencies.idempotency_key_lifetime
             yield
 
     app = FastAPI(title="E-commerce API", version="0.1.0", lifespan=lifespan)
     app.add_middleware(RequestIdMiddleware)
     install_problem_handlers(
-        app, {**INFRASTRUCTURE_PROBLEMS, **CATALOG_PROBLEMS, **IMPORT_PROBLEMS}
+        app,
+        {**INFRASTRUCTURE_PROBLEMS, **CATALOG_PROBLEMS, **IMPORT_PROBLEMS, **ORDERING_PROBLEMS},
     )
     app.add_exception_handler(ImportFileRejected, handle_import_file_rejected)
     app.include_router(health_router, prefix=API_PREFIX)
     app.include_router(catalog_router, prefix=API_PREFIX)
     app.include_router(categories_router, prefix=API_PREFIX)
     app.include_router(imports_router, prefix=API_PREFIX)
+    app.include_router(orders_router, prefix=API_PREFIX)
     return app
 
 

@@ -1683,3 +1683,180 @@ Your remark "we need to improve user experience" is in **ECOM-018 (UI polish)**,
 **Tests:** written first. The 5 new or changed screen tests failed on the old screen and pass now. In the CI container: all static checks, no comments, and 114 frontend tests (96% line coverage) pass. The smoke checks on your running stack pass, and the portal container is rebuilt.
 
 **Status:** ECOM-010, ECOM-011 and ECOM-012 have passed your test; the Skipped tab is waiting for your quick re-test. When you're happy, say "commit" and I'll commit ECOM-012. That commit includes the code review round 2 fixes (D-093), which are also still uncommitted. Next on the board is ECOM-013 (orders, fake payment and checkout).
+
+## #029 — 2026-11-22 — Import accepted, ECOM-012 committed; ECOM-013 plan
+
+### User
+
+> It worked, commit and lets go to next one.
+>
+> *(One screenshot attached, now stored as [06-retest-skipped-tab.png](../tasks/ECOM-012-evidence/06-retest-skipped-tab.png).)*
+
+### Assistant
+
+**ECOM-012 is committed** as `623f60a` on `feature/ECOM-012-import-ui`. ECOM-010, ECOM-011 and ECOM-012 are now **Done** on the board.
+
+- **What was committed:** the import screens, the Skipped tab you just re-tested, and the code review round 2 fixes (D-093).
+- **Checked first:** the full quality suite passed before the commit:
+  - all static checks;
+  - 44 tooling tests;
+  - 725 backend tests (99.6% coverage);
+  - 114 frontend tests;
+  - the smoke checks.
+- **Your screenshot** is filed as re-test 1 in [tasks/ECOM-012-evidence/](tasks/ECOM-012-evidence/README.md): the Skipped tab passed. It also shows **Unchanged (84)** after the commit, which is ECOM-011's criterion 5 seen in the portal.
+- **Your branch:** `feature/ECOM-012-import-ui` is ready for you to merge. I'm now on the new branch `feature/ECOM-013-ordering`, started from it.
+
+## Next: ECOM-013, orders with a fake payment (plan for your review)
+
+Nothing is built yet. The full technical plan is in [tasks/ECOM-013.md](tasks/ECOM-013.md) (journal D-095).
+
+**In short**
+- **A new part of the system, "ordering"**, kept apart from the catalog. It asks the catalog for prices and stock through one small, fixed connection, and a rule checks that it never reaches inside the catalog.
+- **Checkout in one go:**
+  1. lock the products;
+  2. check every line;
+  3. price every line **from the database**;
+  4. charge the fake card;
+  5. take the stock away **only if the payment is approved**.
+
+  The order, the stock change and the audit entries are saved together, or not at all.
+- **A declined card** (`4000 0000 0000 0002`) is saved as a failed order (402), and stock is untouched.
+- **Free gift orders** are paid without a card.
+- **The card number is never stored.** Only the last 4 digits are kept, and the code behind the card (CVC) is never kept. A test searches the database, the responses and the logs for the full number.
+- **Every problem with a cart comes back at once.** For example: "MB-001 is archived, YM-015 is out of stock, you asked for 5 RS-001 but there are 3."
+- **Testable in Swagger** (http://localhost:8001/docs). The checkout screens come in ECOM-015.
+
+**The acceptance criteria (from the ticket)**
+
+| # | Criterion | How I plan to prove it |
+|---|---|---|
+| 1 | Lines are priced from the database; prices sent by the client are ignored | Send a price of 0.01 for a $89.99 product; the order says 89.99 |
+| 2 | A declined card returns 402, the order is `PAYMENT_FAILED` and stock is unchanged | API test on the real database |
+| 3 | An approved card returns 201, the order is `PAID` and stock decreases, with an audit entry | API test, including the `product.stock_decreased` entry with the order id |
+| 4 | A zero-total gift order is paid without calling the gateway | Use-case test with a gateway that fails if called |
+| 5 | An archived or out-of-stock product returns 409 `product-not-sellable` | API tests for both, plus an unknown SKU |
+| 6 | The full card number appears nowhere in the database, responses or logs | A search of every text column, every response body and the captured logs |
+
+**Three choices for you**
+
+1. **Retries before ECOM-014.** Until ECOM-014 adds the "Idempotency-Key", sending the same checkout twice creates two orders. Stock still can't be oversold. I recommend building **ECOM-013 and then ECOM-014 straight away**, and handing both to you together for one Swagger test, like ECOM-011 and ECOM-012. Or I can stop after ECOM-013 for a test.
+2. **Card details.** I plan to ask for the card number, expiry month and year, and CVC, all checked like a real form (an expired card or a wrong CVC gives a clear error). The other option is the card number only.
+3. **Who appears in the audit log for a purchase.** I plan to use **"Shop checkout"**, not the customer's name. The audit log can never be edited, so a customer's name there could never be removed (CQ-09). The customer's details stay with the order.
+
+**Status:** ECOM-013 is In Progress (plan). Say "go" (with your choices) and I'll build it test-first.
+
+## #030 — 2026-11-22 — ECOM-013 and ECOM-014 built together: checkout, fake payment and the safety net
+
+### User
+
+> go, build 13 and 14 together, your defaults are fine
+
+### Assistant
+
+**I built ECOM-013 (checkout with a fake payment) and ECOM-014 (the safety net) together, and both are ready for you to test in Swagger.** Nothing is committed yet. Everything is on `feature/ECOM-013-ordering`, and your backend container is rebuilt with the new code.
+
+I used your three defaults: card number, expiry and CVC; one ticket straight after the other; and "Shop checkout" as the name in the audit log.
+
+**Test-first:** I wrote all the new tests before any ordering code, ran them, and they failed because the code didn't exist. Then I wrote the code until they passed.
+
+## ECOM-013: buying products with a fake card
+
+**What was built**
+- **Checkout, behind the scenes.** The shop prices every line from its own catalog and ignores any price the browser sends.
+- **Only an approved payment takes stock.** A declined card is kept as a failed order and takes nothing.
+- **Free gift orders** go through without a card.
+- **Every problem with a cart comes back at once**, for example "NOPE-1 is not in the catalog; SMOKE-TEST is no longer sold; TS-002 is out of stock".
+- **Only the last 4 digits of a card are kept.** The security code is never kept.
+- **The audit log** records each paid or failed order, and each stock decrease names its order.
+
+**Why it was built**
+Challenge rule CC-06: buying products with a fake payment.
+
+**Main goal**
+An order can never be paid at a price the shop didn't set, never sells stock that isn't there, and never stores a card number.
+
+| # | Criterion | Result | How it was proven |
+|---|---|---|---|
+| 1 | Lines are priced from the database; prices sent by the client are ignored | ✅ Pass | A line sent with a price of 0.01 is charged at 89.99 from the catalog. |
+| 2 | A declined card returns 402, the order is `PAYMENT_FAILED` and stock is unchanged | ✅ Pass | Real database: 402, the failed order is stored, stock stays 10, no stock entry in the audit log. |
+| 3 | An approved card returns 201, the order is `PAID` and stock decreases, with an audit entry | ✅ Pass | 201, stock 10 → 8, one "Stock decreased" entry by "Shop checkout" naming the order. |
+| 4 | A zero-total gift order is paid without calling the gateway | ✅ Pass | The fake card service is set to fail if it's called; the gift order is paid anyway. |
+| 5 | An archived or out-of-stock product returns 409 `product-not-sellable` | ✅ Pass | One cart with an archived, an out-of-stock and an unknown product gets one answer listing all three. Also checked live on your stack. |
+| 6 | The full card number appears nowhere in the database, responses or logs | ✅ Pass | After approved, declined and invalid checkouts, a test searches every text column of every table, every response and the logs. The number isn't there, with or without spaces. |
+
+## ECOM-014: never charge twice, never oversell
+
+**What was built**
+- **A double click, a refresh or a lost connection can't charge twice.** Each checkout attempt carries an "Idempotency-Key". Sending the same attempt again returns the first answer, marked "replayed", with no new order, no new charge and no stock change.
+- **The same key with a different cart** is refused (422).
+- **Two shoppers can't buy the last unit.** The second one is told it's out of stock.
+- **A checkout that waits too long** for another one (over 5 seconds) gets "try again" (503) instead of hanging.
+
+**Why it was built**
+A shop that charges twice or sells stock it doesn't have loses money and trust (CC-13, "enterprise-grade").
+
+**Main goal**
+Every purchase happens exactly once, even under heavy traffic.
+
+| # | Criterion | Result | How it was proven |
+|---|---|---|---|
+| 1 | The same key with the same body gives one order and an identical replay with `Idempotent-Replayed: true` | ✅ Pass | Same answer, marked replayed; one order, stock taken once. A declined card is replayed the same way. |
+| 2 | The same key with a different body gives 422 `idempotency-key-reused`, and nothing changes | ✅ Pass | 422; still one order; the first order isn't revealed. |
+| 3 | A missing or malformed key gives 400 | ✅ Pass | No key, an empty key and "not-a-uuid" each give 400; nothing is stored. Also checked live on your stack. |
+| 4 | 10 parallel requests with one key create exactly one order | ✅ Pass | 10 at the same moment: one order, the other 9 replay it. |
+| 5 | 20 parallel checkouts for the last unit give exactly one 201 and nineteen 409s, and stock ends at 0 | ✅ Pass | Exactly 1 sale, 19 "out of stock", stock 0. |
+| 6 | Carts {A, B} and {B, A} in parallel both succeed without a deadlock | ✅ Pass | 10 carts at once, half in each order: all succeed. |
+
+**Also proven:** a second checkout really waits for the first one in the database and then finds no stock; a key older than 24 hours starts a new order; an admin edit opened before a sale is refused afterwards, so it can't overwrite the new stock.
+
+**Human testable or background?** ECOM-013 is **testable in Swagger**. ECOM-014 is mostly background: you can see the replay in Swagger, but the races are proven by the automated tests. The checkout screens come in ECOM-015.
+
+### What to test (http://localhost:8001/docs → **orders** → **POST /orders** → **Try it out**)
+
+Your catalog right now: Running Shoes **RS-001** costs $94.99 with 120 in stock; **GF-002** Collar gift is free; **TS-002** Trail Shoes has 0 in stock; **SMOKE-TEST** is archived.
+
+1. In **Idempotency-Key**, type `11111111-1111-4111-8111-000000000001`. Use this body (the 0.01 price is there on purpose):
+   ```json
+   {
+     "customer": {"name": "Your Name", "email": "you@example.com"},
+     "lines": [{"sku": "RS-001", "quantity": 2, "unit_price": "0.01"}],
+     "payment": {"card_number": "4242 4242 4242 4242", "expiry_month": 12, "expiry_year": 2030, "cvc": "123"}
+   }
+   ```
+   → **201**: `PAID`, total **189.98** (not 0.02), `card_last4` "4242". Copy the `id`.
+2. Press **Execute** again without changing anything.
+   → The same answer, and the response headers show **idempotent-replayed: true**. In Admin → Products, RS-001 has **118** in stock (taken once, not twice).
+3. Same key, change `quantity` to 3, **Execute**.
+   → **422**: "This Idempotency-Key was already used for a different request."
+4. Key `…000000000002`, quantity 1, card `4000 0000 0000 0002`.
+   → **402** "The card was declined", with the failed order. RS-001 still has 118.
+5. Key `…000000000003`, lines `[{"sku": "GF-002", "quantity": 1}]`, and delete the `payment` line (and the comma before it).
+   → **201**: `PAID`, total **0.00**, no card.
+6. Key `…000000000004`, lines TS-002, SMOKE-TEST and NOPE-1, 1 each.
+   → **409**, listing all three: out of stock, no longer sold, not in the catalog.
+7. Key `…000000000005`, RS-001 with quantity 500.
+   → **409**: "you asked for 500, 118 available".
+8. Clear the **Idempotency-Key** box.
+   → **400**: "The Idempotency-Key header is required."
+9. **GET /orders/{order_id}** with the id from step 1.
+   → The same order.
+10. Admin → Products → RS-001 → **History**.
+    → "Stock decreased" by **Shop checkout**, with the order's id.
+
+### Failure cases and retries
+
+All 12 rows in [tasks/ECOM-013.md](tasks/ECOM-013.md) and all 14 in [tasks/ECOM-014.md](tasks/ECOM-014.md) pass. The main ones:
+- **Retrying is always safe with the same key:** no second order, charge or stock change. After a refusal (409 or 422) nothing was stored, so the same key works once the cart is fixed.
+- **Stock is never oversold**, even with 20 buyers at the same moment. The database also refuses negative stock as a last guard.
+- **The card number never leaves the request:** it isn't stored, returned or logged.
+
+**One design note:** when two shoppers race for the last unit, the loser gets "out of stock" (`product-not-sellable`), the same answer as for any product with 0 left. The architecture's example had said "not enough stock". That answer is still used when some stock is left but not enough (journal D-096).
+
+**Tests:** 127 new backend tests, and 2 new live checks on your stack that change nothing in your data. In the CI container:
+- all static checks, including 8 architecture rules (ordering and the catalog never reach into each other);
+- 45 tooling tests;
+- 852 backend tests, with 99.6% of the business rules covered;
+- 114 frontend tests;
+- the smoke checks on your running stack.
+
+**Status:** ECOM-013 and ECOM-014 are In Review, waiting for your Swagger test. When you're happy, say "commit" and I'll commit them on `feature/ECOM-013-ordering`. Next on the board is ECOM-015, the cart and checkout screens.
