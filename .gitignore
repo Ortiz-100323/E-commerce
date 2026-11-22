@@ -11,3 +11,7 @@ coverage/
 .coverage.*
 .hypothesis/
 .env
+.cache/
+testing/e2e/results/
+test-results/
+playwright-report/

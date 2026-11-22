@@ -52,3 +52,8 @@ def test_script_command_runs_the_named_script_isolated(runner: ModuleType) -> No
 def test_frontend_tests_enforce_coverage(runner: ModuleType) -> None:
     command = runner.COMMANDS["frontend"]()[0].command
     assert command[-2:] == ["run", "test:coverage"]
+
+
+def test_the_docker_checks_run_on_the_host_and_stay_out_of_all(runner: ModuleType) -> None:
+    assert {"containers", "images"} <= set(runner.COMMANDS)
+    assert {"containers", "images"}.isdisjoint(runner.ALL_ORDER)

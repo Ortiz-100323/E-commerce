@@ -26,6 +26,54 @@ SMOKE_IDENTITY = (SMOKE_PRODUCT["name"], SMOKE_PRODUCT["description"], SMOKE_PRO
 DECLINED_TEST_CARD = "4000 0000 0000 0002"
 
 
+SECURITY_HEADERS = {
+    "content-security-policy": (
+        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
+        "connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; "
+        "form-action 'self'; frame-ancestors 'none'"
+    ),
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "no-referrer",
+    "x-frame-options": "DENY",
+    "permissions-policy": "camera=(), microphone=(), geolocation=(), payment=()",
+    "cross-origin-opener-policy": "same-origin",
+}
+CSV_HEADER = "name,sku,description,category,price,stock,weight_kg\n"
+UPLOAD_ROWS = 9_000
+OVERSIZED_BYTES = 7 * 1024 * 1024
+
+
+def large_csv() -> bytes:
+    filler = "x" * 180
+    rows = (f"Item {n},UPLOAD-{n},{filler},Misc,1.00,1,0.1\n" for n in range(UPLOAD_ROWS))
+    return (CSV_HEADER + "".join(rows)).encode("utf-8")
+
+
+def missing_headers(headers: dict[str, str]) -> list[str]:
+    lowered = {name.lower(): value for name, value in headers.items()}
+    return [name for name, expected in SECURITY_HEADERS.items() if lowered.get(name) != expected]
+
+
+def send_bytes(url: str, body: bytes) -> tuple[int, str, str]:
+    request = urllib.request.Request(
+        url, data=body, method="POST", headers={"Content-Type": "text/csv"}
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+            return response.status, response.headers.get("Content-Type", ""), ""
+    except urllib.error.HTTPError as error:
+        return error.code, error.headers.get("Content-Type", ""), error.read().decode("utf-8")
+
+
+def headers_of(url: str) -> dict[str, str]:
+    request = urllib.request.Request(url, method="GET")
+    try:
+        with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+            return dict(response.headers.items())
+    except urllib.error.HTTPError as error:
+        return dict(error.headers.items())
+
+
 def smoke_order() -> dict[str, Any]:
     return {
         "customer": {"name": SMOKE_ACTOR, "email": "smoke-test@example.com"},
@@ -149,6 +197,22 @@ def run(base_url: str) -> int:
         expect(problem["type"].endswith("product-not-sellable"), body)
         expect(problem["items"] == [{"sku": SMOKE_SKU, "reason": "archived"}], body)
 
+    def every_response_carries_the_security_headers() -> None:
+        for path in ("/", "/cart", "/api/v1/health", "/api/v1/products/not-a-uuid"):
+            missing = missing_headers(headers_of(f"{base_url}{path}"))
+            expect(missing == [], f"{path} is missing or has wrong {missing}")
+
+    def a_large_csv_reaches_the_import() -> None:
+        body = large_csv()
+        status, _, text = send_bytes(f"{api}/imports/preview", body)
+        expect(status == 200, f"a {len(body)} byte preview answered {status}: {text[:200]}")
+
+    def an_oversized_upload_gets_a_problem() -> None:
+        status, media_type, text = send_bytes(f"{api}/imports/preview", b"x" * OVERSIZED_BYTES)
+        expect(status == 413, f"an oversized upload answered {status}")
+        expect(media_type.startswith("application/problem+json"), f"413 came as {media_type}")
+        expect(json.loads(text)["type"].endswith("payload-too-large"), text)
+
     checks: list[tuple[str, Callable[[], None]]] = [
         ("portal loads through nginx", portal_loads),
         ("the page is never served stale", page_is_never_stale),
@@ -161,6 +225,15 @@ def run(base_url: str) -> int:
             checkout_needs_an_idempotency_key,
         ),
         ("an archived product cannot be bought", archived_product_cannot_be_bought),
+        (
+            "every response carries the security headers",
+            every_response_carries_the_security_headers,
+        ),
+        ("a CSV over 1 MB reaches the import", a_large_csv_reaches_the_import),
+        (
+            "an oversized upload gets a problem, not an HTML page",
+            an_oversized_upload_gets_a_problem,
+        ),
     ]
     for name, check in checks:
         try:

@@ -11,3 +11,7 @@ tasks
 **/.hypothesis
 **/.coverage
 **/coverage
+.cache
+**/test-results
+**/playwright-report
+testing/e2e/results

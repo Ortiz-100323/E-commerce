@@ -20,3 +20,20 @@ def test_the_smoke_order_buys_only_the_smoke_product_with_a_declined_card(
 
     assert order["lines"] == [{"sku": smoke_test.SMOKE_SKU, "quantity": 1}]
     assert order["payment"]["card_number"] == "4000 0000 0000 0002"
+
+
+def test_the_large_csv_is_over_one_megabyte_and_within_the_row_limit(
+    smoke_test: ModuleType,
+) -> None:
+    body = smoke_test.large_csv()
+
+    assert 1024 * 1024 < len(body) < 5 * 1024 * 1024
+    assert body.count(b"\n") == smoke_test.UPLOAD_ROWS + 1
+
+
+def test_missing_headers_names_every_absent_or_wrong_header(smoke_test: ModuleType) -> None:
+    headers = {name.upper(): value for name, value in smoke_test.SECURITY_HEADERS.items()}
+    headers["X-FRAME-OPTIONS"] = "SAMEORIGIN"
+    del headers["REFERRER-POLICY"]
+
+    assert smoke_test.missing_headers(headers) == ["referrer-policy", "x-frame-options"]

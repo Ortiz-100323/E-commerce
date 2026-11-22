@@ -28,6 +28,7 @@
 > | 22 | 2026-11-22 | The owner's portal test of the import: skipped rows leave their tab for a new **Skipped** tab, where a decision can still be changed (§5, D-094). |
 > | 23 | 2026-11-22 | ECOM-013 and ECOM-014: ordering, the fake payment and the checkout safety net as built. The catalog adapter lives outside both contexts, `ordering` and `catalog` never import each other, an unknown SKU is `product-not-sellable`, and the last unit gives `out_of_stock` (§3.1, §4.5, §4.6, §7.2, §7.3, §8.3, D-095, D-096). |
 > | 24 | 2026-11-22 | ECOM-015: the purchase screens as built (cart, checkout, confirmation), and a read-only `POST /orders/quote` so the cart subtotal comes from the server (§4.5, §5, D-097). |
+> | 25 | 2026-11-22 | ECOM-016: browser tests in their own `e2e` compose service (profile `e2e`, Playwright 1.65.0, headless shell only), security headers and CSP, a 6 MB upload limit in nginx, no root process in any container, image budgets, and a GitHub Actions workflow (§8.1, §10, D-100 to D-104). |
 > | 25 | 2026-11-22 | Review fixes through ECOM-015: full checkout bodies use a secret-keyed idempotency fingerprint, migration 0008 widens the maximum order total, email controls are rejected, and invalid visible cart quantities cannot navigate to checkout (§4.2, §5, §7.2, D-099). |
 >
 > Every decision here also appears in [JOURNAL.md](JOURNAL.md) with its context and the alternatives considered.
@@ -1006,7 +1007,8 @@ E-commerce/
 |---|---|---|---|
 | `db` | `postgres:17-alpine` | 5433 | Named volume `pgdata`, a `pg_isready` healthcheck, and an init script that creates `ecommerce_test` |
 | `backend` | `backend/Dockerfile` (`python:3.13-slim` + uv) | 8001 | Runs as a non-root user. Runs `alembic upgrade head`, then uvicorn. Its healthcheck calls `/api/v1/health`. Starts after `db` is healthy. |
-| `frontend` | `frontend/Dockerfile` (`node:22-alpine` build → `nginx:1.28-alpine`) | 3000 | Serves the SPA and proxies `/api/` to `backend:8000`. Starts after `backend` is healthy. |
+| `frontend` | `frontend/Dockerfile` (`node:22-alpine` build → `nginx:1.28-alpine`, run as `nginx` on 8080) | 3000 | Serves the SPA and proxies `/api/` to `backend:8000`, with security headers. Starts after `backend` is healthy. |
+| `e2e` | `testing/e2e/Dockerfile` (`node:22-bookworm-slim` + Playwright 1.65.0) | — | Profile `e2e` only. Runs the browser tests against `frontend:8080` (ECOM-016, D-104). |
 | `ci` | `testing/Dockerfile` (`python:3.13-slim` + uv + Node 22) | — | Waits for the other three to be healthy, runs `python testing/run.py all`, then exits with its result |
 
 Host ports 8000 and 8080 are avoided because other local projects use them.
@@ -1033,6 +1035,14 @@ CI runs locally in the `ci` container. `python testing/run.py all` runs these st
 6. the smoke test through the frontend's nginx (Playwright joins in ECOM-016)
 
 GitHub Actions arrives in ECOM-016 and runs the same compose stack and `ci` container.
+
+**As built (ECOM-016, D-101 to D-104):**
+- **frontend** runs nginx as the `nginx` user on port 8080 inside the container (host port 3000 is unchanged). It adds a CSP and five other security headers to every response, accepts uploads up to 6 MB on `/api/`, and answers its own 413 as `application/problem+json`.
+- **backend** checks its health with `python -m ecommerce.healthcheck`, so the image no longer needs `curl` (487 MB).
+- **ci** runs as `runner`.
+- **e2e** (`testing/e2e/Dockerfile`, profile `e2e`, never started by `docker compose up`): Playwright 1.65.0 with the Chromium headless shell cached in `.cache/ms-playwright`. Run it with `docker compose --profile e2e run --rm --build e2e`. Each run creates its own `E2E-` products and archives them afterwards.
+- **On the host:** `python testing/run.py containers` fails if any container process runs as root, and `python testing/run.py images` fails if the frontend grows past 120 MB or the backend past 500 MB.
+- **`.github/workflows/ci.yml`:** on every push to `main` and every pull request, it starts the stack, runs the `ci` container, the two host checks and the browser tests (browsers cached by `actions/cache`), and uploads the Playwright results if anything fails. Actions are pinned to commit SHAs, with read-only permissions.
 
 ---
 
