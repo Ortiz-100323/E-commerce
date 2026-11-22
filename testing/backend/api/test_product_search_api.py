@@ -42,7 +42,7 @@ async def client(engine: AsyncEngine) -> AsyncIterator[httpx.AsyncClient]:
 
 
 async def skus(client: httpx.AsyncClient, **params: Any) -> list[str]:
-    response = await client.get(PRODUCTS, params=params)
+    response = await client.get(PRODUCTS, params=params, headers=ANTONIO)
     assert response.status_code == 200, response.text
     return [item["sku"] for item in response.json()["items"]]
 
@@ -171,7 +171,7 @@ async def test_categories_lists_active_categories_once_each(client: httpx.AsyncC
 async def test_bad_search_parameters_are_422_in_the_query(
     client: httpx.AsyncClient, params: dict[str, str], field: str, code: str
 ) -> None:
-    response = await client.get(PRODUCTS, params=params)
+    response = await client.get(PRODUCTS, params=params, headers=ANTONIO)
 
     body = assert_problem(response, 422, "validation-error")
     assert [(error["location"], error["field"], error["code"]) for error in body["errors"]] == [

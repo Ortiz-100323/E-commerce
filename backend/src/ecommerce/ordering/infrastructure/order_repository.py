@@ -1,4 +1,6 @@
-from sqlalchemy import RowMapping, insert, select
+from uuid import UUID
+
+from sqlalchemy import RowMapping, func, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ecommerce.ordering.domain.events import OrderEvent
@@ -33,6 +35,7 @@ class SqlAlchemyOrderRepository:
                 decline_reason=order.decline_reason,
                 created_at=order.created_at,
                 settled_at=order.settled_at,
+                buyer_id=order.buyer_id,
             )
         )
         await self._session.execute(
@@ -74,6 +77,43 @@ class SqlAlchemyOrderRepository:
         )
         return to_order(row, [to_line(line) for line in lines])
 
+    async def for_buyer(
+        self, buyer_id: UUID, *, offset: int, limit: int
+    ) -> tuple[list[Order], int]:
+        total = await self._session.scalar(
+            select(func.count()).select_from(orders).where(orders.c.buyer_id == buyer_id)
+        )
+        rows = (
+            (
+                await self._session.execute(
+                    select(orders)
+                    .where(orders.c.buyer_id == buyer_id)
+                    .order_by(orders.c.created_at.desc(), orders.c.id)
+                    .offset(offset)
+                    .limit(limit)
+                )
+            )
+            .mappings()
+            .all()
+        )
+        ids = [row["id"] for row in rows]
+        lines: dict[UUID, list[OrderLine]] = {order_id: [] for order_id in ids}
+        if ids:
+            line_rows = (
+                (
+                    await self._session.execute(
+                        select(order_lines)
+                        .where(order_lines.c.order_id.in_(ids))
+                        .order_by(order_lines.c.sku)
+                    )
+                )
+                .mappings()
+                .all()
+            )
+            for line in line_rows:
+                lines[line["order_id"]].append(to_line(line))
+        return [to_order(row, lines[row["id"]]) for row in rows], int(total or 0)
+
 
 def to_line(row: RowMapping) -> OrderLine:
     return OrderLine(
@@ -97,4 +137,5 @@ def to_order(row: RowMapping, lines: list[OrderLine]) -> Order:
         payment_reference=row["payment_reference"],
         card_last4=row["card_last4"],
         decline_reason=row["decline_reason"],
+        buyer_id=row["buyer_id"],
     )

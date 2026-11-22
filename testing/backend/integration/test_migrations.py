@@ -203,3 +203,39 @@ def test_the_database_refuses_an_image_url_that_is_not_https(test_database_url: 
         engine.dispose()
 
     assert "ck_products_image_url_https" in constraints
+
+
+def test_the_accounts_migration_downgrades_and_upgrades_cleanly(test_database_url: str) -> None:
+    config = alembic_config(test_database_url)
+    try:
+        command.downgrade(config, "0009")
+        assert "accounts" not in table_names(test_database_url)
+        assert "account_sessions" not in table_names(test_database_url)
+    finally:
+        upgrade_to_head(test_database_url)
+
+    assert {"accounts", "account_sessions"} <= table_names(test_database_url)
+
+
+def test_the_order_buyer_migration_downgrades_and_upgrades_cleanly(test_database_url: str) -> None:
+    config = alembic_config(test_database_url)
+    try:
+        command.downgrade(config, "0010")
+        assert "buyer_id" not in column_names(test_database_url, "orders")
+    finally:
+        upgrade_to_head(test_database_url)
+
+    assert "buyer_id" in column_names(test_database_url, "orders")
+
+
+def test_the_database_refuses_an_unknown_role_or_a_mixed_case_email(test_database_url: str) -> None:
+    engine = create_engine(test_database_url, poolclass=NullPool)
+    try:
+        with engine.connect() as connection:
+            constraints = {
+                check["name"] for check in inspect(connection).get_check_constraints("accounts")
+            }
+    finally:
+        engine.dispose()
+
+    assert {"ck_accounts_known_role", "ck_accounts_email_lower_case"} <= constraints

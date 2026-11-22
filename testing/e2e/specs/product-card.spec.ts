@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
-import { archiveAll, createProduct, runId } from './support'
+import { archiveAll, createProduct, logInAsAdmin, runId } from './support'
 
 const PIXEL = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
@@ -264,7 +264,7 @@ test('a phone folds the filters behind a button, a desktop shows them', async ({
 
 test('the other screens use the same buttons, fields and colours', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop', 'One device is enough for the screen tour.')
-  await page.addInitScript(() => window.localStorage.setItem('ecommerce.actor', 'E2E reviewer'))
+  await logInAsAdmin(page)
   const shots: [string, string, string][] = [
     ['/admin/products', 'Products', 'admin-products'],
     ['/admin/products/new', 'New product', 'admin-new-product'],

@@ -2,6 +2,7 @@ import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query'
 
 import { ApiError } from '../api/apiError'
 import { describeProblem, type NoticeContent } from '../notifications/describeProblem'
+import { endSession, isSessionEnded } from '../session/session'
 
 export const MAX_QUERY_RETRIES = 2
 
@@ -35,9 +36,13 @@ export function createQueryClient({
   notify,
   retryDelay = defaultRetryDelay,
 }: Options): QueryClient {
-  return new QueryClient({
+  const client: QueryClient = new QueryClient({
     queryCache: new QueryCache({
       onError: (error, query) => {
+        if (isSessionEnded(error)) {
+          endSession(client)
+          return
+        }
         if (error instanceof ApiError && handledBy(query.meta).includes(error.problem)) {
           return
         }
@@ -47,6 +52,10 @@ export function createQueryClient({
     }),
     mutationCache: new MutationCache({
       onError: (error, _variables, _result, mutation) => {
+        if (isSessionEnded(error)) {
+          endSession(client)
+          return
+        }
         if (error instanceof ApiError && error.isValidation) {
           return
         }
@@ -62,4 +71,5 @@ export function createQueryClient({
       mutations: { retry: false },
     },
   })
+  return client
 }

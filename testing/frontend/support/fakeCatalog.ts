@@ -2,6 +2,7 @@ import { http, HttpResponse } from 'msw/http'
 
 import type { HistoryEntry, Product } from '../../../frontend/src/api/products'
 import { API, problem, validationProblem } from './api'
+import { currentFakeAccount, requireAdmin } from './fakeSession'
 import { server } from './server'
 
 type Draft = {
@@ -114,7 +115,7 @@ export function fakeCatalog(seed: Partial<Product>[] = []) {
   }
 
   const record = async (request: Request): Promise<{ actor: string; body: unknown }> => {
-    const raw = request.headers.get('X-Actor-Name')
+    const raw = currentFakeAccount()?.name ?? null
     const body =
       request.method === 'POST' || request.method === 'PUT'
         ? await request
@@ -123,7 +124,7 @@ export function fakeCatalog(seed: Partial<Product>[] = []) {
             .catch(() => null)
         : null
     requests.push({ method: request.method, path: new URL(request.url).pathname, actor: raw, body })
-    return { actor: raw === null ? '' : decodeURIComponent(raw), body }
+    return { actor: raw ?? '', body }
   }
 
   const store = (draft: Draft, actor: string): Product => {
@@ -272,12 +273,20 @@ export function fakeCatalog(seed: Partial<Product>[] = []) {
       return product ? HttpResponse.json(product) : notFound()
     }),
     http.get(`${API}/products/:id/history`, ({ params }) => {
+      const refused = requireAdmin()
+      if (refused) {
+        return refused
+      }
       const id = String(params.id)
       return products.has(id)
         ? HttpResponse.json({ product_id: id, entries: history.get(id) ?? [] })
         : notFound()
     }),
     http.post(`${API}/products`, async ({ request }) => {
+      const refused = requireAdmin()
+      if (refused) {
+        return refused
+      }
       const { actor, body } = await record(request)
       const draft = body as Draft
       const invalid = validate(draft)
@@ -298,6 +307,10 @@ export function fakeCatalog(seed: Partial<Product>[] = []) {
       return HttpResponse.json(store(draft, actor), { status: 201 })
     }),
     http.put(`${API}/products/:id`, async ({ request, params }) => {
+      const refused = requireAdmin()
+      if (refused) {
+        return refused
+      }
       const { actor, body } = await record(request)
       const current = products.get(String(params.id))
       if (!current) {
@@ -332,6 +345,10 @@ export function fakeCatalog(seed: Partial<Product>[] = []) {
       return HttpResponse.json(change(current, next, actor))
     }),
     http.delete(`${API}/products/:id`, async ({ request, params }) => {
+      const refused = requireAdmin()
+      if (refused) {
+        return refused
+      }
       const { actor } = await record(request)
       const current = products.get(String(params.id))
       return current
@@ -339,6 +356,10 @@ export function fakeCatalog(seed: Partial<Product>[] = []) {
         : notFound()
     }),
     http.post(`${API}/products/:id/restore`, async ({ request, params }) => {
+      const refused = requireAdmin()
+      if (refused) {
+        return refused
+      }
       const { actor } = await record(request)
       const current = products.get(String(params.id))
       return current

@@ -71,4 +71,12 @@ export const ordersApi = {
   place: (body: CheckoutBody, idempotencyKey: string) =>
     request<Order>('POST', '/orders', { body, idempotencyKey }),
   get: (id: string) => request<Order>('GET', `/orders/${encodeURIComponent(id)}`),
+  mine: (page: number) => request<MyOrders>('GET', '/me/orders', { query: { page } }),
+}
+
+export type MyOrders = {
+  items: Order[]
+  total: number
+  page: number
+  page_size: number
 }

@@ -7,8 +7,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { describe, expect, it } from 'vitest'
 
-import { ACTOR_STORAGE_KEY } from '../../frontend/src/actor/actorStorage'
-import { useRequiredActor } from '../../frontend/src/actor/ActorContext'
+import { logInAs } from './support/fakeSession'
 import type { FieldProblem } from '../../frontend/src/api/apiError'
 import { productsApi, type NewProduct } from '../../frontend/src/api/products'
 import { AppShell } from '../../frontend/src/app/AppShell'
@@ -24,7 +23,6 @@ type Draft = { sku: string; name: string; price: string }
 const FIELDS = ['sku', 'name', 'price'] as const
 
 function ProbeForm() {
-  const actor = useRequiredActor()
   const [problems, setProblems] = useState<FieldProblem[]>([])
   const {
     register,
@@ -42,7 +40,7 @@ function ProbeForm() {
         weight_kg: '0',
         gift: false,
       }
-      return productsApi.create(body, actor)
+      return productsApi.create(body)
     },
     onError: (error) => setProblems(applyProblemToForm(error, FIELDS, setError)),
   })
@@ -79,7 +77,7 @@ const probeRoutes = [
 ]
 
 function renderProbe() {
-  window.localStorage.setItem(ACTOR_STORAGE_KEY, 'Maria')
+  logInAs('ADMIN', 'Maria')
   return renderApp('/admin/probe', { routes: probeRoutes })
 }
 
@@ -120,8 +118,8 @@ describe('API validation problems on forms', () => {
       http.post(`${API}/products`, () =>
         validationProblem([
           {
-            location: 'header',
-            field: 'X-Actor-Name',
+            location: 'query',
+            field: 'dry_run',
             code: 'required',
             message: 'Field required',
           },
@@ -140,7 +138,7 @@ describe('API validation problems on forms', () => {
 
     const list = await screen.findByText('Please fix the following:')
     const box = list.closest('[role="alert"]') as HTMLElement
-    expect(within(box).getByText('Reviewer name: Field required')).toBeInTheDocument()
+    expect(within(box).getByText('dry_run: Field required')).toBeInTheDocument()
     expect(within(box).getByText('weight_kg: Use at most 3 decimal places.')).toBeInTheDocument()
     expect(screen.getByLabelText('Name')).toHaveAccessibleDescription('No HTML, please.')
   })

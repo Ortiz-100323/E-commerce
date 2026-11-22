@@ -79,6 +79,16 @@ class InMemoryOrders:
     async def get(self, order_id: OrderId) -> Order | None:
         return self._work.staged_orders.get(order_id) or self._work.state.orders.get(order_id)
 
+    async def for_buyer(
+        self, buyer_id: UUID, *, offset: int, limit: int
+    ) -> tuple[list[Order], int]:
+        mine = sorted(
+            (order for order in self._work.state.orders.values() if order.buyer_id == buyer_id),
+            key=lambda order: (order.created_at, str(order.id)),
+            reverse=True,
+        )
+        return mine[offset : offset + limit], len(mine)
+
 
 class InMemoryCatalogGateway:
     def __init__(self, work: "InMemoryOrderingUnitOfWork") -> None:

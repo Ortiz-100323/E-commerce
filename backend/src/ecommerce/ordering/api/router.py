@@ -2,7 +2,7 @@ from datetime import timedelta
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Request, Response, status
+from fastapi import APIRouter, Depends, Header, Query, Request, Response, status
 
 from ecommerce.ordering.api.problems import (
     PAYMENT_DECLINED,
@@ -10,6 +10,7 @@ from ecommerce.ordering.api.problems import (
     IdempotencyKeyMissing,
 )
 from ecommerce.ordering.api.schemas import (
+    BuyerOrdersResponse,
     CheckoutRequest,
     OrderResponse,
     QuoteRequest,
@@ -20,13 +21,20 @@ from ecommerce.ordering.application.checkout import (
     Checkout,
     CheckoutCommand,
     GetOrder,
+    ListBuyerOrders,
     QuoteCart,
 )
 from ecommerce.ordering.application.ports import PaymentGateway, TransientErrors
 from ecommerce.ordering.application.unit_of_work import OrderingUnitOfWorkFactory
 from ecommerce.ordering.domain.value_objects import OrderStatus
+from ecommerce.shared_kernel.api.access import (
+    BUYER_ONLY_RESPONSES,
+    optional_principal,
+    require_buyer,
+)
 from ecommerce.shared_kernel.api.problem_details import problem_response
 from ecommerce.shared_kernel.application.ports import Clock
+from ecommerce.shared_kernel.domain.principal import Principal
 
 IDEMPOTENCY_HEADER = "Idempotency-Key"
 REPLAYED_HEADER = "Idempotent-Replayed"
@@ -89,10 +97,11 @@ def get_get_order(request: Request) -> GetOrder:
     return GetOrder(ordering)
 
 
-def command_of(body: CheckoutRequest, key: UUID) -> CheckoutCommand:
+def command_of(body: CheckoutRequest, key: UUID, buyer_id: UUID | None = None) -> CheckoutCommand:
     payment = body.payment
     return CheckoutCommand(
         idempotency_key=key,
+        buyer_id=buyer_id,
         customer_name=body.customer.name,
         customer_email=body.customer.email,
         lines=tuple((line.sku, line.quantity) for line in body.lines),
@@ -120,8 +129,10 @@ async def place_order(
     response: Response,
     key: Annotated[UUID, Depends(idempotency_key)],
     use_case: Annotated[Checkout, Depends(get_checkout)],
+    principal: Annotated[Principal | None, Depends(optional_principal)],
 ) -> Response | OrderResponse:
-    result = await use_case.execute(command_of(body, key))
+    buyer_id = principal.account_id if principal is not None and principal.is_buyer else None
+    result = await use_case.execute(command_of(body, key, buyer_id))
     order = OrderResponse.of(result.order)
     replayed = {REPLAYED_HEADER: "true"} if result.replayed else {}
     if result.order.status is OrderStatus.PAYMENT_FAILED:
@@ -163,3 +174,33 @@ async def get_order(
     order_id: UUID, use_case: Annotated[GetOrder, Depends(get_get_order)]
 ) -> OrderResponse:
     return OrderResponse.of(await use_case.execute(order_id))
+
+
+me_router = APIRouter(prefix="/me", tags=["orders"])
+
+MAX_MY_ORDERS_PAGE = 10_000
+
+
+def get_list_buyer_orders(request: Request) -> ListBuyerOrders:
+    ordering: OrderingUnitOfWorkFactory = request.app.state.ordering_unit_of_work
+    return ListBuyerOrders(ordering)
+
+
+@me_router.get(
+    "/orders",
+    response_model=BuyerOrdersResponse,
+    responses=BUYER_ONLY_RESPONSES,
+    summary="My orders: the logged-in customer's own orders, newest first",
+)
+async def my_orders(
+    buyer: Annotated[Principal, Depends(require_buyer)],
+    use_case: Annotated[ListBuyerOrders, Depends(get_list_buyer_orders)],
+    page: Annotated[int, Query(ge=1, le=MAX_MY_ORDERS_PAGE)] = 1,
+) -> BuyerOrdersResponse:
+    result = await use_case.execute(buyer.account_id, page)
+    return BuyerOrdersResponse(
+        items=[OrderResponse.of(order) for order in result.items],
+        total=result.total,
+        page=result.page,
+        page_size=result.page_size,
+    )

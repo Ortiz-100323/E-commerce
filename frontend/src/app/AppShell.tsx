@@ -1,6 +1,7 @@
-import { NavLink, Outlet } from 'react-router'
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 
 import { useCart } from '../cart/CartContext'
+import { useLogOut, useSession } from '../session/session'
 import controls from '../styles/controls.module.css'
 import styles from './AppShell.module.css'
 import { NewVersionBanner } from './NewVersionBanner'
@@ -26,8 +27,53 @@ function BagIcon() {
   )
 }
 
+function AccountArea() {
+  const session = useSession()
+  const logOut = useLogOut()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const account = session.data
+
+  if (session.isPending) {
+    return <span className={styles.account} />
+  }
+  if (!account) {
+    if (location.pathname === '/login') {
+      return <span className={styles.account} />
+    }
+    const next = `${location.pathname}${location.search}`
+    return (
+      <span className={styles.account}>
+        <Link to={`/login?next=${encodeURIComponent(next)}`} className={styles.logIn}>
+          Log in
+        </Link>
+      </span>
+    )
+  }
+  return (
+    <span className={styles.account}>
+      <span className={styles.who} title={account.email}>
+        {account.name}
+      </span>
+      <button
+        type="button"
+        className={styles.logOut}
+        disabled={logOut.isPending}
+        onClick={() => {
+          void navigate('/', { replace: true })
+          logOut.mutate()
+        }}
+      >
+        Log out
+      </button>
+    </span>
+  )
+}
+
 export function AppShell() {
   const { count } = useCart()
+  const session = useSession()
+  const role = session.data?.role
   return (
     <div className={styles.shell}>
       <header className={styles.header}>
@@ -40,9 +86,16 @@ export function AppShell() {
             <NavLink to="/" className={linkClass} end>
               Shop
             </NavLink>
-            <NavLink to="/admin" className={linkClass}>
-              Admin
-            </NavLink>
+            {role === 'ADMIN' ? (
+              <NavLink to="/admin" className={linkClass}>
+                Admin
+              </NavLink>
+            ) : null}
+            {role === 'BUYER' ? (
+              <NavLink to="/account/orders" className={linkClass}>
+                My orders
+              </NavLink>
+            ) : null}
           </nav>
           <p className={styles.cart} aria-live="polite">
             <NavLink
@@ -60,6 +113,7 @@ export function AppShell() {
               <span className={controls.visuallyHidden}>{count === 1 ? ' item' : ' items'}</span>
             </NavLink>
           </p>
+          <AccountArea />
         </div>
       </header>
       <NewVersionBanner />

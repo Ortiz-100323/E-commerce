@@ -3,7 +3,7 @@ import userEvent, { type UserEvent } from '@testing-library/user-event'
 import { http } from 'msw/http'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { ACTOR_STORAGE_KEY } from '../../frontend/src/actor/actorStorage'
+import { logInAs } from './support/fakeSession'
 import { API, problem } from './support/api'
 import {
   fakeImports,
@@ -24,7 +24,7 @@ let user: UserEvent
 
 beforeEach(() => {
   user = userEvent.setup()
-  window.localStorage.setItem(ACTOR_STORAGE_KEY, 'Maria')
+  logInAs('ADMIN', 'Maria')
 })
 
 function tab(name: RegExp) {

@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import re
 import sys
 import urllib.error
@@ -12,6 +13,8 @@ from typing import Any
 TIMEOUT_SECONDS = 20
 SMOKE_SKU = "SMOKE-TEST"
 SMOKE_ACTOR = "Smoke test"
+DEFAULT_ADMIN_EMAIL = "admin@example.com"
+DEFAULT_ADMIN_PASSWORD = "local-admin-password-change-me"
 SMOKE_PRODUCT = {
     "sku": SMOKE_SKU,
     "name": "Smoke test product",
@@ -54,9 +57,11 @@ def missing_headers(headers: dict[str, str]) -> list[str]:
     return [name for name, expected in SECURITY_HEADERS.items() if lowered.get(name) != expected]
 
 
-def send_bytes(url: str, body: bytes) -> tuple[int, str, str]:
+def send_bytes(
+    url: str, body: bytes, headers: dict[str, str] | None = None
+) -> tuple[int, str, str]:
     request = urllib.request.Request(
-        url, data=body, method="POST", headers={"Content-Type": "text/csv"}
+        url, data=body, method="POST", headers={"Content-Type": "text/csv", **(headers or {})}
     )
     try:
         with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
@@ -128,14 +133,48 @@ def expect(condition: bool, message: str) -> None:
         raise SmokeFailure(message)
 
 
+def session_cookie(set_cookie: str | None) -> str:
+    match = re.search(r"(?:^|,\s*)session=([^;]+)", set_cookie or "")
+    if match is None:
+        raise SmokeFailure("the log-in answer set no session cookie")
+    return match.group(1)
+
+
+def log_in(api: str, email: str, password: str) -> str:
+    request = urllib.request.Request(
+        f"{api}/session",
+        data=json.dumps({"email": email, "password": password}).encode("utf-8"),
+        method="POST",
+        headers={"Content-Type": "application/json", "Accept": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+            role = json.loads(response.read().decode("utf-8"))["role"]
+            expect(role == "ADMIN", f"the seeded account logged in as {role}")
+            return session_cookie(response.headers.get("Set-Cookie"))
+    except urllib.error.HTTPError as error:
+        raise SmokeFailure(f"the seeded admin could not log in: {error.code}") from error
+
+
 def run(base_url: str) -> int:
     api = f"{base_url}/api/v1"
-    actor = {"X-Actor-Name": SMOKE_ACTOR}
+    actor: dict[str, str] = {}
     state: dict[str, Any] = {}
+
+    def the_seeded_admin_logs_in() -> None:
+        email = os.environ.get("SMOKE_ADMIN_EMAIL", DEFAULT_ADMIN_EMAIL)
+        password = os.environ.get("SMOKE_ADMIN_PASSWORD", DEFAULT_ADMIN_PASSWORD)
+        actor["Cookie"] = f"session={log_in(api, email, password)}"
+
+    def admin_endpoints_refuse_a_visitor() -> None:
+        status, body = call("POST", f"{api}/products", SMOKE_PRODUCT)
+        expect(status == 401, f"expected 401 without a login, got {status}: {body}")
+        status, _ = call("GET", f"{api}/products?status=ALL")
+        expect(status == 401, f"expected 401 for archived products without a login, got {status}")
 
     def search(status: str) -> list[dict[str, Any]]:
         query = urllib.parse.urlencode({"q": SMOKE_SKU, "status": status})
-        code, body = call("GET", f"{api}/products?{query}")
+        code, body = call("GET", f"{api}/products?{query}", None, actor)
         expect(code == 200, f"search answered {code}: {body}")
         items: list[dict[str, Any]] = json.loads(body)["items"]
         return [item for item in items if item["sku"] == SMOKE_SKU]
@@ -213,11 +252,13 @@ def run(base_url: str) -> int:
 
     def a_large_csv_reaches_the_import() -> None:
         body = large_csv()
-        status, _, text = send_bytes(f"{api}/imports/preview", body)
+        status, _, text = send_bytes(f"{api}/imports/preview", body, actor)
         expect(status == 200, f"a {len(body)} byte preview answered {status}: {text[:200]}")
 
     def an_oversized_upload_gets_a_problem() -> None:
-        status, media_type, text = send_bytes(f"{api}/imports/preview", b"x" * OVERSIZED_BYTES)
+        status, media_type, text = send_bytes(
+            f"{api}/imports/preview", b"x" * OVERSIZED_BYTES, actor
+        )
         expect(status == 413, f"an oversized upload answered {status}")
         expect(media_type.startswith("application/problem+json"), f"413 came as {media_type}")
         expect(json.loads(text)["type"].endswith("payload-too-large"), text)
@@ -227,6 +268,8 @@ def run(base_url: str) -> int:
         ("the page is never served stale", page_is_never_stale),
         ("the build version is published, never cached", the_build_version_is_published),
         ("health check reports the database up", health_is_up),
+        ("the seeded admin logs in", the_seeded_admin_logs_in),
+        ("admin endpoints refuse a visitor", admin_endpoints_refuse_a_visitor),
         (f"the {SMOKE_SKU} product exists (created once, then reused)", smoke_product_exists),
         ("a restored product is found by search", restored_product_is_found_by_search),
         ("an archived product leaves the shop", archived_product_leaves_the_shop),

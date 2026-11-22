@@ -1498,7 +1498,7 @@ Template:
 
 ### D-107: ECOM-019 plan: admin sign-in with server-side sessions
 - **Date:** 2026-11-22
-- **Status:** Proposed (written for the owner's priority order, prompt #037; detailed plan before building)
+- **Status:** Superseded by D-114 and D-115 (prompt #046: one login for admins and buyers, with roles)
 - **Decision (proposed):**
   - **A new `identity` context,** with `AdminAccount`.
   - **Passwords:** scrypt from the standard library, with a salt per password and the parameters stored with the hash; 12 to 128 characters, no composition rules (NIST SP 800-63B).
@@ -1517,7 +1517,7 @@ Template:
 
 ### D-108: ECOM-020 plan: minimal buyer accounts
 - **Date:** 2026-11-22
-- **Status:** Proposed (written for the owner's priority order, prompt #037; detailed plan before building)
+- **Status:** Superseded by D-114 and D-116 (prompt #046: one login for admins and buyers, with roles)
 - **Decision (proposed):**
   - **`BuyerAccount`** in the `identity` context, with the same password, session and throttle rules as admins, but its own `shop_session` cookie (`SameSite=Lax`). Admin and buyer rights never mix.
   - **Endpoints:** registering signs you in at once; plus sign-in, sign-out and "My orders".
@@ -1616,3 +1616,141 @@ Template:
   - A Playwright test checks, on the phone, that the shop, a search, the cart, the admin products list, the new-product form and the import page are never wider than the screen.
   - Another checks that the actions panel touches the bottom of the screen.
 - **Process slip in the same session:** a shell command started with `python -` again and hung. It was stopped at once and nothing changed. The rule is in memory; the slip is recorded so it stays visible.
+
+### D-113: ECOM-019 detailed plan: sign-in behind the existing actor seam
+- **Date:** 2026-11-22
+- **Status:** Superseded by D-114 and D-115 before it was approved (prompt #046)
+- **Context:** D-107 set the direction: server-side sessions, scrypt, a throttle and the `identity` context. This entry fixes how it fits the existing code. The full plan is in [ECOM-019](../tasks/ECOM-019.md#detailed-plan-d-113-proposed-in-prompt-045-waiting-for-the-owners-approval).
+- **Decision (proposed):**
+  - **The seam:** `require_actor` stays in the shared kernel and asks an `AdminAuthenticator` port on `app.state`. `identity` implements it, and `main.py` wires it. The catalog and ordering don't import `identity`, and the audit table doesn't change.
+  - **scrypt parameters:** N = 2^15, r = 8, p = 3 (OWASP's 32 MiB option), stored with each hash, so they can be raised later and old hashes upgraded at sign-in.
+  - **Throttle:** counted from the audit log's `admin.sign_in_failed` entries since the last success, inside a per-email advisory lock. A refused (429) attempt is not counted.
+  - **Same-site check:** `Sec-Fetch-Site: cross-site`, or an `Origin` that isn't this site, is refused on every change. nginx forwards `Host $http_host`, so the port is kept.
+  - **Session activity:** last seen is written at most once a minute.
+  - **Tests:** `ANTONIO` and `MARIA` become two seeded admins' session cookies, so the existing API tests keep their shape.
+- **Alternatives:**
+  - Overriding `require_actor` with `app.dependency_overrides` (rejected: that mechanism is meant for tests, and a port is explicit).
+  - A separate failure table for the throttle (rejected: the audit log already records every failure, so a second copy could disagree with it).
+  - Comparing `Origin` with a configured list only (rejected for now: one more setting to get wrong; comparing with the forwarded Host works in all three environments).
+
+### D-114: One login for admins and buyers, with a role on each account
+- **Date:** 2026-11-22
+- **Status:** Accepted with the three recommendations (prompt #047); built, waiting for the owner's validation
+- **Context:**
+  - D-107 and D-108 planned two separate sign-ins (admin and buyer), each with its own cookie, pages and endpoints.
+  - The owner wants one **Log in** button in the header and one login page. The app decides from the account where to go next.
+  - Public sign-up creates buyers only. The first admin comes from a seed, and admins create further admins.
+- **Decision (proposed):**
+  - **One `Account`** in a new `identity` context: id, name, email (unique and case-insensitive across all accounts), scrypt password hash, `role` (`ADMIN` or `BUYER`), active flag and creation time. One email has one account and one role.
+  - **The role is fixed at creation.** No endpoint changes a role: not public sign-up, not the admin screens, not the seed.
+    - Sign-up always creates `BUYER`, and refuses any extra field such as `role` (422).
+    - Creating an admin with an email that already has an account is refused (409). A buyer can't be "promoted", and an admin can't be taken over by signing up.
+  - **One session and one cookie:**
+    - The cookie is `session`, with `HttpOnly; SameSite=Strict; Path=/api`, and `Secure` when `SESSION_COOKIE_SECURE=true`.
+    - It holds only a random 256-bit token. The server stores the token's SHA-256 hash and reads the account's role from the database on every request, so nothing the browser sends can change the role.
+    - Sessions end after 30 idle minutes or 8 hours, or at **Log out**.
+    - `Strict` works for the shop too: the app's API calls always come from its own pages.
+  - **Endpoints:**
+    - `POST /api/v1/session` logs in and answers `{id, name, email, role}`;
+    - `GET /api/v1/session` answers who is logged in;
+    - `DELETE /api/v1/session` logs out.
+  - **Authorisation, checked on the server for every request:**
+    - admin endpoints answer 401 `authentication-required` without a session, and 403 `admin-required` for a buyer;
+    - buyer-only endpoints answer 403 `buyer-required` for an admin.
+    - The shop's public pages and guest checkout need no session.
+  - **The "who" of an admin change:** `require_actor` (the existing seam) now returns the logged-in admin's name. `X-Actor-Name` is ignored.
+  - **Passwords and sign-in:**
+    - scrypt (N = 2^15, r = 8, p = 3) with a 16-byte salt, stored with its parameters;
+    - 12 to 128 characters;
+    - 5 failures per email in 15 minutes give 429 with `Retry-After`;
+    - one generic message, "The email or password is incorrect.", and the same timing for an unknown email.
+  - **Changes from another site** are refused: `Sec-Fetch-Site: cross-site`, or an `Origin` that isn't this site. nginx forwards `Host $http_host`.
+  - **Seed:** after the migrations, the backend's start command runs `python -m ecommerce.identity.seed`.
+    - When no admin exists and `ADMIN_SEED_EMAIL` and `ADMIN_SEED_PASSWORD` are set, it creates the first admin.
+    - Otherwise it does nothing (and warns when there is no admin at all).
+    - It never changes an existing account. Running it again is harmless.
+  - **Frontend:**
+    - The header shows **Log in**, or the logged-in person's name and **Log out**.
+    - The **Admin** link shows only to admins, and **My orders** only to buyers.
+    - `/login` logs in and then goes to the admin area (admins) or back to the shop (buyers). A `next` address is followed only when it fits the role.
+    - A buyer who opens `/admin` sees "This area is for administrators", and no admin API is called.
+  - **Out of scope (owner):** email confirmation, password reset, profile editing, removing or deactivating accounts.
+- **Alternatives:**
+  - Two account tables, `AdminAccount` and `BuyerAccount` (rejected: one email could exist in both, and one login page would have to guess which one is meant).
+  - A role inside a signed token, such as a JWT (rejected: a role change or log-out couldn't take effect at once, and the browser would carry the claim).
+  - `SameSite=Lax` for the shop (not needed: every authenticated call is a same-site request from the app itself).
+
+### D-115: ECOM-019 plan: single login, roles, admin area, admins creating admins
+- **Date:** 2026-11-22
+- **Status:** Accepted (prompt #047); built, waiting for the owner's validation together with ECOM-020
+- **Decision (proposed):** ECOM-019 builds everything in D-114 except buyer sign-up and buyer orders:
+  - the `identity` context;
+  - migration 0010 (`accounts` and `sessions`);
+  - the seed;
+  - login and log-out;
+  - the role checks on every admin endpoint;
+  - `GET` and `POST /api/v1/admin/accounts` (list admins, create an admin; admins only);
+  - the header's **Log in** and **Log out**;
+  - `/login` (the log-in form);
+  - the admin guard, and an **Admins** tab with a "Create admin" form;
+  - removing the "Who is reviewing?" prompt and the `X-Actor-Name` header.
+- **The seam:** the shared kernel gets a `Principal` (account id, name, role) and an `Authenticator` port. `require_actor` becomes "an admin's name", with `require_principal` and `optional_principal` beside it. `identity` implements the port, and `main.py` wires it. The catalog and ordering never import `identity`.
+- **Tests proving a buyer can't act as an admin (ECOM-019 part):**
+  - a contract test sends every admin endpoint with no cookie (401), with only `X-Actor-Name` (401), with a buyer's cookie (403 `admin-required`) and with an admin's (allowed);
+  - a buyer's `POST /admin/accounts` creates nothing;
+  - a changed or made-up cookie value is 401;
+  - the role comes from the database on every request;
+  - on screen, a buyer opening `/admin` gets the "for administrators" page, the Admin link stays hidden, and no admin API call is made.
+- **Order of delivery:** ECOM-019 is built first, on `feature/ECOM-019-single-login`, then ECOM-020 on top of it. The owner validates both together.
+
+### D-116: ECOM-020 plan: buyer sign-up on the login page, and "My orders"
+- **Date:** 2026-11-22
+- **Status:** Accepted (prompt #047); built, waiting for the owner's validation together with ECOM-019
+- **Decision (proposed):**
+  - **Sign-up:** `POST /api/v1/accounts` takes `{name, email, password}`. It always creates a `BUYER`, refuses unknown fields (422) and logs the buyer in at once (201 and the session cookie). An email that already has an account, buyer or admin, gets 409 "An account with this email already exists. Log in instead." That message reveals the email is registered; the owner accepted the same trade-off in D-108, since there is no email confirmation.
+  - **The same `/login` page** gets a second panel, "New here? Create an account", side by side on a computer and below on a phone.
+  - **Orders:** migration 0011 adds a nullable `orders.buyer_id` and an index on (`buyer_id`, `created_at`).
+    - A checkout with a buyer's session links the order and pre-fills the name and email.
+    - Without a session, guest checkout is unchanged.
+    - With an admin's session, the order is placed as a guest order (proposed: admins have no orders of their own).
+    - A session cookie that is present but expired gives 401 `authentication-required` before anything is charged, so a buyer never places a guest order by accident.
+    - The idempotency key's scope becomes (buyer, key) for buyers (§7.2).
+  - **"My orders":** `GET /api/v1/me/orders?page=` lists the buyer's own orders only, newest first, 10 per page, and answers 403 `buyer-required` for an admin. The page `/account/orders` shows the date, the order number, the items, the total and a link to each order's existing page. The header shows **My orders** to buyers.
+- **Tests proving a buyer can't become an admin (ECOM-020 part):**
+  - sign-up with `role: "ADMIN"` (and other extra fields) gives 422 and creates nothing;
+  - a normal sign-up is `BUYER`;
+  - sign-up with the seed admin's email gives 409, and the admin is unchanged;
+  - an admin creating an admin with a buyer's email gets 409, and the buyer stays a buyer;
+  - a contract test checks the API description: only `POST /admin/accounts` can create an admin, and no request body anywhere accepts a `role`;
+  - a freshly signed-up buyer gets 403 on every admin endpoint;
+  - in the browser: sign up, then try `/admin`, and see it blocked.
+
+### D-117: ECOM-019 and ECOM-020 as built: the owner's three choices and the decisions made while building
+- **Date:** 2026-11-22
+- **Status:** Built; waiting for the owner's validation (prompt #047: "Yes, go with each recommendation")
+- **The owner's choices (the three recommendations):**
+  - the local seed admin is `admin@example.com` / `local-admin-password-change-me`, set in `docker-compose.yml`, like the local database password;
+  - one login lifetime for everyone: 30 idle minutes, 8 hours at most;
+  - an admin's purchase is a guest order; "My orders" is for customer accounts.
+- **Decisions made while building:**
+  - **A separate session clock.** Some existing tests move the shop's clock forward by 24 hours (import expiry, idempotency-key expiry). If sessions shared that clock, test logins would end in the middle of those tests. Sessions get their own `session_clock` (the system clock in production), and dedicated tests move it to prove the 30-minute and 8-hour limits.
+  - **A 401 clears the cookie.** Every `authentication-required` answer also sends `session=; Max-Age=0`. Without it, an expired cookie would stay in the browser for up to 8 hours and make every checkout answer 401, even for someone happy to pay as a guest.
+  - **Buyer-scoped idempotency without a schema change.** A customer's `Idempotency-Key` is stored as `uuid5(namespace, "buyer-id:key")`, so two customers who send the same key get two orders, while one customer's retry still replays. Guest keys are unchanged.
+  - **The login throttle reads the audit log** (`session.login_failed` since the last `session.logged_in`) under a per-email advisory lock. A 429 is not recorded as a failure. Failed log-ins are stored against the SHA-256 of the email, with the typed email in the entry's context; a password is never stored.
+  - **Unknown fields in sign-up are refused (422)**, so a `role` can't even be sent. A contract test checks that no request body anywhere has a `role` property, and that only `POST /admin/accounts` makes an administrator.
+  - **The seed never promotes a customer.** If `ADMIN_SEED_EMAIL` already belongs to a customer, it logs a warning and creates nothing.
+  - **The old `X-Actor-Name` header is gone.** The audit actor is the logged-in admin's display name. The "Who is reviewing?" prompt and its browser storage are removed.
+  - **Defect found by a component test before review (DEF-01 in the ECOM-019 evidence):** logging out from an admin page briefly sent the person to the login page. The session cleared before the move to the shop, and the admin guard reacted first. The header now goes to the shop first, then logs out.
+- **Known limitation, reported to the owner:** accounts can't be removed (out of scope), so each full browser-test run leaves one test admin and two test customers in the local database.
+- **Process slip:** `python -` was typed at the start of a shell command twice more in this ticket. Each time it hung, was stopped at once, and changed nothing. The no-stray-python memory now says to never type `python` in a shell command except `python testing/run.py`.
+
+### D-118: ECOM-019 and ECOM-020 validated by the owner; admins not shopping and an all-orders screen go to ECOM-021; MVP closed
+- **Date:** 2026-11-22
+- **Status:** Accepted (owner, prompt #048)
+- **Context:** the owner tested both tickets in the portal (evidence 03 to 05 in [ECOM-020-evidence](../tasks/ECOM-020-evidence/README.md)): creating an account, buying, the order in My orders, and logging in to the admin view all worked. The owner also noticed that an admin could buy, and asked whether an admin block existed. It doesn't: the third recommendation (D-117) makes an admin's purchase a guest order.
+- **Decision:**
+  - **ECOM-019 and ECOM-020 are accepted** as built.
+  - **The owner's new direction is recorded as [ECOM-021](../tasks/ECOM-021.md)**, in Backlog after the MVP: admins don't get Add to cart, cart or checkout (also refused by the server), and get an admin Orders screen that covers every order.
+  - **Until then the MVP behaviour stays as D-117 describes:** an admin who buys places a guest order.
+  - **The MVP is closed:** "We already created too many new functionalities, I think it is enough for now. I think we have a full MVP cycle." What remains for delivery is ECOM-017 (README and delivery), and the pull requests on the owner's word.
+- **Privacy:** the owner's screenshots showed the owner's name and email. Before the commit (prompt #049) they were pixelated with `testing/scripts/redact_images.py` (D-103) and checked by eye.

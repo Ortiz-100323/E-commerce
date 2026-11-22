@@ -31,7 +31,13 @@ from ecommerce.catalog.application.products import (
 )
 from ecommerce.catalog.application.unit_of_work import CatalogUnitOfWorkFactory
 from ecommerce.catalog.domain.value_objects import ProductTag
-from ecommerce.shared_kernel.api.actor import require_actor
+from ecommerce.shared_kernel.api.access import (
+    ADMIN_ONLY_RESPONSES,
+    SessionToken,
+    admin_of,
+    require_actor,
+    require_admin,
+)
 from ecommerce.shared_kernel.api.validation import InvalidParameters
 from ecommerce.shared_kernel.application.ports import Clock
 from ecommerce.shared_kernel.domain.actor import Actor
@@ -50,6 +56,7 @@ VERSION_CONFLICT: Responses = {
     status.HTTP_409_CONFLICT: {"description": "Someone else saved the product first."}
 }
 DUPLICATE_SKU: Responses = {status.HTTP_409_CONFLICT: {"description": "The SKU is already taken."}}
+ADMIN_ONLY: Responses = ADMIN_ONLY_RESPONSES
 
 ActorName = Annotated[Actor, Depends(require_actor)]
 
@@ -149,7 +156,7 @@ def product_query(
     "",
     status_code=status.HTTP_201_CREATED,
     summary="Create a product",
-    responses=DUPLICATE_SKU,
+    responses={**DUPLICATE_SKU, **ADMIN_ONLY},
 )
 async def create_product(
     body: ProductCreateRequest,
@@ -163,11 +170,20 @@ async def create_product(
     return ProductResponse.of(view)
 
 
-@router.get("", summary="Search products")
+@router.get(
+    "",
+    summary="Search products",
+    description="Active products are public. `status=ARCHIVED` or `ALL` needs an admin's session.",
+    responses=ADMIN_ONLY,
+)
 async def search_products(
+    request: Request,
+    token: SessionToken,
     query: Annotated[ProductQuery, Depends(product_query)],
     use_case: Annotated[SearchProducts, Depends(get_search_products)],
 ) -> ProductPageResponse:
+    if query.status is not StatusFilter.ACTIVE:
+        await admin_of(request, token)
     return ProductPageResponse.of(await use_case.execute(query))
 
 
@@ -182,7 +198,7 @@ async def get_product(
 @router.put(
     "/{product_id}",
     summary="Replace a product's details (send the version you read)",
-    responses={**NOT_FOUND, **VERSION_CONFLICT},
+    responses={**NOT_FOUND, **VERSION_CONFLICT, **ADMIN_ONLY},
 )
 async def update_product(
     product_id: UUID,
@@ -197,7 +213,7 @@ async def update_product(
 @router.delete(
     "/{product_id}",
     summary="Archive a product (it is hidden from the shop, never deleted)",
-    responses=NOT_FOUND,
+    responses={**NOT_FOUND, **ADMIN_ONLY},
 )
 async def archive_product(
     product_id: UUID,
@@ -207,7 +223,11 @@ async def archive_product(
     return ProductResponse.of(await use_case.execute(product_id, actor))
 
 
-@router.post("/{product_id}/restore", summary="Restore an archived product", responses=NOT_FOUND)
+@router.post(
+    "/{product_id}/restore",
+    summary="Restore an archived product",
+    responses={**NOT_FOUND, **ADMIN_ONLY},
+)
 async def restore_product(
     product_id: UUID,
     actor: ActorName,
@@ -219,7 +239,8 @@ async def restore_product(
 @router.get(
     "/{product_id}/history",
     summary="The product's audit timeline, oldest first",
-    responses=NOT_FOUND,
+    responses={**NOT_FOUND, **ADMIN_ONLY},
+    dependencies=[Depends(require_admin)],
 )
 async def product_history(
     product_id: UUID,

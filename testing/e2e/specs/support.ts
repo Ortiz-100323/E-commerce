@@ -1,7 +1,8 @@
 import { expect, type APIRequestContext, type Page } from '@playwright/test'
 
 export const API = '/api/v1'
-export const ACTOR = { 'X-Actor-Name': 'E2E test' }
+export const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? 'admin@example.com'
+export const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'local-admin-password-change-me'
 export const APPROVED = '4242 4242 4242 4242'
 export const DECLINED = '4000 0000 0000 0002'
 
@@ -20,8 +21,8 @@ export async function createProduct(
   stock: number,
   extra: Record<string, string | null> = {},
 ): Promise<Product> {
+  await logInApi(request)
   const response = await request.post(`${API}/products`, {
-    headers: ACTOR,
     data: {
       sku,
       name,
@@ -39,6 +40,7 @@ export async function createProduct(
 }
 
 export async function productBySku(request: APIRequestContext, sku: string): Promise<Product> {
+  await logInApi(request)
   const response = await request.get(`${API}/products`, { params: { q: sku, status: 'ALL' } })
   expect(response.ok()).toBe(true)
   const body = (await response.json()) as { items: Product[] }
@@ -48,20 +50,34 @@ export async function productBySku(request: APIRequestContext, sku: string): Pro
 }
 
 export async function archiveAll(request: APIRequestContext, skus: string[]): Promise<void> {
+  await logInApi(request)
   for (const sku of skus) {
     const response = await request.get(`${API}/products`, { params: { q: sku, status: 'ALL' } })
     const body = (await response.json()) as { items: Product[] }
     for (const item of body.items.filter((product) => product.sku === sku)) {
-      await request.delete(`${API}/products/${item.id}`, { headers: ACTOR })
+      await request.delete(`${API}/products/${item.id}`)
     }
   }
 }
 
-export async function answerReviewerPrompt(page: Page): Promise<void> {
-  const prompt = page.getByRole('dialog', { name: 'Who is reviewing?' })
-  await prompt.getByLabel('Your name').fill('E2E test')
-  await prompt.getByRole('button', { name: 'Continue' }).click()
-  await expect(prompt).toBeHidden()
+const loggedIn = new WeakSet<APIRequestContext>()
+
+export async function logInApi(request: APIRequestContext): Promise<void> {
+  if (loggedIn.has(request)) {
+    return
+  }
+  const response = await request.post(`${API}/session`, {
+    data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
+  })
+  expect(response.status(), await response.text()).toBe(200)
+  loggedIn.add(request)
+}
+
+export async function logInAsAdmin(page: Page): Promise<void> {
+  const response = await page.context().request.post(`${API}/session`, {
+    data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
+  })
+  expect(response.status(), await response.text()).toBe(200)
 }
 
 export async function checkOut(page: Page, card: string): Promise<void> {

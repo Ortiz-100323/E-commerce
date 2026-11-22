@@ -33,6 +33,7 @@
 > | 27 | 2026-11-22 | ECOM-018 part A: the shop's product card (a 4:3 image area with a category placeholder, low-stock and sold-out badges, Add to cart on the card, equal heights, keyboard and phone layouts), an optional HTTPS-only product `image_url` (migration 0009), and the CSP allowing HTTPS images (§4.2, §4.5, §5, §10, D-106). |
 > | 28 | 2026-11-22 | Review fixes through ECOM-018: malformed image URLs are always validation errors, invalid ports are rejected, and the admin form enforces the same 2,048-character limit as the domain (§4.2, §5, D-110). |
 > | 29 | 2026-11-22 | ECOM-018 round 2 and part B: shared design tokens and controls (D-109); the `duplicate-sku` problem names the existing product; a `version.json` build id with a reload banner; auto-closing success notices; a phone actions panel for the admin table; the import and cart polish (§5, D-111, D-112). |
+> | 30 | 2026-11-22 | ECOM-019 and ECOM-020: an `identity` context with one account per email and a fixed role (`ADMIN` or `BUYER`), server-side sessions behind an `HttpOnly; SameSite=Strict` cookie, scrypt passwords, a login throttle, a same-site check on every change, the first admin from a seed, admins creating admins, buyer sign-up, orders linked to buyers and "My orders" (§3.1, §5, §7.2, D-114 to D-117). |
 >
 > Every decision here also appears in [JOURNAL.md](JOURNAL.md) with its context and the alternatives considered.
 
@@ -436,6 +437,13 @@ Domain validation **collects every issue before raising**, rather than stopping 
 | `idempotency-key-missing`, `idempotency-key-invalid` | 400 | §7.2 | — |
 | `not-found` | 404 | An unknown product, order, import or route | — |
 | `method-not-allowed` | 405 | The wrong HTTP method | — |
+| `authentication-required` | 401 | No session, or one that ended, on an endpoint that needs a login; the answer also clears the cookie | — |
+| `invalid-credentials` | 401 | A wrong email or password at log-in (one message for both) | — |
+| `admin-required` | 403 | A customer session on an admin endpoint | — |
+| `buyer-required` | 403 | An admin session on "My orders" | — |
+| `cross-site-request` | 403 | A change whose `Origin` or `Sec-Fetch-Site` says another site sent it | — |
+| `email-already-registered` | 409 | Sign-up or "create admin" with an email that already has an account | — |
+| `too-many-login-attempts` | 429 | 5 failed log-ins for one email within 15 minutes; `Retry-After` is set | `retry_after_seconds` |
 | `payment-declined` | 402 | The fake gateway declined the card | `order_id` |
 | `version-conflict` | 409 | A stale `version` on PUT | `current_version` |
 | `duplicate-sku` | 409 | Creating a product with an SKU that is already taken | `sku`; `existing_product` (`id`, `name`) when the product holding the SKU is found (D-111) |
@@ -519,6 +527,43 @@ The name link is stretched over the card, so a click anywhere except the button 
 - **Admin products table:** SKUs never wrap. Below 56 rem, a row's Edit, History and Archive move into an **Actions** button that opens a bottom panel (closed by Escape, a tap outside, or a choice). The table's scroll box is the reference for anything positioned inside it, so nothing in the table can widen the page.
 - **Import review:** Description uses a text area; spaces in the raw CSV line show as `·`; a finished import shows a read-only table instead of editors; the commit bar stays under the header while scrolling; after a decision, focus moves to the next row to review.
 - **Cart:** − and + buttons around the quantity (+ stops at the available stock); lines that can't be bought as asked are greyed out, and the total is labelled "Subtotal of available items" until they are fixed. The checkout's expiry placeholder is `MM/YY`.
+
+**Logins and roles as built (ECOM-019, ECOM-020, D-114 to D-117).**
+- **The `identity` context** has one `Account` per email (stored in lower case, with a unique index), a `role` of `ADMIN` or `BUYER` that is fixed when the account is made, and a scrypt hash (`scrypt$N$r$p$salt$key`, N = 2^15, r = 8, p = 3). Migration 0010 creates `accounts` and `account_sessions`, and migration 0011 adds `orders.buyer_id`.
+- **Sessions:**
+  - one `session` cookie, `HttpOnly; SameSite=Strict; Path=/api`, `Max-Age` of 8 hours, and `Secure` when `SESSION_COOKIE_SECURE=true`;
+  - the server keeps only the SHA-256 of the 256-bit token, and reads the account (and its role) on every request;
+  - a session ends after 30 idle minutes or 8 hours; last seen is written at most once a minute;
+  - sessions use their own clock (`session_clock`), so a test can move the shop's clock without ending its logins.
+- **The seam:**
+  - `shared_kernel.api.access` reads the cookie through the `Authenticator` port and offers `require_admin`, `require_buyer`, `require_actor` (an admin's name, for the audit log) and `optional_principal` (checkout);
+  - `identity` implements the port, and `main.py` wires it;
+  - catalog, ordering and identity never import one another, and an import-linter contract keeps it that way.
+- **Who may do what:**
+  - admin endpoints answer 401 without a session and 403 to a customer;
+  - "My orders" answers 403 to an admin;
+  - the shop's reads, the cart quote, checkout and order pages need no login;
+  - a 401 also clears the cookie, so a stale cookie never blocks a guest.
+- **Log-in:**
+  - an unknown email still runs a full scrypt check;
+  - failures are counted from the audit log (`session.login_failed` since the last `session.logged_in`), under a per-email advisory lock;
+  - the sixth failure within 15 minutes gets 429, and a refused attempt is not counted.
+- **Changes from another site:** `SameSiteMiddleware` refuses any POST, PUT, PATCH or DELETE whose `Sec-Fetch-Site` is `cross-site`, or whose `Origin` doesn't match the `Host`. nginx forwards `Host $http_host`, so the port is kept.
+- **First admin:**
+  - the backend's start command runs `python -m ecommerce.identity.seed` after the migrations;
+  - with `ADMIN_SEED_EMAIL` and `ADMIN_SEED_PASSWORD` set and no admin yet, it creates one;
+  - it never changes an existing account and never promotes a customer.
+- **Orders:**
+  - a checkout with a customer's session stores `buyer_id`;
+  - the customer's idempotency key is scoped with `uuid5(namespace, "buyer:key")`, so two customers can never share an order;
+  - an admin's purchase is a guest order;
+  - `GET /api/v1/me/orders` lists the customer's own orders, newest first, 10 per page.
+- **Screens:**
+  - one `/login` page with a log-in panel and a sign-up panel; after logging in, admins go to `/admin/products` and customers back to the shop page they came from;
+  - the header shows **Log in**, or the person's name and **Log out**, plus **Admin** for admins or **My orders** for customers;
+  - `RequireRole` guards `/admin/*` and `/account/orders`;
+  - the admin area has an **Admins** tab with **Create admin**.
+
 
 **Purchase screens as built (ECOM-015, D-097, D-099).**
 - The header's **Cart: N items** links to `/cart`. The cart asks the server for a quote whenever it changes, shows the server's prices and subtotal, and offers a fix for each problem: **Use N** or **Remove**.

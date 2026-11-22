@@ -1,6 +1,6 @@
 from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
 
 from fastapi import FastAPI
@@ -23,8 +23,21 @@ from ecommerce.catalog.infrastructure.csv_reader import CsvImportReader
 from ecommerce.catalog.infrastructure.import_settings import ImportSettings
 from ecommerce.catalog.infrastructure.product_queries import SqlAlchemyProductQueries
 from ecommerce.catalog.infrastructure.unit_of_work import SqlAlchemyCatalogUnitOfWorkFactory
+from ecommerce.identity.api.problems import IDENTITY_PROBLEMS, handle_too_many_login_attempts
+from ecommerce.identity.api.router import router as identity_router
+from ecommerce.identity.application.ports import (
+    IdentityUnitOfWorkFactory,
+    PasswordHasher,
+    TokenSource,
+)
+from ecommerce.identity.domain.errors import TooManyLoginAttempts
+from ecommerce.identity.infrastructure.authenticator import SessionAuthenticator
+from ecommerce.identity.infrastructure.security import ScryptPasswordHasher, SecretTokenSource
+from ecommerce.identity.infrastructure.settings import IdentitySettings
+from ecommerce.identity.infrastructure.unit_of_work import SqlAlchemyIdentityUnitOfWorkFactory
 from ecommerce.integration.catalog_sales import CatalogSales
 from ecommerce.ordering.api.problems import ORDERING_PROBLEMS
+from ecommerce.ordering.api.router import me_router
 from ecommerce.ordering.api.router import router as orders_router
 from ecommerce.ordering.application.ports import PaymentGateway, TransientErrors
 from ecommerce.ordering.application.unit_of_work import OrderingUnitOfWorkFactory
@@ -32,9 +45,11 @@ from ecommerce.ordering.infrastructure.payment_gateway import FakePaymentGateway
 from ecommerce.ordering.infrastructure.settings import CheckoutSettings
 from ecommerce.ordering.infrastructure.transient import DatabaseTransientErrors
 from ecommerce.ordering.infrastructure.unit_of_work import SqlAlchemyOrderingUnitOfWorkFactory
+from ecommerce.shared_kernel.api.access import ACCESS_PROBLEMS
 from ecommerce.shared_kernel.api.exception_handlers import install_problem_handlers
 from ecommerce.shared_kernel.api.health_router import router as health_router
 from ecommerce.shared_kernel.api.problem_details import SERVICE_UNAVAILABLE, ProblemMapping
+from ecommerce.shared_kernel.api.same_site import SameSiteMiddleware
 from ecommerce.shared_kernel.application.ports import Clock, DatabaseProbe, SystemClock
 from ecommerce.shared_kernel.infrastructure.database import (
     SqlAlchemyDatabaseProbe,
@@ -66,6 +81,11 @@ class Dependencies:
     transient_errors: TransientErrors
     idempotency_key_lifetime: timedelta
     checkout_fingerprint_secret: bytes
+    identity_unit_of_work: IdentityUnitOfWorkFactory
+    password_hasher: PasswordHasher
+    session_clock: Clock
+    session_cookie_secure: bool = False
+    token_source: TokenSource = field(default_factory=SecretTokenSource)
 
 
 DependenciesFactory = Callable[[], AbstractAsyncContextManager[Dependencies]]
@@ -76,6 +96,7 @@ async def production_dependencies() -> AsyncIterator[Dependencies]:
     settings = Settings()
     policies = ImportSettings().policies()
     checkout = CheckoutSettings()
+    identity = IdentitySettings()
     engine = create_engine(settings.database_url)
     sessions = create_session_factory(engine)
     queries = SqlAlchemyProductQueries(engine)
@@ -95,6 +116,10 @@ async def production_dependencies() -> AsyncIterator[Dependencies]:
             transient_errors=DatabaseTransientErrors(),
             idempotency_key_lifetime=checkout.idempotency_key_lifetime,
             checkout_fingerprint_secret=checkout.fingerprint_key,
+            identity_unit_of_work=SqlAlchemyIdentityUnitOfWorkFactory(sessions),
+            password_hasher=ScryptPasswordHasher(),
+            session_clock=SystemClock(),
+            session_cookie_secure=identity.session_cookie_secure,
         )
     finally:
         await engine.dispose()
@@ -116,20 +141,39 @@ def create_app(dependencies_factory: DependenciesFactory = production_dependenci
             app.state.transient_errors = dependencies.transient_errors
             app.state.idempotency_key_lifetime = dependencies.idempotency_key_lifetime
             app.state.checkout_fingerprint_secret = dependencies.checkout_fingerprint_secret
+            app.state.identity_unit_of_work = dependencies.identity_unit_of_work
+            app.state.password_hasher = dependencies.password_hasher
+            app.state.token_source = dependencies.token_source
+            app.state.session_clock = dependencies.session_clock
+            app.state.session_cookie_secure = dependencies.session_cookie_secure
+            app.state.authenticator = SessionAuthenticator(
+                dependencies.identity_unit_of_work, dependencies.session_clock
+            )
             yield
 
     app = FastAPI(title="E-commerce API", version="0.1.0", lifespan=lifespan)
+    app.add_middleware(SameSiteMiddleware)
     app.add_middleware(RequestIdMiddleware)
     install_problem_handlers(
         app,
-        {**INFRASTRUCTURE_PROBLEMS, **CATALOG_PROBLEMS, **IMPORT_PROBLEMS, **ORDERING_PROBLEMS},
+        {
+            **INFRASTRUCTURE_PROBLEMS,
+            **ACCESS_PROBLEMS,
+            **IDENTITY_PROBLEMS,
+            **CATALOG_PROBLEMS,
+            **IMPORT_PROBLEMS,
+            **ORDERING_PROBLEMS,
+        },
     )
     app.add_exception_handler(ImportFileRejected, handle_import_file_rejected)
+    app.add_exception_handler(TooManyLoginAttempts, handle_too_many_login_attempts)
     app.include_router(health_router, prefix=API_PREFIX)
+    app.include_router(identity_router, prefix=API_PREFIX)
     app.include_router(catalog_router, prefix=API_PREFIX)
     app.include_router(categories_router, prefix=API_PREFIX)
     app.include_router(imports_router, prefix=API_PREFIX)
     app.include_router(orders_router, prefix=API_PREFIX)
+    app.include_router(me_router, prefix=API_PREFIX)
     return app
 
 

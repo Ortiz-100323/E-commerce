@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
-import { archiveAll, createProduct, runId } from './support'
+import { archiveAll, createProduct, logInAsAdmin, runId } from './support'
 
 const run = runId()
 const sku = (key: string) => `E2E-${run}-${key}`
@@ -21,7 +21,7 @@ test.afterAll(async () => {
 })
 
 async function asReviewer(page: Page) {
-  await page.addInitScript(() => window.localStorage.setItem('ecommerce.actor', 'E2E reviewer'))
+  await logInAsAdmin(page)
 }
 
 function shot(page: Page, name: string, project: string, fullPage = false) {

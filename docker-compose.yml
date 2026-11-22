@@ -23,6 +23,10 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://ecommerce:ecommerce@db:5432/ecommerce
       CHECKOUT_FINGERPRINT_SECRET: local-development-checkout-secret-change-me
+      ADMIN_SEED_EMAIL: admin@example.com
+      ADMIN_SEED_PASSWORD: local-admin-password-change-me
+      ADMIN_SEED_NAME: Administrator
+      SESSION_COOKIE_SECURE: "false"
     ports:
       - "8001:8000"
     depends_on:

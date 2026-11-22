@@ -2718,3 +2718,293 @@ Your containers are rebuilt.
    → "A new version of this site is available", with **Reload**.
 
 **Status:** ECOM-018 part B is waiting for your review and isn't committed. Tell me what you'd like changed, or say "commit". Once it's accepted, ECOM-018 is complete, and I'll open its pull request into `main` when you ask.
+
+## #045 — 2026-11-22 — ECOM-018 committed; ECOM-019 detailed plan proposed
+
+### User
+
+> Commit and let's go for 19
+
+### Assistant
+
+**ECOM-018 is committed and marked Done.** The detailed plan for ECOM-019 is below. Nothing is built yet: tell me "go" (and answer the three questions) and I'll start, tests first.
+
+**ECOM-018**
+- **Commit:** `f4d1b53` on `feature/ECOM-018-ui-polish`. It contains part B and Codex's code-review fixes (image-address checks, the form's length limit, a steadier test).
+- **Not pushed;** just say if you want that.
+- **Left out on purpose:** your private `.claude/` folder and `skills-lock.json`.
+- **Records:** the ticket, the board and journal D-111 now say accepted.
+
+**ECOM-019 (admin login): the plan**
+
+ECOM-019 continues on a new branch, `feature/ECOM-019-admin-login`, started from ECOM-018, because ECOM-016 and ECOM-018 aren't in `main` yet.
+
+**What you'll get**
+- `/admin` shows a sign-in screen. Product management, history and CSV import work only after an admin signs in. The shop stays open to everyone.
+- The admin bar shows "Signed in as Ana · **Sign out**". The "Who is reviewing?" box disappears.
+- Every change in the history is recorded under the signed-in admin's name. Nobody can type someone else's name any more.
+- After 5 wrong attempts in 15 minutes, that email is locked for the rest of the window, even with the right password.
+- A wrong email and a wrong password get the same message, in the same time, so emails can't be guessed.
+- A session ends after 30 minutes without activity, after 8 hours in any case, or at **Sign out**. If it ends while you work, you're taken back to sign in with "Your session ended".
+
+**How it's built** (full detail in [tasks/ECOM-019.md](tasks/ECOM-019.md), decision D-113)
+- **The "who" check:** the existing admin endpoints already ask one shared check for "who is doing this". I change what that check reads, from a typed name to the signed-in session. The product and order code doesn't change, and doesn't even know about logins.
+- **Passwords** are stored only as scrypt hashes, from Python's standard library. No new packages.
+- **Sign-in cookie:** a random token, stored only as a fingerprint, in a cookie scripts can't read and other sites can't send.
+- **Requests from other sites:** any change coming from another site's page is refused. This needs one small nginx change: it must pass on the full address, including the port.
+- **The first admin:** a command creates the first admin on a real server. Locally, Docker creates a development admin automatically.
+
+**Tests first:** about 60 backend tests, 20 screen tests and 6 browser tests. That includes a test proving every admin endpoint refuses requests without a session, and one that searches responses, logs and tables for the password.
+
+**Failure cases planned:**
+
+| Situation | Planned result |
+|---|---|
+| Wrong password or unknown email | "The email or password is incorrect.", in the same time |
+| Sixth attempt within 15 minutes | Refused (429) with the wait time; the refusal itself doesn't extend the lock |
+| Session expired or signed out | Back to sign-in with "Your session ended" |
+| A change sent from another site | Refused |
+| Signing in twice | Two sessions, each signs out on its own |
+| Signing out twice | Fine both times |
+| An admin made inactive | Their sessions stop at the next request |
+
+**Three decisions for you:**
+1. **Local admin login:** `admin@example.com` / `local-admin-password-change-me` (recommended; public development values, like the database password), or your own values.
+2. **"Signed in as … · Sign out":** in the admin bar only (recommended, so the shop header stays the shop's), or in the main header too.
+3. **The shop's "Admin" link:** keep it visible to everyone, leading to sign-in (recommended until buyer accounts arrive in ECOM-020), or hide it.
+
+**Status:** ECOM-019's plan is waiting for your approval. The plan, D-113 and this entry are written, but not committed.
+
+## #046 — 2026-11-22 — Logins rethought: one login with roles; ECOM-019 and ECOM-020 re-planned
+
+### User
+
+> Let's rethink the logins before ECOM-019 and ECOM-020. I don't want two separate login screens. I want a single "Log in" button in the header that takes me to one login page. When I log in, the app already knows if I'm an admin or a buyer: admins go to the admin area, buyers go back to the shop with their account available.
+>
+> On that same login page, a buyer who doesn't have an account can sign up with name, email and password. Public sign-up always creates a buyer, never an admin.
+>
+> The first admin is created by the seed, with email and password from the environment variables. Inside the admin area, an admin can create new admin logins. A buyer trying to reach the admin pages or the admin API gets blocked.
+>
+> Keep it simple: no email confirmation, no password reset. Split this into ECOM-019 (single login, roles and admin area, including creating admins) and  ECOM-020 (buyer sign-up and "My orders"), with tests first, including the ones proving a buyer can't become or act as an admin. Register the decisions in JOURNAL.md and show me the plan before you build.
+>
+> You can deliver both of them together in sequence so I can validate them together.
+
+### Assistant
+
+**Done: logins are redesigned, both tickets rewritten, and the decisions recorded.** Here's the plan. Nothing is built yet.
+
+The new decisions are D-114 (the login model), D-115 (ECOM-019) and D-116 (ECOM-020) in the journal. The old plans, D-107, D-108 and D-113, are marked "superseded", not deleted. Tickets: [ECOM-019](tasks/ECOM-019.md) and [ECOM-020](tasks/ECOM-020.md).
+
+## How it will work
+
+- **One account type with a role.** Each person has one account: name, email, password and a role, **admin** or **buyer**. One email belongs to one account. The role is set when the account is created, and **no screen or API can ever change it**.
+- **One Log in button, one page.** The header shows **Log in** and leads to `/login`. After logging in:
+  - an admin goes to the admin area, and sees an **Admin** link in the header;
+  - a buyer goes back to the shop page they came from, with **My orders** and **Log out** in the header.
+- **Sign-up on the same page** (ECOM-020): "New here? Create an account" with name, email and password. It always creates a buyer and logs them in at once.
+- **The first admin** comes from the seed, using `ADMIN_SEED_EMAIL` and `ADMIN_SEED_PASSWORD`. It runs every time the backend starts, but only creates the admin when there's none, and never changes an existing account.
+- **More admins:** a new **Admins** tab in the admin area lists the admins and has a **Create admin** form.
+- **Buyers are blocked from the admin side**, on the server for every request:
+  - the admin API answers "admin required" to a buyer;
+  - the admin pages show "This area is for administrators";
+  - the Admin link isn't shown to buyers.
+- **Security, kept from the earlier plan:**
+  - passwords stored only in a scrambled, one-way form (scrypt, built into Python; no new packages);
+  - 5 wrong attempts in 15 minutes lock that email for the rest of the window;
+  - the same message, in the same time, for a wrong email or a wrong password;
+  - a sign-in cookie that page scripts can't read and other sites can't send;
+  - changes coming from other sites are refused;
+  - every admin change recorded under the logged-in admin's name.
+- **Out of scope, as you asked:** email confirmation, password reset, profile editing, removing accounts.
+
+## Tests proving a buyer can't become or act as an admin (written first)
+
+| # | Test | Ticket |
+|---|---|---|
+| 1 | Every admin API endpoint, sent by a buyer, is refused ("admin required"); with no login, "authentication required"; with the old typed-name header only, also refused | 019 |
+| 2 | A buyer trying to create an admin is refused, and nothing is created | 019 |
+| 3 | A changed or invented cookie is refused; the role always comes from the database, never from the browser | 019 |
+| 4 | A buyer opening `/admin` sees "This area is for administrators", the Admin link stays hidden, and no admin data is requested | 019 |
+| 5 | Sign-up carrying `role: "ADMIN"` (or any extra field) is refused, and no account is created | 020 |
+| 6 | Every account created by sign-up is a buyer in the database | 020 |
+| 7 | Signing up with the admin's email is refused, and the admin's password and role are unchanged | 020 |
+| 8 | An admin creating an admin with a buyer's email is refused, and the buyer stays a buyer (no promotion) | 019 + 020 |
+| 9 | A check of the whole API description: only "create admin" can make an admin, and no request anywhere accepts a role | 020 |
+| 10 | In the browser: sign up, then try the admin area, and see it blocked | 020 |
+
+## The two tickets
+
+**ECOM-019, single login, roles and admin area:**
+- the account model and the database tables;
+- the seed;
+- log in and log out;
+- the role checks on every admin endpoint;
+- the Admins tab with **Create admin**;
+- the header's **Log in** / **Log out**;
+- the `/login` page;
+- the admin guard;
+- removing the "Who is reviewing?" box.
+
+**ECOM-020, buyer sign-up and My orders:**
+- sign-up on the login page;
+- orders linked to the buyer who places them; guest checkout is unchanged;
+- the checkout pre-filled with the buyer's name and email;
+- a **My orders** page: the buyer's own orders only, newest first, with pages.
+
+**Delivery:** ECOM-019 first, then ECOM-020 on top of it. You get both together, with screenshots from Playwright on desktop and phone, to validate in one go. The branch is renamed `feature/ECOM-019-single-login`.
+
+**Failure cases planned:**
+- wrong details, the lockout, an expired session (back to login with "Your session ended");
+- a buyer calling the admin API;
+- a change sent from another site;
+- a taken email at sign-up or when creating an admin;
+- an expired login at checkout: refused before paying, so nothing is placed as a guest order by accident;
+- retries: logging in twice, logging out twice, signing up twice at once, paying twice with the same key.
+
+## Three decisions for you
+
+1. **Local admin from the seed:** `admin@example.com` / `local-admin-password-change-me` (recommended; public development values, like the local database password), or your own.
+2. **How long a login lasts:** the same for everyone, 30 minutes without activity and 8 hours at most (recommended, simplest), or longer for buyers (for example, 7 days).
+3. **An admin buying in the shop:** the order is a guest order (recommended, so admins and buyers stay separate), or admins also get "My orders".
+
+**Status:** ECOM-019 and ECOM-020 are planned and waiting for your approval. Say "go" with your answers and I'll build both, tests first. The plan documents are written but not committed.
+
+## #047 — 2026-11-22 — ECOM-019 and ECOM-020 built: one login with roles, admins creating admins, buyer sign-up and My orders
+
+### User
+
+> Yes, go with each recommendation
+
+### Assistant
+
+**Both tickets are built and checked with Playwright on a desktop and a phone, ready for you to validate together.** Nothing is committed yet.
+
+I used your three choices:
+- the local admin from the seed is **admin@example.com** / **local-admin-password-change-me**;
+- a login lasts 30 minutes without activity and 8 hours at most, for everyone;
+- an admin who buys in the shop places a guest order.
+
+Screenshots: [tasks/ECOM-019-evidence/](tasks/ECOM-019-evidence/README.md) and [tasks/ECOM-020-evidence/](tasks/ECOM-020-evidence/README.md).
+
+## What you'll see
+
+**For everyone**
+- The header shows one **Log in** button. It opens a single page with **I have an account** on one side and **New here? Create an account** on the other; on a phone they stack.
+- After logging in, the header shows your name and **Log out**.
+
+**Admins (ECOM-019)**
+- An admin who logs in lands in the admin area, and the header shows an **Admin** link.
+- The "Who is reviewing?" box is gone: every change in the history is recorded under the logged-in admin's name.
+- A new **Admins** tab lists the administrators and has **Create admin**. That is the only way to make an admin.
+- The first admin is created by the seed when the backend starts. It does this only once, and never changes an existing account.
+
+**Customers (ECOM-020)**
+- Sign-up always creates a customer, who is logged in at once and goes back to the shop page they came from.
+- At checkout, a customer's name and email are already filled in, with "This order will be kept in My orders." Visitors can still pay as guests.
+- **My orders** lists the customer's own orders, newest first: number, date, total, status and items, each linking to its order page.
+
+**Customers can't reach the admin side**
+- A customer who opens the admin pages sees "This area is for administrators", and the Admin link is never shown to them.
+- The server refuses every admin request from a customer, not just the screen.
+
+## Acceptance criteria
+
+| # | Criterion | Ticket | Result | How it was proven |
+|---|---|---|---|---|
+| 1 | One **Log in** button and one login page | 019 | ✅ Pass | Screen tests; Playwright on both devices |
+| 2 | Admins go to the admin area, customers back to the shop | 019 | ✅ Pass | Screen tests; Playwright |
+| 3 | Same message for a wrong email or password; locked after 5 tries in 15 minutes | 019 | ✅ Pass | Unit and database tests |
+| 4 | Every admin endpoint refuses visitors (401) and customers (403) | 019 | ✅ Pass | All 15 admin endpoints tested 5 ways each |
+| 5 | A customer sees "This area is for administrators" | 019 | ✅ Pass | Screen tests; Playwright |
+| 6 | The seed creates the first admin once | 019 | ✅ Pass | Database tests; your stack logged "created the first administrator" |
+| 7 | Admins create admins; customers can't; a taken email is refused | 019 | ✅ Pass | All test levels; Playwright (the new admin logs in from another browser) |
+| 8 | Log out ends the login at once; 30 minutes / 8 hours | 019 | ✅ Pass | Unit and database tests |
+| 9 | Changes recorded under the logged-in admin; the old typed name is refused | 019 | ✅ Pass | API and contract tests |
+| 10 | Passwords only scrambled; safe cookie; changes from other sites refused | 019 | ✅ Pass | A test searches responses and tables for the password; cookie and same-site tests |
+| 11 | Sign-up on the login page creates a customer, logged in at once | 020 | ✅ Pass | All test levels; Playwright |
+| 12 | Sign-up never creates an admin, even if asked | 020 | ✅ Pass | `role: "ADMIN"` and similar are refused, nothing is created; a contract test finds no "role" in any request |
+| 13 | A taken email (customer or admin) is refused and unchanged | 020 | ✅ Pass | Database tests compare the account before and after |
+| 14 | Customer orders appear in My orders; guest orders don't | 020 | ✅ Pass | API tests; Playwright (sign up → buy → My orders) |
+| 15 | My orders shows only your own orders; admins and visitors get none | 020 | ✅ Pass | API and screen tests |
+
+**Found and fixed before you saw it:** logging out from an admin page briefly bounced to the login page. **Log out** now goes to the shop first, then ends the login.
+
+**Failure cases and retries:** all pass.
+- A wrong password, the 15-minute lock, a login ending during admin work (back to the login page with "Your session ended"), and changes from other sites.
+- A taken email, including two sign-ups at the same moment: exactly one account is created.
+- A login ending at checkout: nothing is charged, and you can log in again or pay as a guest.
+- Logging in or out twice.
+- Paying twice with the same order: one order. Two customers can never share an order.
+- A customer's checkout takes stock exactly like a guest's.
+
+**Tests:** written first.
+- About 135 new backend tests, including the 10 checks proving a customer can't become or act as an admin.
+- 21 new screen tests.
+- 3 new browser tests, run on 2 devices.
+- In the CI container everything passes: all static checks, 11 architecture rules, 60 tooling tests, 1,076 backend tests (99% coverage), 192 frontend tests and 14 live smoke checks.
+- 44 browser tests pass on desktop and phone.
+
+Your containers are rebuilt; your database is on migration 0011 and has the seeded admin.
+
+**Two things to know:**
+- **Test accounts stay in your local database.** Accounts can't be removed (out of scope), so each full browser-test run leaves one test admin and two test customers there. You'll see the `e2e-admin-…` entries in the Admins tab. If that bothers you, I can add "deactivate account" later, or make the browser tests reuse fixed test accounts.
+- **My slip:** I again started a shell command with `python -` twice. Each time it hung, I stopped it at once, and nothing was changed.
+
+### What to test (http://localhost:3000; press **Ctrl+F5** first)
+
+1. Look at the header.
+   → **Log in**, and no Admin link.
+2. **Log in** with admin@example.com / local-admin-password-change-me.
+   → The admin area opens, with your name and **Log out**.
+3. **Admin → Admins → Create admin** for a colleague, then log out and log in as them.
+   → They land in the admin area.
+4. Log out, then **Log in → Create an account** with your own name and email.
+   → Back in the shop, with **My orders** in the header.
+5. Buy something.
+   → Your name and email are already filled in. After paying, **See My orders** lists the order.
+6. As that customer, type `/admin` in the address bar.
+   → "This area is for administrators".
+7. Log out, then try to log in 6 times with a wrong password.
+   → "Too many attempts. Try again in 15 minutes." Your real admin email keeps working, because the lock is per email; use a test email for this one.
+
+**Status:** ECOM-019 and ECOM-020 are both waiting for your validation and aren't committed. Tell me what to change, or say "commit".
+
+## #048 — 2026-11-22 — Owner validates ECOM-019 and ECOM-020; admin shopping goes to ECOM-021; MVP closed
+
+### User
+
+> Create a new account worked, able to buy, Saw in my orders , got inside of the admin view but I was able to buy as an admin. Have we already created the block for admin?
+
+(Three screenshots: the shop logged in as a new customer, the paid order, and My orders.)
+
+**Question asked:** "Right now an admin who buys in the shop is allowed, and the order is saved as a guest order (it doesn't appear in any "My orders"). That was recommendation 3 you accepted. How do you want admin purchases to work?"
+
+**Owner's answer:**
+
+> I think admin should not have add to the cart, but should have an orders screen same as the user, but with full perspective from what was order. Let's close here. We already created too many new functionalities, I think it is enough for now. I think we have a full MVP cycle riight now.
+
+### Assistant
+
+**No, there's no admin block yet. As you asked, I didn't build one now: it's recorded for after the MVP.** ECOM-019 and ECOM-020 are closed as validated by you.
+
+**Why an admin could buy:** that was recommendation 3, which you accepted. An admin's purchase is saved as a guest order, so it isn't linked to the admin's account and shows in no "My orders". So what you saw is the intended MVP behaviour, not a fault.
+
+**Your new direction is recorded as ECOM-021** ([tasks/ECOM-021.md](tasks/ECOM-021.md)), in Backlog after the MVP:
+- **Admins don't shop:** no Add to cart, cart or checkout for admins, and the server refuses an admin's checkout too.
+- **An admin Orders screen:** like My orders, but covering every order. It shows the customer, whether it was a guest or an account, the items, total, status and payment reference, with filters and pages.
+- The detailed plan will come before any building, as usual.
+
+**What I recorded:**
+- ECOM-019 and ECOM-020: **Done**, validated by you in the portal.
+- Your test is in the ECOM-020 evidence (screenshots 03 to 05), with this as OBS-01.
+- Journal **D-118**: your validation, the follow-up in ECOM-021, and the MVP closed.
+- The task board: ECOM-021 added after ECOM-017.
+
+**Your screenshots show your name and email.** They stay on your computer and will be blurred before anything is pushed, as with the earlier ones.
+
+**Where the MVP stands:** everything through ECOM-020 is built and validated. What's left for delivery:
+- **ECOM-017:** the README and the delivery itself.
+- **The pull requests:** PR #1 (ECOM-016) still waits for your merge.
+- **Commits:** ECOM-019 and ECOM-020 are on `feature/ECOM-019-single-login` but **not committed yet**.
+
+**Status:** say "commit" (and "push" if you want them on GitHub) whenever you're ready, and tell me when to start ECOM-017.

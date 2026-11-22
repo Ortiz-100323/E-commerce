@@ -28,7 +28,7 @@ async def create(client: httpx.AsyncClient, **overrides: Any) -> dict[str, Any]:
 
 
 async def history_events(client: httpx.AsyncClient, product_id: str) -> list[tuple[str, str]]:
-    response = await client.get(url(product_id, "/history"))
+    response = await client.get(url(product_id, "/history"), headers=ANTONIO)
     assert response.status_code == 200, response.text
     return [(entry["event"], entry["actor"]) for entry in response.json()["entries"]]
 
@@ -89,7 +89,9 @@ async def test_an_archived_product_is_hidden_from_the_default_search(engine: Asy
         before = (await client.get(PRODUCTS)).json()
         await client.delete(url(product["id"]), headers=MARIA)
         default = (await client.get(PRODUCTS)).json()
-        archived = (await client.get(PRODUCTS, params={"status": "ARCHIVED"})).json()
+        archived = (
+            await client.get(PRODUCTS, params={"status": "ARCHIVED"}, headers=ANTONIO)
+        ).json()
 
     assert [item["sku"] for item in before["items"]] == ["RS-001"]
     assert (default["items"], default["total"]) == ([], 0)
@@ -353,14 +355,23 @@ async def test_a_body_that_is_not_json_is_400(engine: AsyncEngine, method: str) 
     assert_problem(response, 400, "malformed-request")
 
 
-async def test_a_change_without_an_actor_is_422_and_stores_nothing(engine: AsyncEngine) -> None:
+async def test_a_change_without_a_login_is_401_and_stores_nothing(engine: AsyncEngine) -> None:
     async with live_api(engine) as client:
-        response = await client.post(PRODUCTS, json=product_body())
+        response = await client.post(
+            PRODUCTS, json=product_body(), headers={"X-Actor-Name": "Antonio"}
+        )
         listed = (await client.get(PRODUCTS)).json()
 
-    body = assert_problem(response, 422, "validation-error")
-    assert field_codes(body) == [("header", "X-Actor-Name", "required")]
+    assert_problem(response, 401, "authentication-required")
     assert listed["total"] == 0
+
+
+async def test_a_change_is_recorded_under_the_logged_in_admins_name(engine: AsyncEngine) -> None:
+    async with live_api(engine) as client:
+        created = await create(client)
+        history = await history_events(client, created["id"])
+
+    assert history == [("product.created", "Antonio")]
 
 
 class UnreachableCatalog:
@@ -400,7 +411,7 @@ async def test_an_image_url_is_saved_shown_changed_cleared_and_audited(
             json=update_body(created["version"], image_url=None),
             headers=MARIA,
         )
-        history = await client.get(url(created["id"], "/history"))
+        history = await client.get(url(created["id"], "/history"), headers=ANTONIO)
 
     assert created["image_url"] == PHOTO
     assert fetched.json()["image_url"] == PHOTO

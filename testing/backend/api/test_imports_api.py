@@ -64,7 +64,7 @@ async def test_uploading_keeps_the_import_for_review_and_changes_no_product(
     async with live_api(engine) as client:
         response = await upload(client)
         body = response.json()
-        fetched = await client.get(f"{IMPORTS}/{body['id']}")
+        fetched = await client.get(f"{IMPORTS}/{body['id']}", headers=ANTONIO)
 
     assert response.status_code == 201, response.text
     assert response.headers["location"] == f"{IMPORTS}/{body['id']}"
@@ -173,7 +173,7 @@ async def test_an_invalid_correction_is_422_on_the_fields_and_keeps_the_row(
             50,
             {"action": "correct", "values": {"weight_kg": "heavy", "stock": "-1"}},
         )
-        fetched = await client.get(f"{IMPORTS}/{batch_id}")
+        fetched = await client.get(f"{IMPORTS}/{batch_id}", headers=ANTONIO)
 
     body = assert_problem(response, 422, "validation-error")
     assert [(error["field"], error["code"]) for error in body["errors"]] == [
@@ -215,7 +215,7 @@ async def test_a_product_changed_after_the_upload_sends_its_row_back(
             headers=ANTONIO,
         )
         stale = await commit(client, batch_id)
-        fetched = (await client.get(f"{IMPORTS}/{batch_id}")).json()
+        fetched = (await client.get(f"{IMPORTS}/{batch_id}", headers=ANTONIO)).json()
         await resolve(client, batch_id, 2, {"action": "confirm", "expected_outcome": "update"})
         retried = await commit(client, batch_id)
         product = (await client.get(f"{PRODUCTS}/{created['id']}")).json()
@@ -240,7 +240,7 @@ async def test_retrying_a_review_confirmation_does_not_confirm_a_new_update(
         batch_id = (await upload(client, content)).json()["id"]
         first = await resolve(client, batch_id, 2, confirmation)
         retry = await resolve(client, batch_id, 2, confirmation)
-        fetched = (await client.get(f"{IMPORTS}/{batch_id}")).json()
+        fetched = (await client.get(f"{IMPORTS}/{batch_id}", headers=ANTONIO)).json()
 
     assert first.status_code == retry.status_code == 200
     current = row(fetched, 2)
@@ -283,7 +283,7 @@ async def test_an_import_expires_after_24_hours(engine: AsyncEngine) -> None:
     clock = SequenceClock(STARTED, STARTED + timedelta(hours=24))
     async with live_api(engine, clock=clock) as client:
         batch_id = (await upload(client)).json()["id"]
-        fetched = await client.get(f"{IMPORTS}/{batch_id}")
+        fetched = await client.get(f"{IMPORTS}/{batch_id}", headers=ANTONIO)
         response = await resolve(
             client,
             batch_id,
@@ -309,21 +309,21 @@ async def test_unknown_imports_and_lines_are_404(engine: AsyncEngine) -> None:
     unknown = "00000000-0000-4000-8000-000000000099"
     async with live_api(engine) as client:
         batch_id = (await upload(client)).json()["id"]
-        missing_import = await client.get(f"{IMPORTS}/{unknown}")
+        missing_import = await client.get(f"{IMPORTS}/{unknown}", headers=ANTONIO)
         missing_line = await resolve(client, batch_id, 999, {"action": "skip"})
 
     assert_problem(missing_import, 404, "not-found")
     assert_problem(missing_line, 404, "not-found")
 
 
-async def test_an_upload_needs_the_actor_and_a_readable_file(engine: AsyncEngine) -> None:
+async def test_an_upload_needs_an_admin_login_and_a_readable_file(engine: AsyncEngine) -> None:
     async with live_api(engine) as client:
         anonymous = await upload(client, headers=CSV)
         too_large = await upload(client, HEADER + b"x" * MAX_FILE_BYTES)
         not_csv = await upload(client, headers={"Content-Type": "application/json", **ANTONIO})
         broken = await upload(client, b"name,sku\n")
 
-    assert_problem(anonymous, 422, "validation-error")
+    assert_problem(anonymous, 401, "authentication-required")
     assert_problem(too_large, 413, "payload-too-large")
     assert_problem(not_csv, 415, "unsupported-media-type")
     assert assert_problem(broken, 422, "validation-error")["errors"][0]["code"] == (
@@ -340,7 +340,9 @@ async def test_an_imported_product_history_starts_with_its_csv_line(engine: Asyn
         committed = (await commit(client, batch_id)).json()
         keyboard = next(item for item in committed["items"] if item["line"] == 50)
         search = (await client.get(PRODUCTS, params={"q": "GK-088"})).json()
-        history = (await client.get(f"{PRODUCTS}/{search['items'][0]['id']}/history")).json()
+        history = (
+            await client.get(f"{PRODUCTS}/{search['items'][0]['id']}/history", headers=ANTONIO)
+        ).json()
 
     assert keyboard["outcome"] == "create"
     events = [entry["event"] for entry in history["entries"]]

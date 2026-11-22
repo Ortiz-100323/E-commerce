@@ -1,10 +1,10 @@
 import { expect, test } from '@playwright/test'
 
 import {
-  answerReviewerPrompt,
   APPROVED,
   archiveAll,
   checkOut,
+  logInAsAdmin,
   createProduct,
   DECLINED,
   productBySku,
@@ -31,8 +31,8 @@ test('an imported product is found in the shop, bought, and its stock goes down'
     `${gift.name},${gift.sku},A free gift for the browser test,E2E tests,0.00,3,0.1`,
   ].join('\n')
 
+  await logInAsAdmin(page)
   await page.goto('/admin/imports/new')
-  await answerReviewerPrompt(page)
   await page.getByLabel('CSV file', { exact: true }).setInputFiles({
     name: `e2e-${run}.csv`,
     mimeType: 'text/csv',

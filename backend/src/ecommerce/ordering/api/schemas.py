@@ -159,3 +159,10 @@ class OrderResponse(BaseModel):
             created_at=order.created_at,
             settled_at=order.settled_at,
         )
+
+
+class BuyerOrdersResponse(BaseModel):
+    items: list[OrderResponse]
+    total: int
+    page: int
+    page_size: int

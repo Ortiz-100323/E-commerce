@@ -1,0 +1,73 @@
+from collections.abc import Sequence
+from datetime import datetime
+from typing import Protocol
+from uuid import UUID
+
+from ecommerce.identity.domain.account import Account, EmailAddress
+from ecommerce.identity.domain.session import Session
+from ecommerce.shared_kernel.application.audit import AuditEntry
+from ecommerce.shared_kernel.application.unit_of_work import UnitOfWork
+
+
+class AccountRepository(Protocol):
+    async def add(self, account: Account) -> None: ...
+
+    async def by_id(self, account_id: UUID) -> Account | None: ...
+
+    async def by_email(self, email: EmailAddress) -> Account | None: ...
+
+    async def admins(self) -> Sequence[Account]: ...
+
+    async def any_admin(self) -> bool: ...
+
+    async def replace_password_hash(self, account_id: UUID, password_hash: str) -> None: ...
+
+
+class SessionRepository(Protocol):
+    async def add(self, session: Session) -> None: ...
+
+    async def by_token_hash(self, token_hash: str) -> Session | None: ...
+
+    async def touch(self, session_id: UUID, at: datetime) -> None: ...
+
+    async def remove(self, session_id: UUID) -> None: ...
+
+
+class LoginHistory(Protocol):
+    async def failures_since_last_success(
+        self, login_key: str, since: datetime
+    ) -> list[datetime]: ...
+
+
+class IdentityUnitOfWork(UnitOfWork, Protocol):
+    @property
+    def accounts(self) -> AccountRepository: ...
+
+    @property
+    def sessions(self) -> SessionRepository: ...
+
+    @property
+    def logins(self) -> LoginHistory: ...
+
+    async def lock(self, key: str) -> None: ...
+
+    def record(self, entry: AuditEntry) -> None: ...
+
+
+class IdentityUnitOfWorkFactory(Protocol):
+    def __call__(self) -> IdentityUnitOfWork: ...
+
+
+class PasswordHasher(Protocol):
+    def hash(self, password: str) -> str: ...
+
+    def verify(self, password: str, stored: str) -> bool: ...
+
+    def needs_rehash(self, stored: str) -> bool: ...
+
+    @property
+    def dummy_hash(self) -> str: ...
+
+
+class TokenSource(Protocol):
+    def new_token(self) -> str: ...

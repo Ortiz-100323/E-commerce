@@ -8,6 +8,7 @@ import type {
   RowOutcome,
 } from '../../../frontend/src/api/imports'
 import { API, problem, validationProblem } from './api'
+import { currentFakeAccount } from './fakeSession'
 import { server } from './server'
 
 export const IMPORT_ID = '7f1c2d3e-0000-4000-8000-0000000000aa'
@@ -268,7 +269,7 @@ export function fakeImports(rows: ImportRow[] = sampleRows()) {
       const url = new URL(request.url)
       uploads.push({
         contentType: request.headers.get('Content-Type'),
-        actor: request.headers.get('X-Actor-Name'),
+        actor: currentFakeAccount()?.name ?? null,
         fileName: url.searchParams.get('file_name'),
         body,
       })
@@ -291,7 +292,7 @@ export function fakeImports(rows: ImportRow[] = sampleRows()) {
     http.patch(`${API}/imports/:id/rows/:line`, async ({ request, params }) => {
       const body = (await request.json()) as Record<string, unknown>
       const line = Number(params.line)
-      const actor = request.headers.get('X-Actor-Name')
+      const actor = currentFakeAccount()?.name ?? null
       resolutions.push({ line, actor, body })
       const row = batch.items.find((item) => item.line === line)
       if (row === undefined) {

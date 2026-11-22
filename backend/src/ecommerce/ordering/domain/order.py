@@ -118,6 +118,7 @@ class Order:
         payment_reference: str | None = None,
         card_last4: str | None = None,
         decline_reason: str | None = None,
+        buyer_id: UUID | None = None,
     ) -> None:
         if not lines:
             raise DomainValidationError(
@@ -135,6 +136,7 @@ class Order:
         self._payment_reference = payment_reference
         self._card_last4 = card_last4
         self._decline_reason = decline_reason
+        self._buyer_id = buyer_id
         self._events: list[OrderEvent] = []
 
     @classmethod
@@ -145,6 +147,7 @@ class Order:
         customer: Customer,
         lines: Sequence[OrderLine],
         at: datetime,
+        buyer_id: UUID | None = None,
     ) -> Self:
         return cls(
             order_id=order_id,
@@ -152,7 +155,12 @@ class Order:
             lines=lines,
             status=OrderStatus.PENDING,
             created_at=at,
+            buyer_id=buyer_id,
         )
+
+    @property
+    def buyer_id(self) -> UUID | None:
+        return self._buyer_id
 
     @property
     def id(self) -> OrderId:

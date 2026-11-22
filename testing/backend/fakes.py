@@ -5,6 +5,8 @@ from types import TracebackType
 from typing import Self
 from uuid import UUID
 
+from identity_fakes import FakeHasher, InMemoryIdentityState
+
 from ecommerce.catalog.application.audit import audit_entries, import_audit_entries
 from ecommerce.catalog.application.importing import ExistingProducts
 from ecommerce.catalog.application.products import ProductQueries, ProductQuery, ProductView
@@ -18,12 +20,13 @@ from ecommerce.catalog.domain.importing.policies import ImportPolicies
 from ecommerce.catalog.domain.product import Product, ProductId
 from ecommerce.catalog.domain.value_objects import Sku
 from ecommerce.catalog.infrastructure.csv_reader import CsvImportReader
+from ecommerce.identity.application.ports import IdentityUnitOfWorkFactory, PasswordHasher
 from ecommerce.main import Dependencies
 from ecommerce.ordering.application.checkout import KEY_LIFETIME
 from ecommerce.ordering.application.ports import PaymentGateway, TransientErrors
 from ecommerce.ordering.application.unit_of_work import OrderingUnitOfWorkFactory
 from ecommerce.shared_kernel.application.audit import ActorRequired, AuditEntry, JsonObject
-from ecommerce.shared_kernel.application.ports import Clock
+from ecommerce.shared_kernel.application.ports import Clock, SystemClock
 from ecommerce.shared_kernel.domain.actor import Actor
 from ordering_fakes import InMemoryOrderingState, NoTransientErrors, RecordingPaymentGateway
 
@@ -214,7 +217,13 @@ def dependencies_factory(
     ordering: OrderingUnitOfWorkFactory | None = None,
     payments: PaymentGateway | None = None,
     transient: TransientErrors | None = None,
+    identity: IdentityUnitOfWorkFactory | None = None,
+    hasher: PasswordHasher | None = None,
+    session_clock: Clock | None = None,
+    cookie_secure: bool = False,
 ) -> Callable[[], AbstractAsyncContextManager[Dependencies]]:
+    fake_hasher = FakeHasher()
+    sessions_clock = session_clock or SystemClock()
     dependencies = Dependencies(
         database_probe=FakeDatabaseProbe(database_up),
         catalog_unit_of_work=catalog or InMemoryCatalog(),
@@ -228,6 +237,11 @@ def dependencies_factory(
         transient_errors=transient or NoTransientErrors(),
         idempotency_key_lifetime=KEY_LIFETIME,
         checkout_fingerprint_secret=b"test-checkout-fingerprint-secret-32",
+        identity_unit_of_work=identity
+        or InMemoryIdentityState().seed(fake_hasher, sessions_at=sessions_clock.now()),
+        password_hasher=hasher or fake_hasher,
+        session_clock=sessions_clock,
+        session_cookie_secure=cookie_secure,
     )
 
     @asynccontextmanager

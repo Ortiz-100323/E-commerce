@@ -79,12 +79,11 @@ export type Resolve =
 const path = (id: string, suffix = '') => `/imports/${encodeURIComponent(id)}${suffix}`
 
 export const importsApi = {
-  upload: (file: File, actor: string) =>
-    request<ImportBatch>('POST', '/imports', { file, actor, query: { file_name: file.name } }),
+  upload: (file: File) =>
+    request<ImportBatch>('POST', '/imports', { file, query: { file_name: file.name } }),
   get: (id: string) => request<ImportBatch>('GET', path(id)),
-  resolve: (id: string, line: number, resolve: Resolve, actor: string) =>
-    request<RowChange>('PATCH', path(id, `/rows/${line}`), { body: resolve, actor }),
-  commit: (id: string, actor: string) =>
-    request<ImportBatch>('POST', path(id, '/commit'), { actor }),
-  discard: (id: string, actor: string) => request<ImportBatch>('DELETE', path(id), { actor }),
+  resolve: (id: string, line: number, resolve: Resolve) =>
+    request<RowChange>('PATCH', path(id, `/rows/${line}`), { body: resolve }),
+  commit: (id: string) => request<ImportBatch>('POST', path(id, '/commit')),
+  discard: (id: string) => request<ImportBatch>('DELETE', path(id)),
 }

@@ -5,7 +5,7 @@ import { delay } from 'msw'
 import { http, HttpResponse } from 'msw/http'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { ACTOR_STORAGE_KEY } from '../../frontend/src/actor/actorStorage'
+import { logInAs } from './support/fakeSession'
 import { AppShell } from '../../frontend/src/app/AppShell'
 import { AdminLayout } from '../../frontend/src/features/admin/AdminLayout'
 import { EditProductPage } from '../../frontend/src/features/admin/products/ProductFormPages'
@@ -27,7 +27,7 @@ beforeEach(() => {
 })
 
 function asReviewer(name = 'Maria') {
-  window.localStorage.setItem(ACTOR_STORAGE_KEY, name)
+  logInAs('ADMIN', name)
 }
 
 async function table() {
@@ -206,7 +206,7 @@ describe('the row actions on a narrow screen', () => {
 })
 
 describe('creating, editing, archiving and restoring', () => {
-  it('creates a product and shows it in the table, with the reviewer recorded', async () => {
+  it('creates a product and shows it in the table, recorded under the logged-in admin', async () => {
     asReviewer('Łukasz')
     const catalog = fakeCatalog()
     const { router } = renderApp('/admin/products')
@@ -222,7 +222,7 @@ describe('creating, editing, archiving and restoring', () => {
       {
         method: 'POST',
         path: '/api/v1/products',
-        actor: '%C5%81ukasz',
+        actor: 'Łukasz',
         body: {
           sku: 'rs-001',
           name: 'Running Shoes',
