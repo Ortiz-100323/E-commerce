@@ -1812,3 +1812,48 @@ Template:
 - **Housekeeping:**
   - ECOM-016 is marked Done (PR #1 merged by the owner);
   - the records are committed on `feature/ECOM-017-readme` and `main` is fast-forwarded to it, so nothing is committed straight to `main`.
+
+### D-122: Hand-in plan: one-command start with the sample seeded once, a README in the owner's voice with ADRs, and a requirements checklist
+- **Date:** 2026-11-22
+- **Status:** Partly superseded by D-123 (prompt #056): no sample seed, and the README describes the system
+- **Context:** the owner is closing the project and asked for three things before handing it in:
+  - packaging, so one `docker compose up` on a fresh clone gives everything, with the sample CSV seeded once;
+  - a README in their voice, with decision records in `docs/adr`;
+  - a checklist proving every requirement in the challenge document is met.
+- **Found while planning:**
+  - a fresh `docker compose up` seeds the admin but not the sample CSV;
+  - the backend image doesn't contain the CSV;
+  - the weather code is already gone (D-088), and only migrations `0001` and `0005` remain, as history;
+  - the no-comments check covers Python and TypeScript only. A manual scan of CSS, Dockerfiles, YAML, nginx config, TOML and INI found no comments;
+  - the README lacks "out of scope" and "what I'd do next", reads as a report rather than in the owner's voice, and there are no ADRs.
+- **Proposed:**
+  - ECOM-022: a first-run seed through the real import use case. It imports the 84 clean rows, leaves out the 6 review and 2 rejected rows, and is recorded in a `seed_runs` table under an advisory lock, so it never runs twice. It is proven from a fresh clone.
+  - ECOM-023: the README rewritten in the first person, plus one ADR per real decision, built from this journal and checked by a link test.
+  - ECOM-024: `docs/REQUIREMENTS_CHECK.md`, plus a no-comments check widened to every text file type. Gaps are reported to the owner before they are fixed.
+- **Alternatives considered:**
+  - seeding with SQL in a Postgres init script: rejected, because it bypasses the import rules and the audit;
+  - deciding "already seeded" by counting products: rejected, because an admin who archives everything would get the sample back;
+  - squashing the weather migrations: rejected, because it would break databases that already ran them.
+
+### D-123: No product seed on first run, and a README about the system (revises D-122)
+- **Date:** 2026-11-22
+- **Status:** Accepted (owner, prompt #056)
+- **Context:** the owner reviewed the hand-in plan in D-122 and changed two parts:
+  - "no need for the seed. that's up to the person. Only seed a admin user";
+  - "Readme should be focus on system as always". The journal and prompt history already carry the narrative.
+- **Decision:**
+  - ECOM-022: a fresh `docker compose up` applies migrations and seeds the first admin only. Importing the sample CSV is left to the person, through the admin import screen. That import is checked in a real Chrome through the Chrome DevTools MCP.
+  - ECOM-023: the README describes the system in plain, direct English, not in the first person. Decisions go to `docs/adr`, linked from it.
+- **Superseded parts of D-122:** the `seed_runs` table, the advisory-locked sample seed, the `SAMPLE_SEED` switch and the first-person README. The rest of D-122 stands: the fresh-clone proof, the ADRs, the requirements checklist, the wider no-comments check, and keeping the weather migrations as history.
+
+### D-124: ECOM-022 verified on a fresh clone, with no code change needed
+- **Date:** 2026-11-22
+- **Status:** Done (owner, prompt #057: "I tested for us, its working.")
+- **Context:** D-123 reduced the first-run setup to migrations plus the admin seed. The backend start command already ran `alembic upgrade head` and the idempotent admin seed, so the remaining job was to prove it from a reviewer's point of view.
+- **Result** (fresh clone of `4852c07` from GitHub, own compose project, empty database):
+  - one `docker compose up` gave every service healthy, migrations at `0012`, one admin able to log in and 0 products;
+  - a backend restart and a full `down`/`up` kept one admin ("an administrator already exists; the seed changed nothing");
+  - the owner uploaded the downloaded sample CSV as admin: 85 created (84 clean rows plus one review row the owner accepted), 5 skipped, 2 rejected, none left to review;
+  - on the same clone, the `ci` container passed (60 tooling, 1,099 backend at 99% coverage, 204 frontend, smoke), and the browser tests passed (44, with 5 skipped by design);
+  - the clone and its volume were removed, and the owner's stack restarted with its data.
+- **Chrome DevTools MCP:** its tools didn't load into this session, so the owner ran the import check in their own browser instead. The evidence is in `tasks/ECOM-022-evidence/`.

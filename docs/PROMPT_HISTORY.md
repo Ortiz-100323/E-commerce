@@ -3270,3 +3270,130 @@ PR #1 is merged, `main` holds everything from ECOM-000 to ECOM-021 and ECOM-017,
 I recorded the delivery as D-121 in the journal, plus these two prompt entries. I committed them on `feature/ECOM-017-readme` and moved `main` forward to that commit, so nothing went straight onto `main`.
 
 **The delivery is complete.** The only open items are product ideas for later: account deactivation, refunds and changing an order's status.
+
+## #055 — 2026-11-22 — Hand-in plan: packaging, README with ADRs, requirements check
+
+### User
+
+> We're closing the project, so let's get it ready to hand in. First, packaging. Anyone who clones the repository should get the whole thing running with a single docker compose up: database, backend and frontend, migrations applied and the sample CSV seeded on the first run, without seeding twice on a restart. Prove it by testing from a fresh clone in a clean folder, as if you were the reviewer. Remove the temporary weather feature from the skeleton if it's still there. Then the README. I want it to explain what we built and how to run it: quick start, running without Docker, running the tests, the date I downloaded the sample CSV, the architecture, the decisions we made and the alternatives we discarded, what's out of scope, what I'd do next, and how AI was used. Build the decision records in docs/adr from what's already in JOURNAL.md, one per real decision, and link them from the README. Write it in plain, direct English, as if I wrote it. Last, I want proof we didn't miss anything. Go through every requirement in the code challenge document, one by one, and build a checklist in docs/REQUIREMENTS_CHECK.md: the requirement, where it's met (file, test or screen) and whether it's done. That includes the local database, product CRUD, the CSV import, search, the purchase with fake payment, the UI for all three, running in Docker, the README content, the CSV download date, local run instructions and no AI comments left in the code. Anything partial or missing, tell me before fixing it. Create the tasks and show me the plan before you start.
+
+### Assistant
+
+**The plan is ready. Nothing is built yet.** I created three tickets, ECOM-022, ECOM-023 and ECOM-024, added them to the board, and logged the plan as D-122.
+
+**What I found first: four gaps, reported before fixing anything.**
+
+| # | Requirement | Today | Status |
+|---|---|---|---|
+| 1 | One `docker compose up` gives everything, sample CSV seeded | Database, backend, frontend, migrations and the first admin all come up, but **the shop starts empty**. The CSV isn't even in the backend image. | **Partial** |
+| 2 | README content | Has the quick start, local run, tests, CSV date (2026-11-20), architecture, decisions and AI use. **Missing:** "out of scope", "what I'd do next", your voice, and ADRs. | **Partial** |
+| 3 | No AI comments in the code | The automatic check covers Python and TypeScript only. I scanned CSS, Dockerfiles, YAML, nginx, TOML and INI by hand today and found **no comments**, but nothing stops one from creeping in. | **Done, but unguarded** |
+| 4 | Remove the weather feature | The code was removed in ECOM-009. Only the two migrations that created and dropped its table remain, as history. | **Done** (code); history kept |
+
+Everything else in the challenge looks met: local Postgres, product CRUD, CSV import, search, purchase with fake payment, the UI for all three, Docker, local run instructions, and the public GitHub repo. ECOM-024 will prove each one with a file, test or screen.
+
+**The plan**
+
+1. **ECOM-022: one-command start, sample seeded once.**
+   - The CSV goes into the backend image.
+   - On start, after migrations and the admin, a seed step imports the sample through the same import rules as the admin screen.
+   - It records that it ran, under a database lock, so it **never runs twice**: not on a restart, not with two backends starting together, and not if you later archive every product.
+   - If it fails mid-way, nothing is half-imported, and it retries on the next start.
+   - **Proof:** a fresh clone in an empty folder, `docker compose up`, then 84 products. Restart: still 84. `down`/`up`: still 84. Then the full test suite and browser tests.
+2. **ECOM-023: README in your voice, plus ADRs.**
+   - First person, plain English, in the ten sections you listed.
+   - `docs/adr/` gets one record per real decision, built from the journal: about 20 to 25. Each has context, the decision, the alternatives discarded and the consequences.
+   - An index lists them, and the README's decisions table links them.
+   - A test checks that every link resolves and every ADR cites a real journal entry.
+3. **ECOM-024: `docs/REQUIREMENTS_CHECK.md`.**
+   - One row per sentence in the challenge document, with where it's met and the status.
+   - The no-comments check is widened to every text file type.
+   - A test checks that every file and test it points to exists.
+
+**My recommendations** (say "go" to accept all, or change any):
+
+1. **What the seed imports:** the **84 clean rows** only. The 6 rows that need review and the 2 rejected rows stay out, so a reviewer can still try the review screen by uploading the same CSV as admin.
+2. **"Already seeded" is a record in the database,** not a product count. Otherwise, archiving everything would bring the sample back.
+3. **A switch to turn the seed off** (`SAMPLE_SEED=false`), on by default in compose.
+4. **Keep the weather migrations** as history. Rewriting applied migrations breaks existing databases.
+5. **Order and branches:** ECOM-022, then 023, then 024, each on its own branch, with nothing committed until you accept.
+
+**Note:** the fresh-clone proof uses the same ports as your running stack (3000, 8001, 5433), so I'll stop it while the test runs and bring it back after.
+
+## #056 — 2026-11-22 — Plan revised: admin seed only, README about the system; fresh clone proven
+
+### User
+
+> no need for the seed. that's up to the person. Only seed a admin user. Then mcp chrome dev the csv to see if works.
+>
+> Why you  would put the readm in first person ? we already have enough documents as journal for instance.. Readme should be focus on system as always.
+
+> Then the README. I want it to explain what we built and how to run it: quick start, running without Docker, running the tests, the date I downloaded the sample CSV, the architecture, the decisions we made and the alternatives we discarded, what's out of scope, what I'd do next, and how AI was used. Build the decision records in docs/adr from what's already in JOURNAL.md, one per real decision, and link them from the README.
+
+### Assistant
+
+**Changed as you asked, and the fresh clone works. The Chrome check is blocked on one thing on your side.**
+
+**The README:** I read "as if I wrote it" as first person. That was wrong. The README will describe the system, with the narrative left to the journal. ECOM-023 now lists your ten sections, with the decisions in `docs/adr`.
+
+**No sample seed:** only the admin is seeded. Importing the CSV is up to the person. Recorded as D-123, which partly supersedes D-122.
+
+**Fresh clone from GitHub, as a reviewer** (empty folder, empty database, your stack stopped, data kept):
+
+| # | Check | Result |
+|---|---|---|
+| 1 | One `docker compose up` brings up the database, backend and frontend, all healthy | ✅ |
+| 2 | Migrations applied | ✅ at head (`0012`) |
+| 3 | First admin seeded and can log in | ✅ `admin@example.com` logs in, role ADMIN |
+| 4 | No products seeded | ✅ the shop is empty (0 products) |
+| 5 | Restart the backend | ✅ still 1 account, no error |
+| 6 | `down` then `up` again | ✅ still 1 account. The log says "an administrator already exists; the seed changed nothing" |
+| 7 | Weather code | ✅ none. Only the two history migrations remain |
+
+**Blocked: the CSV check in Chrome.** The Chrome DevTools MCP server shows as connected in your CLI (`claude mcp list`), but its tools didn't load into this VS Code session, so I can't drive Chrome yet.
+
+To unblock it, run `/mcp` here and reconnect `chrome-devtools`, or reopen the session, then tell me. I'll then log in as admin in Chrome, upload the sample CSV and check:
+- the preview shows 84 to create, 6 to review and 2 rejected;
+- the review rows can be resolved;
+- after committing, the products appear in the shop.
+
+**The fresh-clone stack is still running on port 3000** with an empty shop, ready for that check. After it, I'll run the full test suite and browser tests on the same clone, remove it, and bring your stack back.
+
+## #057 — 2026-11-22 — ECOM-022 done: the owner imported the sample on the fresh clone; full suite green there
+
+### User
+
+> I tested for us , its working.
+
+(Two screenshots: the import summary "Imported. 85 created, 0 updated, 5 skipped" and the admin product list.)
+
+### Assistant
+
+**ECOM-022 is done. A fresh clone works end to end.**
+
+**What your test showed:** on an empty shop the sample gives 84 rows to create, 6 to review and 2 rejected. You accepted one review row and skipped five, which gives 85 created. Superseded (3), blank (2) and warnings (3) are the file's duplicate SKUs, empty lines and soft notices.
+
+**Acceptance criteria**
+
+| # | Criterion | Result |
+|---|---|---|
+| 1 | One `docker compose up` gives the database, backend and frontend, with migrations applied and the admin seeded | ✅ |
+| 2 | Restarting doesn't seed a second admin or fail | ✅ |
+| 3 | No products are seeded | ✅ |
+| 4 | The sample CSV imports through the admin screen | ✅ your test |
+| 5 | No weather code outside the migration history | ✅ |
+
+**Also run on the same fresh clone:**
+- every check in the `ci` container passed: lint, no comments, 60 tooling, 1,099 backend (99% coverage), 204 frontend and smoke;
+- the browser tests passed: 44, with 5 skipped by design (those run on one device only).
+
+**Cleanup:** I removed the fresh clone and its database and restarted your stack. Your 525 products are untouched.
+
+**Recorded:**
+- your screenshots in `tasks/ECOM-022-evidence/`, with a test report;
+- the results in the ticket;
+- D-124 in the journal.
+
+Nothing is committed yet. Everything is on `feature/ECOM-022-packaging`.
+
+**Next:** ECOM-023, the README about the system with the ADRs, then ECOM-024, the requirements checklist.
