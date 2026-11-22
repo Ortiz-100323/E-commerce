@@ -302,7 +302,7 @@ function CheckoutForm({ quote, lines }: { quote: Quote; lines: CartLine[] }) {
             <TextField
               label="Expiry (MM/YY)"
               autoComplete="cc-exp"
-              placeholder="12/30"
+              placeholder="MM/YY"
               error={errors.payment?.expiry}
               {...register('payment.expiry')}
             />

@@ -2600,3 +2600,121 @@ One slip on my side: a text-processing command removed a block of the shop page 
 **No pull request yet:** ECOM-018 still has part B. I'll open the single pull request for ECOM-018 into `main` when part B is done, unless you want it now.
 
 **Next:** part B (the polish collected since ECOM-007). I'll show you a detailed plan before building anything.
+
+## #043 — 2026-11-22 — Code review through ECOM-018
+
+### User
+
+> Do a code review into the new ones, including 18. Check the output from it
+
+### Assistant
+
+Code review through ECOM-018 is complete. I fixed and logged five findings:
+
+- Malformed IPv6 image URLs could escape validation and cause a 500; they now return a 422 `invalid_image_url`.
+- Invalid and out-of-range image URL ports were accepted; both are now rejected.
+- The admin image field did not enforce the domain’s 2,048-character limit; client and domain rules now match.
+- A storefront component test could time out under full-suite worker load; its asynchronous wait is now explicit and stable.
+- The architecture revision table had duplicate revision 25 entries; numbering is corrected through revision 28.
+
+ECOM-016’s workflow, containers, nginx, security checks, image budgets, and GitHub output had no new defects. ECOM-017 remains Backlog, so there was no implementation to review.
+
+I inspected all 18 ECOM-018 screenshots and ran fresh browser output. The bright green image is the intentional one-pixel test fixture, not a rendering bug. The muted cart button is enabled; an additional assertion now checks its state after the screenshot.
+
+Verification is green: 60 tooling tests, 898 backend tests at 99.62% coverage, 157 frontend tests at 96.18% line coverage, 11 smoke checks, and 26 Playwright tests with 3 intentional skips. All containers are non-root and both images remain within budget.
+
+Journal D-110, both tickets, the architecture, and prompt history are updated. The review changes are not committed; `.claude/` and `skills-lock.json` remain untouched.
+
+## #044 — 2026-11-22 — ECOM-018 part B built: the polish collected since ECOM-007
+
+### User
+
+> Do part B
+
+### Assistant
+
+**Part B is built: every remark you collected since ECOM-007 is fixed, tested, and checked with Playwright on a desktop and a phone.** Screenshots 19 to 28 are in [tasks/ECOM-018-evidence/](tasks/ECOM-018-evidence/README.md). Nothing is committed yet.
+
+## What changed
+
+**Admin products**
+- **Duplicate SKU:** the message now says "SKU RS-001 is already taken by **Running Shoes**", with **View** and **Edit** links to that product.
+- **The table:** SKUs never wrap. On a narrow screen or a phone, each row's Edit, History and Archive move into an **Actions** button that opens a panel from the bottom of the screen. Nothing is cut off any more.
+- **Messages:** "Product created", "Product archived" and other success messages close by themselves after 5 seconds. Error messages stay until you dismiss them. Messages now appear bottom-left, away from the buttons on the right.
+- **Browser autofill** no longer paints fields light blue.
+
+**"A new version is available"**
+- When the site is updated while a tab is open, the tab notices within 5 minutes, or as soon as you return to it. A banner then offers **Reload**.
+- This prevents a repeat of DEF-02 from ECOM-007, where a tab kept running old code after a fix was deployed.
+
+**CSV import review**
+- Disabled buttons clearly look disabled.
+- Description has a bigger text box.
+- Spaces in the raw CSV line show as `·`, with the note "· marks a space". A name made only of spaces now explains itself.
+- A finished import shows a short read-only table instead of locked editors.
+- "line(s) 2" now reads "line 2", or "lines 2 and 5".
+- The Commit / Discard bar stays visible while you scroll. After you decide a row, the next one is brought into view and focused.
+
+**Cart and checkout**
+- **− and +** buttons around the quantity. **+** stops at the stock that is available.
+- A line that can't be bought as asked is greyed out, with its total struck through. The total reads "Subtotal of available items" until you fix it.
+- The card expiry field shows **MM/YY** instead of a date that looked filled in.
+- Card autofill over plain HTTP (OBS-08) is a browser rule. It goes into the README in ECOM-017, as planned.
+
+**One extra fix:** the "Import CSV" tab now stays underlined while you review an import.
+
+## Acceptance criteria (part B)
+
+| # | Criterion | Result | How it was proven |
+|---|---|---|---|
+| B1 | A duplicate SKU names the product that has it, with links | ✅ Pass | Server tests on PostgreSQL, form tests, Playwright on both devices |
+| B2 | SKUs on one line; the row actions always reachable | ✅ Pass | Component tests; Playwright: inline on desktop, bottom panel on the phone |
+| B3 | Success messages close by themselves and don't cover the actions | ✅ Pass | Component test; Playwright measures the message and sees it close |
+| B4 | A new version offers a reload | ✅ Pass | Component tests; a live check that the version file is published and never cached; Playwright |
+| B5 | The six import remarks | ✅ Pass | Server and component tests; Playwright on both devices |
+| B6 | The three cart and checkout remarks | ✅ Pass | Component tests; Playwright on both devices |
+| B7 | No screen is wider than a phone | ✅ Pass | New Playwright guard on six screens |
+
+**Found by Playwright before you saw it (DEF-02):**
+- On a phone, the admin products page was 566 pixels wide on a 412-pixel screen, so the new actions panel opened below the visible screen.
+- The cause was the table's invisible "Actions" heading for screen readers, which was positioned against the whole page. It was there since ECOM-007, as a page you could drag sideways.
+- Fixed, and a phone test now checks that no main screen is wider than the screen.
+
+**Failure cases and retries:** all pass.
+- If the product holding the SKU can't be found, the plain "already taken" message shows, without links.
+- If the version file is missing or broken, nothing is shown, and the check simply tries again later.
+- Pressing **+** repeatedly stops at the stock.
+- Typing too many units flags the line, and **Use N** fixes it. Checkout still re-checks the stock, so nothing is oversold.
+
+**Tests:** 7 new server tests, 19 new screen tests and 7 new browser tests, written first. In the CI container:
+- all static checks;
+- 60 tooling tests;
+- 900 backend tests (99% coverage);
+- 175 frontend tests;
+- 12 live smoke checks;
+- 39 browser tests on desktop and phone.
+
+Your containers are rebuilt.
+
+**Two notes:**
+- **Codex was working at the same time.** While I built part B, Codex ran a "code review round 4" in the same folder. It fixed image-address checks and a slow test, and took journal number D-110 and prompt #043. I kept its work as it is and numbered mine D-111, D-112 and #044. All tests above ran with both sets of changes together.
+- **My slip:** I again started a shell command with `python -`, and it hung. I stopped it at once, and nothing was changed.
+
+### What to test (http://localhost:3000; press **Ctrl+F5** first)
+
+1. **Admin → Products → New product**, with SKU **RS-001**.
+   → "SKU RS-001 is already taken by Running Shoes", with **View** and **Edit** links.
+2. Archive a product.
+   → "Product archived" appears bottom-left and closes by itself.
+3. Make the window narrow, or open Admin on your phone.
+   → Each row has **Actions**, which opens Edit, History and Archive from the bottom.
+4. **Import CSV** with your sample file.
+   → Line 41 shows `······` and "· marks a space". Description is a text box. Scroll down: Commit stays visible. Skip a row: the next row is focused.
+5. Add an item to the cart.
+   → Use − and +. Type more than the stock: the line greys out and "Subtotal of available items" appears.
+6. On checkout, the expiry field.
+   → It shows MM/YY.
+7. Leave the shop open in a tab. I rebuild the site, and you come back to the tab.
+   → "A new version of this site is available", with **Reload**.
+
+**Status:** ECOM-018 part B is waiting for your review and isn't committed. Tell me what you'd like changed, or say "commit". Once it's accepted, ECOM-018 is complete, and I'll open its pull request into `main` when you ask.

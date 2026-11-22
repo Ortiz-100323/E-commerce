@@ -222,3 +222,10 @@ body {
     transition-duration: 1ms !important;
   }
 }
+
+:where(input:autofill, input:-webkit-autofill) {
+  -webkit-text-fill-color: var(--ink);
+  caret-color: var(--ink);
+  box-shadow: 0 0 0 100rem var(--surface) inset;
+  transition: background-color 9999s ease-out 0s;
+}

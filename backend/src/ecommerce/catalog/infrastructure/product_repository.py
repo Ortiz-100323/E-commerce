@@ -60,7 +60,12 @@ class SqlAlchemyProductRepository:
             if is_violation_of(error, PRIMARY_KEY):
                 raise ProductAlreadyExists(product.id) from error
             if is_violation_of(error, SKU_UNIQUE_INDEX):
-                raise DuplicateSku(product.sku.value) from error
+                holder = await self.get_by_sku(product.sku)
+                raise DuplicateSku(
+                    product.sku.value,
+                    existing_id=None if holder is None else holder.id,
+                    existing_name=None if holder is None else holder.name.value,
+                ) from error
             raise
         self._stored_events.extend(product.pull_events())
 

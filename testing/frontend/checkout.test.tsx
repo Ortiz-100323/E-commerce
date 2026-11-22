@@ -130,6 +130,37 @@ describe('the cart', () => {
     ])
   })
 
+  it('greys out a flagged line and names the subtotal of the available items', async () => {
+    fakeOrders([SHOES, MAT])
+    seedCart(cartLine(SHOES, 1), cartLine(MAT, 5))
+    renderApp('/cart')
+
+    const mat = await screen.findByRole('listitem', { name: 'Yoga Mat' })
+    expect(await within(mat).findByText('Only 3 left.')).toBeVisible()
+    expect(mat).toHaveAttribute('data-flagged', 'true')
+    expect(screen.getByRole('listitem', { name: 'Running Shoes' })).not.toHaveAttribute(
+      'data-flagged',
+    )
+    expect(screen.getByText('Subtotal of available items: $89.99')).toBeVisible()
+  })
+
+  it('changes a quantity with the − and + buttons, within the stock', async () => {
+    fakeOrders([SHOES, MAT])
+    seedCart(cartLine(MAT, 2))
+    renderApp('/cart')
+    const quantity = await screen.findByLabelText('Quantity of Yoga Mat')
+    const fewer = screen.getByRole('button', { name: 'One fewer Yoga Mat' })
+    const more = screen.getByRole('button', { name: 'One more Yoga Mat' })
+
+    await user.click(more)
+    expect(quantity).toHaveValue(3)
+    await user.click(fewer)
+    await user.click(fewer)
+    expect(quantity).toHaveValue(1)
+    expect(fewer).toBeDisabled()
+    expect(storedCart().map((line) => line.quantity)).toEqual([1])
+  })
+
   it('says when the cart is empty', async () => {
     fakeOrders([SHOES])
     renderApp('/cart')
@@ -367,6 +398,14 @@ describe('paying', () => {
     expect(screen.getByText('Use the format MM/YY.')).toBeVisible()
     expect(screen.getByText('The security code is the 3 or 4 digits on the card.')).toBeVisible()
     expect(fake.placed).toEqual([])
+  })
+
+  it('shows MM/YY as the expiry hint, never a date that looks filled in', async () => {
+    fakeOrders([SHOES])
+    seedCart(cartLine(SHOES, 1))
+    renderApp('/checkout')
+
+    expect(await screen.findByLabelText('Expiry (MM/YY)')).toHaveAttribute('placeholder', 'MM/YY')
   })
 
   it('refuses an expired card in the browser', async () => {

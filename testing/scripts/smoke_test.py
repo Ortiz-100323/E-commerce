@@ -156,6 +156,15 @@ def run(base_url: str) -> int:
         header = cache_control(f"{base_url}{script.group(1)}")
         expect("immutable" in header, f"the app bundle has Cache-Control {header!r}")
 
+    def the_build_version_is_published() -> None:
+        status, body = call("GET", f"{base_url}/version.json")
+        expect(status == 200, f"expected 200, got {status}")
+        build = json.loads(body).get("build")
+        valid = isinstance(build, str) and build not in ("", "dev")
+        expect(valid, f"unexpected build {build!r}")
+        header = cache_control(f"{base_url}/version.json")
+        expect(header == "no-cache", f"version.json has Cache-Control {header!r}")
+
     def health_is_up() -> None:
         status, body = call("GET", f"{api}/health")
         expect(status == 200, f"expected 200, got {status}: {body}")
@@ -216,6 +225,7 @@ def run(base_url: str) -> int:
     checks: list[tuple[str, Callable[[], None]]] = [
         ("portal loads through nginx", portal_loads),
         ("the page is never served stale", page_is_never_stale),
+        ("the build version is published, never cached", the_build_version_is_published),
         ("health check reports the database up", health_is_up),
         (f"the {SMOKE_SKU} product exists (created once, then reused)", smoke_product_exists),
         ("a restored product is found by search", restored_product_is_found_by_search),

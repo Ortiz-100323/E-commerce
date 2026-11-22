@@ -14,7 +14,7 @@
 
 .row {
   display: grid;
-  grid-template-columns: 1fr 6rem 7rem auto;
+  grid-template-columns: 1fr auto 7rem auto;
   gap: 0.75rem;
   align-items: center;
   padding: 0.75rem 1rem;
@@ -33,11 +33,15 @@
 }
 
 .quantity {
-  width: 5rem;
-  padding: 0.4rem 0.5rem;
-  border: 1px solid var(--line-strong);
-  border-radius: 0.375rem;
+  width: 3.75rem;
+  min-height: 2.25rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: 0;
+  border-right: none;
+  border-left: none;
+  text-align: center;
   font: inherit;
+  appearance: textfield;
 }
 
 .amount {
@@ -213,4 +217,57 @@
   font-size: 1.75rem;
   line-height: 1.2;
   letter-spacing: -0.015em;
+}
+
+.quantity::-webkit-inner-spin-button,
+.quantity::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.step {
+  width: 2.25rem;
+  min-height: 2.25rem;
+  padding: 0;
+  font-size: 1.125rem;
+  line-height: 1;
+}
+
+.step:first-child {
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+
+.step:last-child {
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.row[data-flagged] {
+  border-color: #f1d29a;
+  background: #fffdf7;
+}
+
+.row[data-flagged] .rowName,
+.row[data-flagged] .amount,
+.row[data-flagged] .muted {
+  color: var(--ink-faint);
+}
+
+.row[data-flagged] .amount {
+  text-decoration: line-through;
+}
+
+@media (pointer: coarse) {
+  .step,
+  .quantity {
+    min-height: 2.75rem;
+  }
+
+  .step {
+    width: 2.75rem;
+  }
 }

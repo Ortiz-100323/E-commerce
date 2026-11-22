@@ -53,6 +53,14 @@
   color: var(--ink);
 }
 
+.secondary:disabled {
+  border-color: var(--line);
+  border-style: dashed;
+  background: var(--surface-sunk);
+  color: var(--ink-faint);
+  cursor: not-allowed;
+}
+
 .quiet {
   display: inline;
   min-height: 0;

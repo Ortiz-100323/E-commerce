@@ -1552,3 +1552,67 @@ Template:
   - Hiding the SKU everywhere (rejected: the two Bluetooth Speakers would look identical again).
   - Keeping the filters always open on phones (rejected: Playwright showed they filled the whole first screen, with no product visible).
 - **Process slip:** a text-processing command lost a block of the shop page because a Windows path broke it. The block was restored with the editor at once, and the tests confirmed the result. Large edits use the editor tools only.
+
+### D-110: Code review round 4 for ECOM-016 and ECOM-018
+- **Date:** 2026-11-22
+- **Status:** Fixed (review and fixes requested by the owner)
+- **Scope:** the newly implemented tickets through ECOM-018. ECOM-016 and ECOM-018 were reviewed; ECOM-017 was excluded because it remains Backlog and has no implementation.
+- **Discoveries and fixes:**
+  - **ECOM-018 — malformed image URL could return 500:** Python's URL parser raises `ValueError` for malformed IPv6 addresses. The `ImageUrl` constructor let that infrastructure exception escape instead of returning a domain validation problem. It now catches parser errors and reports `invalid_image_url`; a unit regression and a live API-level regression prove the 422 response.
+  - **ECOM-018 — invalid ports were accepted:** validating only `hostname` allowed non-numeric ports and numbers above 65535. Reading the parsed port is now part of validation, with regressions for both cases.
+  - **ECOM-018 — frontend and domain length rules differed:** the admin image field had no 2,048-character limit even though the domain and database column did. Shared frontend validation and the input's `maxlength` now enforce the same limit before submission.
+  - **ECOM-018 — storefront test timing was flaky under full load:** the catalog-name helper used Testing Library's one-second default. It timed out once during the complete parallel frontend run, while the same test passed in isolation and the browser suite stayed green. Its explicit three-second ceiling removes the worker-contention false negative without hiding a real stalled request.
+  - **Architecture revision table:** two entries were numbered 25. They are corrected to 25–27 in chronological order, and this review is revision 28.
+- **Output checked:** all 18 ECOM-018 screenshots were inspected. A fresh production build and all 29 Playwright cases reproduced the screens. The green square is the deliberately simple one-pixel image fixture, and the cart action is enabled despite its muted normal-state colour; the browser test now checks it again after the screenshot. No additional output defect was reproduced.
+- **ECOM-016 conclusion:** the workflow, containers, nginx, checks and recorded GitHub output were reviewed again. No new defect was found.
+- **Verification:** all static and architecture checks, 60 tooling tests, 898 backend tests (99.62% scoped coverage), 157 frontend tests (96.18% line coverage), and all 11 live smoke checks pass. Container users are 999, 70 and 101; images are 93 MB and 486 MB; 26 browser tests pass with 3 device-specific skips.
+
+### D-111: ECOM-018 part B: the polish collected since ECOM-007
+- **Date:** 2026-11-22
+- **Status:** Accepted (owner, prompt #045: "Commit and let's go for 19")
+- **Context:** the UX remarks from ECOM-007 (OBS-01 to OBS-03), D-084 (stale tabs), ECOM-012 (OBS-01 to OBS-06) and ECOM-015 (OBS-07, OBS-09, OBS-10). OBS-08 (card autofill needs HTTPS) stays a README item for ECOM-017.
+- **Decision:**
+  - **Duplicate SKU (ECOM-007 OBS-03):**
+    - when the database refuses a taken SKU, the repository loads the product that holds it;
+    - `DuplicateSku` carries its id and name;
+    - the `duplicate-sku` problem adds `existing_product` (`id`, `name`), and its detail reads "SKU RS-001 is already taken by Running Shoes.";
+    - the form shows **View** and **Edit** links to that product;
+    - if the holder can't be found (a race with a delete), the old message and fields are kept.
+  - **Autofill and styled filters (ECOM-007 OBS-01):** the filters already share the base styles (D-109). Autofilled fields keep the white background, through `:autofill`.
+  - **Admin table (ECOM-007 OBS-02):**
+    - SKUs never wrap.
+    - Below 56 rem, the row actions move into an **Actions** button that opens a bottom panel. It uses a plain open/closed state rather than the browser's `popover`, because a closed popover is hidden from the component tests and its position couldn't be checked.
+    - Notifications sit bottom-left, away from the right-aligned actions, and success messages close after 5 seconds.
+  - **New version banner (D-084):**
+    - Each build publishes `version.json` with a build id that is also compiled into the app.
+    - The app compares them every 5 minutes and when the tab becomes visible, and offers **Reload**.
+    - Polling a small static file was chosen over a server-sent event or a service worker: it needs no backend change and no new package.
+  - **Import screens (ECOM-012):**
+    - OBS-01: a disabled secondary button now looks disabled (dashed border, grey text, `not-allowed` cursor).
+    - OBS-02: Description uses a text area.
+    - OBS-03: spaces in the raw line show as `·`, with "· marks a space."
+    - OBS-04: a finished import shows read-only tables.
+    - OBS-05: "line 2" or "lines 2 and 5", decided on the server.
+    - OBS-06: a sticky commit bar, and focus moves to the next row after a decision.
+  - **Purchase screens (ECOM-015):**
+    - OBS-07: flagged lines are greyed out, with their total struck through, and the total reads "Subtotal of available items".
+    - OBS-09: the expiry placeholder is `MM/YY`.
+    - OBS-10: − and + buttons, and + stops at the available stock.
+- **Alternatives:**
+  - A shared "existing product" lookup in the application layer before the insert (rejected: it would race with concurrent creates; the database's unique index stays the only judge, and the lookup only explains its answer).
+  - The native `popover` attribute for the row actions (tried, then dropped, see above).
+  - Hiding the subtotal until the cart is fixed (rejected: the shopper still sees what the fixable lines cost).
+
+### D-112: Defect found by Playwright: the admin products page was wider than a phone (DEF-02 in the ECOM-018 evidence)
+- **Date:** 2026-11-22
+- **Status:** Fixed before the owner's review
+- **Symptom:** on a phone (Pixel 7, 412 px), the admin products page measured 566 px wide. The browser shrank it to fit, so fixed elements, like the new actions panel, landed below the visible screen.
+- **Cause:**
+  - The table's "Actions" column heading has a text that only screen readers see. It is positioned absolutely.
+  - The table's scroll box had no position of its own, so that text was placed against the whole page, at the far right of the wide table. That made the page wider than the screen.
+  - The defect existed since ECOM-007. Before part B it only showed as a page that could be dragged sideways.
+- **Fix:** the table's scroll box is now `position: relative`, so anything positioned inside it stays inside it.
+- **Guards:**
+  - A Playwright test checks, on the phone, that the shop, a search, the cart, the admin products list, the new-product form and the import page are never wider than the screen.
+  - Another checks that the actions panel touches the bottom of the screen.
+- **Process slip in the same session:** a shell command started with `python -` again and hung. It was stopped at once and nothing changed. The rule is in memory; the slip is recorded so it stays visible.

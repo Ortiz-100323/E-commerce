@@ -32,12 +32,19 @@ def version_conflict_extra(error: Exception) -> Mapping[str, Any]:
 
 def duplicate_sku_detail(error: Exception) -> str:
     assert isinstance(error, DuplicateSku)
-    return f"SKU {error.sku} is already taken."
+    if error.existing_name is None:
+        return f"SKU {error.sku} is already taken."
+    return f"SKU {error.sku} is already taken by {error.existing_name}."
 
 
 def duplicate_sku_extra(error: Exception) -> Mapping[str, Any]:
     assert isinstance(error, DuplicateSku)
-    return {"sku": error.sku}
+    if error.existing_id is None or error.existing_name is None:
+        return {"sku": error.sku}
+    return {
+        "sku": error.sku,
+        "existing_product": {"id": str(error.existing_id), "name": error.existing_name},
+    }
 
 
 CATALOG_PROBLEMS: Mapping[type[Exception], ProblemMapping] = {

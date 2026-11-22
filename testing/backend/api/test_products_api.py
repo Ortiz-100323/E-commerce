@@ -166,14 +166,18 @@ async def test_a_put_with_a_stale_version_is_a_conflict(engine: AsyncEngine) -> 
 
 async def test_a_duplicate_sku_is_a_conflict_in_any_letter_case(engine: AsyncEngine) -> None:
     async with live_api(engine) as client:
-        await create(client, sku="RS-001")
+        existing = await create(client, sku="RS-001", name="Running Shoes")
         response = await client.post(
             PRODUCTS, json=product_body(sku="rs-001", name="Other"), headers=MARIA
         )
         listed = (await client.get(PRODUCTS)).json()
 
     body = assert_problem(response, 409, "duplicate-sku")
-    assert (body["sku"], body["detail"]) == ("RS-001", "SKU RS-001 is already taken.")
+    assert (body["sku"], body["detail"]) == (
+        "RS-001",
+        "SKU RS-001 is already taken by Running Shoes.",
+    )
+    assert body["existing_product"] == {"id": existing["id"], "name": "Running Shoes"}
     assert listed["total"] == 1
 
 
@@ -421,6 +425,8 @@ async def test_a_product_without_an_image_has_none(engine: AsyncEngine) -> None:
     [
         ("http://images.example.com/a.jpg", "image_url_not_https"),
         ("javascript:alert(1)", "image_url_not_https"),
+        ("https://[invalid-ipv6/photo.jpg", "invalid_image_url"),
+        ("https://images.example.com:99999/photo.jpg", "invalid_image_url"),
         ("https://images.example.com/a b.jpg", "invalid_image_url"),
     ],
 )

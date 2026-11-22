@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { NavLink, Outlet } from 'react-router'
+import { Link, NavLink, Outlet, useLocation } from 'react-router'
 
 import { useActor } from '../../actor/ActorContext'
 import { ActorPrompt } from '../../actor/ActorPrompt'
@@ -8,6 +8,8 @@ import styles from './AdminLayout.module.css'
 export function AdminLayout() {
   const { actor, setActor } = useActor()
   const [changing, setChanging] = useState(false)
+  const { pathname } = useLocation()
+  const importing = pathname.startsWith('/admin/imports')
 
   if (actor === null) {
     return <ActorPrompt onSave={setActor} />
@@ -26,7 +28,9 @@ export function AdminLayout() {
       </div>
       <nav aria-label="Admin" className={styles.nav}>
         <NavLink to="/admin/products">Products</NavLink>
-        <NavLink to="/admin/imports/new">Import CSV</NavLink>
+        <Link to="/admin/imports/new" aria-current={importing ? 'page' : undefined}>
+          Import CSV
+        </Link>
       </nav>
       <Outlet />
       {changing ? (

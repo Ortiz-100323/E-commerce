@@ -16,6 +16,12 @@ def test_duplicate_sku_carries_the_sku() -> None:
     assert isinstance(error, DomainError)
     assert error.sku == "RS-001"
     assert "RS-001" in str(error)
+    assert (error.existing_id, error.existing_name) == (None, None)
+
+
+def test_duplicate_sku_can_name_the_product_that_has_it() -> None:
+    error = DuplicateSku("RS-001", existing_id=PRODUCT_ID, existing_name="Running Shoes")
+    assert (error.existing_id, error.existing_name) == (PRODUCT_ID, "Running Shoes")
 
 
 def test_product_already_exists_carries_the_product_id() -> None:

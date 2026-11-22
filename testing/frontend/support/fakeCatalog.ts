@@ -285,13 +285,14 @@ export function fakeCatalog(seed: Partial<Product>[] = []) {
         return invalid
       }
       const sku = (draft.sku ?? '').toUpperCase()
-      if ([...products.values()].some((product) => product.sku === sku)) {
+      const holder = [...products.values()].find((product) => product.sku === sku)
+      if (holder) {
         return problem({
           status: 409,
           slug: 'duplicate-sku',
           title: 'This SKU is already taken.',
-          detail: `SKU ${sku} is already taken.`,
-          extra: { sku },
+          detail: `SKU ${sku} is already taken by ${holder.name}.`,
+          extra: { sku, existing_product: { id: holder.id, name: holder.name } },
         })
       }
       return HttpResponse.json(store(draft, actor), { status: 201 })

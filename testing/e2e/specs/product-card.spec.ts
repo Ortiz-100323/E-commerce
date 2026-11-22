@@ -282,6 +282,7 @@ test('the other screens use the same buttons, fields and colours', async ({ page
   await expect(page.getByRole('heading', { name: 'Your cart' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Go to checkout' })).toBeEnabled()
   await page.screenshot({ path: `results/evidence/${testInfo.project.name}-cart.png` })
+  await expect(page.getByRole('button', { name: 'Go to checkout' })).toBeEnabled()
   await page.getByRole('button', { name: 'Go to checkout' }).click()
   await expect(page.getByRole('heading', { name: 'Checkout' })).toBeVisible()
   await page.screenshot({

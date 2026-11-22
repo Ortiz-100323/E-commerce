@@ -240,6 +240,49 @@ describe('reviewing the rows held for review', () => {
   })
 })
 
+describe('reviewing comfortably', () => {
+  it('keeps the Import CSV tab marked while an import is reviewed', async () => {
+    fakeImports(sampleRows())
+    renderApp(REVIEW)
+
+    const nav = within(await screen.findByRole('navigation', { name: 'Admin' }))
+
+    expect(nav.getByRole('link', { name: 'Import CSV' })).toHaveAttribute('aria-current', 'page')
+    expect(nav.getByRole('link', { name: 'Products' })).not.toHaveAttribute('aria-current')
+  })
+
+  it('gives long descriptions a text area', async () => {
+    fakeImports(sampleRows())
+    renderApp(REVIEW)
+
+    const description = (await card(7)).getByLabelText('Description')
+
+    expect(description.tagName).toBe('TEXTAREA')
+  })
+
+  it('shows the spaces in the raw line, so an empty-looking name explains itself', async () => {
+    fakeImports(sampleRows())
+    renderApp(REVIEW)
+
+    const line = await card(41)
+
+    expect(line.getByText(/······/)).toBeVisible()
+    expect(line.getByText('· marks a space.')).toBeVisible()
+  })
+
+  it('moves focus to the next row to review after a decision', async () => {
+    fakeImports(sampleRows())
+    renderApp(REVIEW)
+    const panel = await openTab(/Needs review/)
+    const [first, second] = panel.getAllByRole('article')
+    const next = second.getAttribute('aria-label') ?? ''
+
+    await user.click(within(first).getByRole('button', { name: 'Skip this row' }))
+
+    await waitFor(() => expect(screen.getByRole('article', { name: next })).toHaveFocus())
+  })
+})
+
 describe('committing', () => {
   it('enables commit only when nothing is left to resolve, then shows the result', async () => {
     fakeImports([
@@ -385,11 +428,22 @@ describe('the other tabs', () => {
     renderApp(REVIEW)
 
     await waitFor(() => expect(tab(/Skipped/)).toHaveTextContent('Skipped (1)'))
-    expect(screen.queryByRole('article', { name: 'Line 41' })).not.toBeInTheDocument()
     const skipped = await openTab(/Skipped/)
-    const empty = within(skipped.getByRole('article', { name: 'Line 41' }))
-    expect(empty.getByLabelText('Name')).toBeDisabled()
-    expect(empty.getByRole('button', { name: 'Save correction' })).toBeDisabled()
+    expect(skipped.getByRole('row', { name: 'Line 41' })).toHaveTextContent('Skipped')
+    expect(skipped.queryByRole('textbox')).toBeNull()
+    expect(skipped.queryByRole('button', { name: 'Save correction' })).toBeNull()
+  })
+
+  it('shows a finished import as a short read-only summary', async () => {
+    const fake = fakeImports(sampleRows())
+    fake.batch.status = 'COMMITTED'
+    renderApp(REVIEW)
+
+    const panel = await openTab(/Needs review/)
+
+    expect(panel.queryByRole('article')).toBeNull()
+    expect(panel.queryByRole('textbox')).toBeNull()
+    expect(panel.getByRole('row', { name: 'Line 7' })).toBeInTheDocument()
   })
 
   it('lists rejected rows with their reasons and raw line, and cannot edit them', async () => {
@@ -447,7 +501,9 @@ describe('an import that cannot be used', () => {
       'This import expired 24 hours after the upload.',
     )
     expect(screen.queryByRole('button', { name: 'Commit import' })).toBeNull()
-    expect((await card(7)).getByRole('button', { name: 'Save correction' })).toBeDisabled()
+    const panel = within(screen.getByRole('tabpanel'))
+    expect(panel.getByRole('row', { name: 'Line 7' })).toBeInTheDocument()
+    expect(panel.queryByRole('button', { name: 'Save correction' })).toBeNull()
   })
 
   it('is reachable from the admin navigation', async () => {

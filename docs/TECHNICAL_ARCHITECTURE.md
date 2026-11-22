@@ -29,8 +29,10 @@
 > | 23 | 2026-11-22 | ECOM-013 and ECOM-014: ordering, the fake payment and the checkout safety net as built. The catalog adapter lives outside both contexts, `ordering` and `catalog` never import each other, an unknown SKU is `product-not-sellable`, and the last unit gives `out_of_stock` (§3.1, §4.5, §4.6, §7.2, §7.3, §8.3, D-095, D-096). |
 > | 24 | 2026-11-22 | ECOM-015: the purchase screens as built (cart, checkout, confirmation), and a read-only `POST /orders/quote` so the cart subtotal comes from the server (§4.5, §5, D-097). |
 > | 25 | 2026-11-22 | ECOM-016: browser tests in their own `e2e` compose service (profile `e2e`, Playwright 1.65.0, headless shell only), security headers and CSP, a 6 MB upload limit in nginx, no root process in any container, image budgets, and a GitHub Actions workflow (§8.1, §10, D-100 to D-104). |
-> | 25 | 2026-11-22 | Review fixes through ECOM-015: full checkout bodies use a secret-keyed idempotency fingerprint, migration 0008 widens the maximum order total, email controls are rejected, and invalid visible cart quantities cannot navigate to checkout (§4.2, §5, §7.2, D-099). |
-> | 26 | 2026-11-22 | ECOM-018 part A: the shop's product card (a 4:3 image area with a category placeholder, low-stock and sold-out badges, Add to cart on the card, equal heights, keyboard and phone layouts), an optional HTTPS-only product `image_url` (migration 0009), and the CSP allowing HTTPS images (§4.2, §4.5, §5, §10, D-106). |
+> | 26 | 2026-11-22 | Review fixes through ECOM-015: full checkout bodies use a secret-keyed idempotency fingerprint, migration 0008 widens the maximum order total, email controls are rejected, and invalid visible cart quantities cannot navigate to checkout (§4.2, §5, §7.2, D-099). |
+> | 27 | 2026-11-22 | ECOM-018 part A: the shop's product card (a 4:3 image area with a category placeholder, low-stock and sold-out badges, Add to cart on the card, equal heights, keyboard and phone layouts), an optional HTTPS-only product `image_url` (migration 0009), and the CSP allowing HTTPS images (§4.2, §4.5, §5, §10, D-106). |
+> | 28 | 2026-11-22 | Review fixes through ECOM-018: malformed image URLs are always validation errors, invalid ports are rejected, and the admin form enforces the same 2,048-character limit as the domain (§4.2, §5, D-110). |
+> | 29 | 2026-11-22 | ECOM-018 round 2 and part B: shared design tokens and controls (D-109); the `duplicate-sku` problem names the existing product; a `version.json` build id with a reload banner; auto-closing success notices; a phone actions panel for the admin table; the import and cart polish (§5, D-111, D-112). |
 >
 > Every decision here also appears in [JOURNAL.md](JOURNAL.md) with its context and the alternatives considered.
 
@@ -233,7 +235,7 @@ Exact versions are pinned in Phase 0 and logged in the journal.
 **The `Product` aggregate** belongs to catalog.
 - **Identity:** `ProductId` (a UUID). The natural key is `Sku`, which is unique.
 - **State:** name, description, category, price, stock, weight, `tags`, `status` (`ACTIVE` or `ARCHIVED`), `version` (for optimistic locking) and timestamps.
-- **Optional image (ECOM-018, D-106):** `image_url`, an `ImageUrl` value object, HTTPS only and at most 2,048 characters. An empty value clears it, and it is audited like any other field. The database adds the CHECK `ck_products_image_url_https`.
+- **Optional image (ECOM-018, D-106, D-110):** `image_url`, an `ImageUrl` value object, HTTPS only, with a valid host and port, and at most 2,048 characters. Every malformed address is returned as a field validation error. The admin form enforces the same rules before submitting. An empty value clears it, and it is audited like any other field. The database adds the CHECK `ck_products_image_url_https`.
 - **Invariant:** `price == 0 ⇔ GIFT ∈ tags`: a gift is always free, and a free product is always a gift (D-083, which replaced the earlier one-way rule). Removing the GIFT tag requires a price above 0, and adding it requires a price of 0.
 - **Behaviour:**
   - `rename`, `reprice`, `recategorize`, `restock`
@@ -436,7 +438,7 @@ Domain validation **collects every issue before raising**, rather than stopping 
 | `method-not-allowed` | 405 | The wrong HTTP method | — |
 | `payment-declined` | 402 | The fake gateway declined the card | `order_id` |
 | `version-conflict` | 409 | A stale `version` on PUT | `current_version` |
-| `duplicate-sku` | 409 | Creating a product with an SKU that is already taken | `sku` |
+| `duplicate-sku` | 409 | Creating a product with an SKU that is already taken | `sku`; `existing_product` (`id`, `name`) when the product holding the SKU is found (D-111) |
 | `insufficient-stock` | 409 | Checkout (§7.3) | `items[] {sku, requested, available}` |
 | `product-not-sellable` | 409 | A SKU is unknown, archived or has 0 stock; every such line is listed (D-095) | `items[] {sku, reason}`, reason `unknown`, `archived` or `out_of_stock` |
 | `import-not-committable` | 409 | Rows are still unresolved | `pending_lines[]` |
@@ -510,6 +512,13 @@ The name link is stretched over the card, so a click anywhere except the button 
 - `frontend/src/index.css` holds the design tokens (colours, radii, control height, page width) as CSS custom properties. It also styles the base controls inside `:where()`, so they carry no specificity.
 - `frontend/src/styles/controls.module.css` holds the shared variants (`primary`, `secondary`, `quiet`, `alert`, `notice`, `success`, `info`, `visuallyHidden`). Feature modules reuse them with `composes` instead of redefining them.
 - The shop's search panel folds its filters behind **Filters (N)** on phones. The product page has two columns (the picture, then the details), which stack on phones.
+
+**Polish as built (ECOM-018 part B, D-111).**
+- **New version banner:** every production build writes `version.json` (`{"build": "<build id>"}`) next to the page, and compiles the same id into the app as `__APP_BUILD__` (a Vite plugin in `vite.config.ts`; the id comes from `APP_BUILD_ID`, or from the build time). nginx serves the file with `Cache-Control: no-cache`, and the smoke check verifies it. The app reads the file every 5 minutes and whenever the tab becomes visible. When the ids differ, a banner offers **Reload**. Development builds (`dev`) never check.
+- **Notifications** appear bottom-left, away from the right-aligned actions. Success messages close after 5 seconds; errors stay until dismissed.
+- **Admin products table:** SKUs never wrap. Below 56 rem, a row's Edit, History and Archive move into an **Actions** button that opens a bottom panel (closed by Escape, a tap outside, or a choice). The table's scroll box is the reference for anything positioned inside it, so nothing in the table can widen the page.
+- **Import review:** Description uses a text area; spaces in the raw CSV line show as `·`; a finished import shows a read-only table instead of editors; the commit bar stays under the header while scrolling; after a decision, focus moves to the next row to review.
+- **Cart:** − and + buttons around the quantity (+ stops at the available stock); lines that can't be bought as asked are greyed out, and the total is labelled "Subtotal of available items" until they are fixed. The checkout's expiry placeholder is `MM/YY`.
 
 **Purchase screens as built (ECOM-015, D-097, D-099).**
 - The header's **Cart: N items** links to `/cart`. The cart asks the server for a quote whenever it changes, shows the server's prices and subtotal, and offers a fix for each problem: **Use N** or **Remove**.

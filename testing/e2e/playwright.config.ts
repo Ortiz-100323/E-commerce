@@ -21,7 +21,7 @@ export default defineConfig({
     },
     {
       name: 'mobile',
-      testMatch: /product-card\.spec\.ts/,
+      testMatch: /(product-card|polish)\.spec\.ts/,
       use: { ...devices['Pixel 7'] },
     },
   ],

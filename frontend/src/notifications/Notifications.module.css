@@ -1,25 +1,32 @@
 .region {
   position: fixed;
-  right: 1rem;
   bottom: 1rem;
+  left: 1rem;
   z-index: 20;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  max-width: min(24rem, calc(100vw - 2rem));
+  width: min(22rem, calc(100vw - 2rem));
+  pointer-events: none;
 }
 
 .notice {
-  padding: 0.75rem 1rem;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: 0 0.75rem;
+  padding: 0.7rem 0.8rem 0.7rem 1rem;
   border: 1px solid var(--line);
   border-left: 4px solid var(--danger);
   border-radius: var(--radius);
   background: var(--surface);
   box-shadow: var(--shadow-raised);
+  pointer-events: auto;
 }
 
 .notice p {
-  margin: 0 0 0.25rem;
+  grid-column: 1;
+  margin: 0 0 0.2rem;
 }
 
 .title {
@@ -29,6 +36,14 @@
 .reference {
   color: var(--ink-soft);
   font-family: ui-monospace, monospace;
+  font-size: 0.8125rem;
+}
+
+.dismiss {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  min-height: 2rem;
+  padding: 0 0.6rem;
   font-size: 0.8125rem;
 }
 

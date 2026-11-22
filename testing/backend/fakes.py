@@ -59,7 +59,10 @@ class InMemoryProductRepository:
         if product.id in self.items:
             raise ProductAlreadyExists(product.id)
         if any(item.sku == product.sku for item in self.items.values()):
-            raise DuplicateSku(product.sku.value)
+            holder = next(item for item in self.items.values() if item.sku == product.sku)
+            raise DuplicateSku(
+                product.sku.value, existing_id=holder.id, existing_name=holder.name.value
+            )
         self.items[product.id] = product
         self.stored_events.extend(product.pull_events())
 

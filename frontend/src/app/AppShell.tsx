@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router'
 import { useCart } from '../cart/CartContext'
 import controls from '../styles/controls.module.css'
 import styles from './AppShell.module.css'
+import { NewVersionBanner } from './NewVersionBanner'
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   isActive ? `${styles.link} ${styles.active}` : styles.link
@@ -61,6 +62,7 @@ export function AppShell() {
           </p>
         </div>
       </header>
+      <NewVersionBanner />
       <main className={styles.main}>
         <Outlet />
       </main>

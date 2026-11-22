@@ -20,8 +20,12 @@ class ProductAlreadyExists(DomainError):
 
 
 class DuplicateSku(DomainError):
-    def __init__(self, sku: str) -> None:
+    def __init__(
+        self, sku: str, *, existing_id: UUID | None = None, existing_name: str | None = None
+    ) -> None:
         self.sku = sku
+        self.existing_id = existing_id
+        self.existing_name = existing_name
         super().__init__(f"SKU {sku} is already taken.")
 
 

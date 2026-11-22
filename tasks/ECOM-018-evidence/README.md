@@ -82,3 +82,32 @@ Screenshots 01 to 04 show round 1, kept for comparison.
 - On the phone, the open filters filled the whole first screen, with no products visible. They now fold behind **Filters (N)**.
 - The checkout and cart titles were smaller than the other page titles, and the checkout sections sat on grey. Both now match.
 - The cart's accessible name came out with extra spaces once it gained an icon and a badge. An explicit label keeps it exactly "Cart: N items" (caught by the component tests).
+
+## Part B: the collected polish (prompt #044, D-111)
+
+| Field | Value |
+|---|---|
+| Test type | Automated browser test (Playwright 1.65.0), before the owner's review |
+| Date | 2026-11-22 |
+| Result | **Passed**: 39 tests (4 skipped by design) |
+
+| # | What it shows | File |
+|---|---|---|
+| 19 | Desktop: "SKU … is already taken by E2E Table lamp …", with **View** and **Edit** links | [19](19-desktop-duplicate-sku.png) |
+| 20 | Phone: a row's **Actions** opened as a bottom panel (Edit, History, Archive) | [20](20-mobile-admin-actions.png) |
+| 21 | Desktop import review: spaces shown as `·`, "· marks a space.", Description as a text area, a disabled **Commit import** | [21](21-desktop-import-review.png) |
+| 22 | Desktop, scrolled down: the commit bar stays under the header; after **Skip this row**, the next row has the focus frame | [22](22-desktop-import-sticky-bar.png) |
+| 23 | Phone import review | [23](23-mobile-import-review.png) |
+| 24 | Desktop cart: a flagged line greyed out with its total struck through, **Use 2**, "Subtotal of available items", − and + | [24](24-desktop-cart-flagged.png) |
+| 25 | Phone cart, the same state | [25](25-mobile-cart-flagged.png) |
+| 26 | Desktop checkout: the expiry field shows `MM/YY` | [26](26-desktop-checkout-expiry.png) |
+| 27 | Phone: "A new version of this site is available." with **Reload** | [27](27-mobile-new-version.png) |
+| 28 | Desktop, the same banner | [28](28-desktop-new-version.png) |
+
+### DEF-02: the admin products page was wider than a phone
+
+- **Found by:** the new phone test for the actions panel. The panel opened below the visible screen, because the page measured 566 px wide on a 412 px phone.
+- **Cause:** the table's hidden "Actions" heading, which only screen readers see, was positioned against the whole page instead of the table's scroll box.
+- **Fix:** the scroll box became the reference point (`position: relative`).
+- **Guard:** a phone test now checks that six main screens are never wider than the screen.
+- **Journal:** D-112.

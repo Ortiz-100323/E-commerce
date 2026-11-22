@@ -4,11 +4,11 @@
 |---|---|
 | Type | Story (frontend, with a small backend change for product images) |
 | Phase | 5 |
-| Status | **In Progress**: part A (the product card and one look for every screen) accepted by the owner (prompt #042) and committed. Part B (the collected polish) is next, planned in detail before building |
+| Status | **Done**: part A accepted (prompt #042) and part B accepted (prompt #045); committed on `feature/ECOM-018-ui-polish`. The pull request into `main` is opened when the owner asks |
 | Priority | First after ECOM-016 (owner's order, prompt #037: ECOM-018 → ECOM-019 → ECOM-020 → ECOM-017) |
 | Depends on | ECOM-007, ECOM-008, ECOM-012, ECOM-015 |
 | Architecture | §4.2 (`Product`), §4.5, §5, §10 (CSP), CC-07 |
-| Journal | D-106, D-109 |
+| Journal | D-106, D-109, D-110 (code review round 4), D-111, D-112 |
 | Evidence | [Playwright on desktop and mobile](ECOM-018-evidence/README.md) |
 | Source | Owner's tests of ECOM-007 (prompt #017), ECOM-012 (prompt #028) and ECOM-015 (prompt #034); the product card request (prompt #037) |
 
@@ -205,8 +205,75 @@ The owner found the interface "half styled": the card was designed, but the rest
 
 **Totals for round 2:** 7 new component tests (156 frontend tests in all) and 4 new browser tests (26 passed, 3 skipped by design). `run.py all` passes in the `ci` container: the static checks, 60 tooling, 893 backend (99%), 156 frontend tests and the smoke checks. `run.py containers` and `run.py images` pass.
 
+## Part B as built (2026-11-22, D-111)
+
+| Source | Observation | As built |
+|---|---|---|
+| ECOM-007 OBS-01 | Drop-downs look off; Category turns light blue | All filters use the shared styles (D-109); autofilled fields stay white |
+| ECOM-007 OBS-02 | SKUs wrap, actions cut off, notifications cover the table | SKUs never wrap; below 56 rem the actions open from an **Actions** button as a bottom panel; notifications sit bottom-left, and success messages close after 5 seconds |
+| ECOM-007 OBS-03 | A duplicate SKU should show the existing product | "SKU RS-001 is already taken by Running Shoes.", with **View** and **Edit** links; the API's `duplicate-sku` problem gains `existing_product` |
+| D-084 | A long-open tab runs old code | `version.json` with the build id, checked every 5 minutes and when the tab becomes visible; a **Reload** banner |
+| ECOM-012 OBS-01 | Disabled buttons look active | Disabled buttons are grey, with a dashed border and a `not-allowed` cursor |
+| ECOM-012 OBS-02 | Long values are cut off | Description is a text area across the full width |
+| ECOM-012 OBS-03 | Invisible spaces in the raw line | Spaces show as `·`, with "· marks a space." |
+| ECOM-012 OBS-04 | A finished import still shows editors | A read-only table for every tab once the import is committed, discarded or expired |
+| ECOM-012 OBS-05 | "line(s) 2" | "line 2", or "lines 2 and 5" |
+| ECOM-012 OBS-06 | Long lists: the commit bar scrolls away; no focus after a decision | The commit bar stays under the header; focus moves to the next row to review |
+| ECOM-015 OBS-07 | $0.00 subtotal next to a flagged line | Flagged lines are greyed out with the total struck through; "Subtotal of available items" |
+| ECOM-015 OBS-09 | "12/30" placeholder looks filled in | `MM/YY` |
+| ECOM-015 OBS-10 | No visible quantity buttons | − and + around the quantity; + stops at the available stock |
+
+OBS-08 (card autofill needs HTTPS) is a README item for ECOM-017; nothing changes in the app.
+
+### Verification (part B)
+
+| # | Criterion | Result | How it was proven |
+|---|---|---|---|
+| B1 | A duplicate SKU names the holder and links to it | **Pass** | Unit, repository and API tests on PostgreSQL; component tests; Playwright on both devices |
+| B2 | SKUs on one line; actions always reachable | **Pass** | Component tests (open, Escape, tap outside, Archive closes it); Playwright: inline on desktop, bottom panel on the phone |
+| B3 | Success messages close by themselves; notices stay clear of the actions | **Pass** | Component test with a fake clock; Playwright measures the notice on the left and sees it close |
+| B4 | A new build offers a reload | **Pass** | Component tests (newer build, same build, failed answer, tab visible again, never in development); smoke check that `version.json` is published and never cached; Playwright on both devices |
+| B5 | The six import observations | **Pass** | Server test for "line 2" and "lines 2 and 5"; component tests; Playwright: text area, `·`, a disabled Commit with `not-allowed`, the sticky bar, focus on the next row, the read-only summary after Discard |
+| B6 | The three purchase observations | **Pass** | Component tests; Playwright: − and +, + stops at the stock, the greyed line, "Subtotal of available items", `MM/YY` |
+| B7 | No screen is wider than a phone | **Pass** | New Playwright guard on six screens (DEF-02, D-112) |
+
+**Defect found by Playwright and fixed before review:** the admin products page was 566 px wide on a 412 px phone (DEF-02 in the evidence, D-112).
+
+### Failure cases and retries (part B)
+
+| Situation | Result |
+|---|---|
+| The SKU's holder can't be found when the database refuses it (a delete in between) | Pass: the plain "SKU … is already taken." message, without links |
+| `version.json` is missing, returns HTML or fails | Pass: no banner, and no error shown; the next check tries again |
+| A success message while an error is shown | Pass: the success closes after 5 seconds; the error stays until dismissed |
+| **Retry:** pressing + repeatedly | Pass: stops at the available stock; checkout still re-checks it with the stock locked |
+| Typing a quantity above the stock | Pass: the line is flagged and greyed, **Use N** fixes it, and checkout stays disabled until then |
+
+**Totals for part B:**
+- 7 new backend tests, 19 new component tests and 7 new browser tests (run on 2 devices).
+- `run.py all` passes in the `ci` container: the static checks, 60 tooling tests, 900 backend tests (99% coverage), 175 frontend tests and 12 smoke checks.
+- 39 browser tests passed (4 skipped by design).
+- `run.py containers` and `run.py images` pass.
+
 ## Definition of done
 
 - Acceptance criteria pass, written test-first.
 - `run.py all` is green in the `ci` container; the browser tests pass on desktop and mobile.
 - Journal, prompt history and this ticket are updated; the owner has accepted it.
+
+## Code review round 4 (2026-11-22, D-110)
+
+### Discoveries fixed
+
+1. **Malformed image addresses could become a server error.** `urlsplit()` raises `ValueError` for malformed IPv6, and reading an invalid port also raises. The value object now converts both cases to `invalid_image_url`; API regressions prove a 422 instead of a 500.
+2. **Impossible ports were accepted.** Addresses such as `https://images.example.com:bad/photo.jpg` and port 99999 used to pass because only the hostname was inspected. The domain now validates the parsed port too.
+3. **The admin form did not enforce the documented 2,048-character limit.** It now uses the same limit as the value object in both the input and its client-side validation, so it does not send a value the domain must reject.
+4. **A storefront test was flaky under the complete-suite load.** Its async catalog wait used Testing Library's one-second default and timed out once while all frontend files were running, although the isolated test and browser suite passed. The shared storefront wait now has a three-second ceiling; failures still fail quickly, but normal worker contention no longer creates a false negative.
+
+### Output review
+
+- Inspected all 18 stored screenshots and re-ran the complete Playwright output against freshly rebuilt images.
+- The bright green card and product-page image is the test's deliberately stretched one-pixel fixture, not a rendering defect; the broken-image fallback and real category placeholders render correctly.
+- The cart button looked muted in the screenshot, so its state was checked after capture as well as before it. It is enabled; the normal spruce button colour is lighter than its hover colour. The extra post-capture assertion remains as a guard.
+- Result: 26 browser tests passed and 3 device-specific tests skipped by design. No additional layout or interaction defect was reproduced.
+- Complete verification: all static and architecture checks, 60 tooling tests, 898 backend tests (99.62% scoped coverage), 157 frontend tests (96.18% line coverage), and all 11 smoke checks pass.

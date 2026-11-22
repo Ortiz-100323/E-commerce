@@ -34,11 +34,16 @@ const productFormFields = z.object({
 export const NOT_HTTPS = 'Use an image address that starts with https://.'
 export const NOT_AN_ADDRESS =
   'This is not a valid image address, like https://example.com/photo.jpg.'
+export const MAX_IMAGE_URL_LENGTH = 2048
+export const IMAGE_URL_TOO_LONG = `Use at most ${MAX_IMAGE_URL_LENGTH} characters.`
 
 export function imageUrlProblem(value: string): string | null {
   const trimmed = value.trim()
   if (trimmed === '') {
     return null
+  }
+  if (trimmed.length > MAX_IMAGE_URL_LENGTH) {
+    return IMAGE_URL_TOO_LONG
   }
   if (!trimmed.toLowerCase().startsWith('https://')) {
     return NOT_HTTPS

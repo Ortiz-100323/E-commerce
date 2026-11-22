@@ -228,11 +228,12 @@ class ImageUrl:
                 "image_url_not_https",
                 "Use an image address that starts with https://.",
             )
-        if (
-            any(char.isspace() for char in trimmed)
-            or has_control_characters(trimmed)
-            or not urlsplit(trimmed).hostname
-        ):
+        try:
+            parsed = urlsplit(trimmed)
+            host, _port = parsed.hostname, parsed.port
+        except ValueError:
+            host = None
+        if any(char.isspace() for char in trimmed) or has_control_characters(trimmed) or not host:
             raise reject(
                 "image_url",
                 "invalid_image_url",

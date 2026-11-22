@@ -7,7 +7,7 @@
 | Status | **In Review**: built (prompt #035); GitHub Actions green on pull request #1 (prompt #036); waiting for the owner to accept and merge |
 | Depends on | ECOM-012, ECOM-015 |
 | Architecture | §8.1 (E2E), §10, CC-08 |
-| Journal | D-100, D-101, D-102, D-103, D-104 |
+| Journal | D-100, D-101, D-102, D-103, D-104, D-110 |
 
 ## Context
 
@@ -183,3 +183,10 @@ The owner accepted the plan with changes (prompt #035). Where this section and t
 - Acceptance criteria pass.
 - `run.py all` is green locally and in GitHub Actions.
 - Journal, prompt history and this ticket are updated; the owner has accepted it.
+
+## Code review round 4 (2026-11-22, D-110)
+
+- Reviewed the workflow, compose profiles, Dockerfiles, nginx security and upload handling, non-root and image-budget checks, browser-test isolation and the recorded GitHub Actions output.
+- Re-ran the production stack checks: backend uid 999, database uid 70 and frontend uid 101; frontend 93 MB and backend 486 MB, both inside their budgets.
+- Re-ran the complete 29-test browser suite that ECOM-016 introduced and ECOM-018 extended: 26 passed and 3 device-specific skips.
+- **Conclusion:** no new ECOM-016 defect was found. The acceptance evidence remains valid.

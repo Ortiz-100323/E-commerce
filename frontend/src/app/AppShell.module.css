@@ -147,3 +147,26 @@
     padding-top: 1.25rem;
   }
 }
+
+.newVersion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem 1rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid #b9d3cf;
+  background: var(--brand-soft);
+  color: #163f3b;
+  font-weight: 500;
+}
+
+.newVersion p {
+  margin: 0;
+}
+
+.newVersion button {
+  min-height: 2rem;
+  padding: 0 0.9rem;
+  font-size: 0.875rem;
+}

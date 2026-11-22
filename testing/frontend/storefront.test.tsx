@@ -46,7 +46,7 @@ function queryCardOf(name: string) {
 }
 
 async function waitForNames(expected: string[]) {
-  await waitFor(async () => expect(await names()).toEqual(expected))
+  await waitFor(async () => expect(await names()).toEqual(expected), { timeout: 3000 })
 }
 
 function cartCount() {
