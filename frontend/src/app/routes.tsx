@@ -3,6 +3,8 @@ import { Navigate, type RouteObject } from 'react-router'
 import { LoginPage } from '../features/account/LoginPage'
 import { MyOrdersPage } from '../features/account/MyOrdersPage'
 import { AdminsPage } from '../features/admin/accounts/AdminsPage'
+import { AdminOrderPage } from '../features/admin/orders/AdminOrderPage'
+import { AdminOrdersPage } from '../features/admin/orders/AdminOrdersPage'
 import { AdminLayout } from '../features/admin/AdminLayout'
 import { ImportReviewPage } from '../features/admin/imports/ImportReviewPage'
 import { ImportUploadPage } from '../features/admin/imports/ImportUploadPage'
@@ -39,6 +41,8 @@ export const routes: RouteObject[] = [
           { path: 'products/:productId/history', element: <ProductHistoryPage /> },
           { path: 'imports/new', element: <ImportUploadPage /> },
           { path: 'imports/:importId', element: <ImportReviewPage /> },
+          { path: 'orders', element: <AdminOrdersPage /> },
+          { path: 'orders/:orderId', element: <AdminOrderPage /> },
           { path: 'accounts', element: <AdminsPage /> },
         ],
       },

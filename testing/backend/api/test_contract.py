@@ -190,7 +190,7 @@ def is_admin_operation(path: str, method: str) -> bool:
 def test_every_admin_endpoint_declares_the_session_and_its_401_and_403() -> None:
     admin = [(method, path) for path, method, _ in operations() if is_admin_operation(path, method)]
 
-    assert len(admin) == 13
+    assert len(admin) == 15
     for path, method, operation in operations():
         if (method, path) in admin:
             assert {"session": []} in operation.get("security", []), (method, path)
@@ -211,7 +211,7 @@ def test_the_contract_covers_every_endpoint_that_takes_input() -> None:
         if operation.get("parameters") or "requestBody" in operation
     }
 
-    assert len(taking_input) == 20
+    assert len(taking_input) == 22
     assert taking_input <= covered
 
 

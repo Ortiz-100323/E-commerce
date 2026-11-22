@@ -427,3 +427,30 @@ class ListBuyerOrders:
                 buyer_id, offset=offset, limit=MY_ORDERS_PAGE_SIZE
             )
         return BuyerOrders(items=orders, total=total, page=page, page_size=MY_ORDERS_PAGE_SIZE)
+
+
+ADMIN_ORDERS_PAGE_SIZE = 20
+MAX_ORDER_SEARCH = 200
+
+
+@dataclass(frozen=True, kw_only=True)
+class OrderSearch:
+    q: str | None
+    status: OrderStatus | None
+    page: int
+
+
+class SearchOrders:
+    def __init__(self, ordering: OrderingUnitOfWorkFactory) -> None:
+        self._ordering = ordering
+
+    async def execute(self, search: OrderSearch) -> BuyerOrders:
+        text = (search.q or "").strip()[:MAX_ORDER_SEARCH] or None
+        offset = (search.page - 1) * ADMIN_ORDERS_PAGE_SIZE
+        async with self._ordering() as work:
+            orders, total = await work.orders.search(
+                text, search.status, offset=offset, limit=ADMIN_ORDERS_PAGE_SIZE
+            )
+        return BuyerOrders(
+            items=orders, total=total, page=search.page, page_size=ADMIN_ORDERS_PAGE_SIZE
+        )

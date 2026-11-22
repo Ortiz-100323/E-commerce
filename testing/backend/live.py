@@ -42,6 +42,7 @@ SESSION = f"{API_PREFIX}/session"
 ADMIN_ACCOUNTS = f"{API_PREFIX}/admin/accounts"
 ACCOUNTS = f"{API_PREFIX}/accounts"
 MY_ORDERS = f"{API_PREFIX}/me/orders"
+ADMIN_ORDERS = f"{API_PREFIX}/admin/orders"
 
 
 def cookie(token: str) -> dict[str, str]:

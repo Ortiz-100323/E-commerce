@@ -1,0 +1,248 @@
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+  margin: 1.25rem 0;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.filters input,
+.filters select {
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.searchField {
+  flex: 1;
+  min-width: 14rem;
+}
+
+.summary {
+  margin: 0 0 0.75rem;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.tableWrap {
+  position: relative;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.table {
+  width: 100%;
+}
+
+.table th,
+.table td {
+  padding: 0.65rem 0.9rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.table thead th {
+  background: var(--surface-sunk);
+  white-space: nowrap;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.row {
+  cursor: pointer;
+}
+
+.row:hover td {
+  background: #f8faf9;
+}
+
+.row td:first-child a {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.customer,
+.email {
+  display: block;
+}
+
+.email {
+  color: var(--ink-faint);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.table th.number,
+.table td.number {
+  text-align: right;
+}
+
+.badge,
+.failed,
+.account,
+.guest {
+  display: inline-block;
+  padding: 0.05rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.failed {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.account {
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+}
+
+.guest {
+  background: var(--surface-sunk);
+  color: var(--ink-soft);
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  color: var(--ink-soft);
+}
+
+.empty {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  padding: 2.5rem 1.5rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  text-align: center;
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.clear {
+  composes: secondary from '../../../styles/controls.module.css';
+}
+
+.detail {
+  display: grid;
+  gap: 1rem;
+  max-width: 48rem;
+}
+
+.back {
+  margin: 0;
+}
+
+.back a {
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+
+.detailHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.detailHeader h2 {
+  margin: 0;
+}
+
+.customerLine {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.total {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+@media (max-width: 40rem) {
+  .table thead {
+    display: none;
+  }
+
+  .table,
+  .table tbody,
+  .table tr,
+  .table td {
+    display: block;
+    width: 100%;
+  }
+
+  .table tr {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .table tbody tr:last-child {
+    border-bottom: none;
+  }
+
+  .table td {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.2rem 0;
+    border: none;
+    text-align: right;
+  }
+
+  .table td::before {
+    content: attr(data-label);
+    color: var(--ink-faint);
+    font-size: 0.8125rem;
+    text-align: left;
+  }
+
+  .customer,
+  .email {
+    text-align: right;
+  }
+}
+
+.who {
+  display: grid;
+}

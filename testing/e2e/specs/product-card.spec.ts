@@ -276,6 +276,7 @@ test('the other screens use the same buttons, fields and colours', async ({ page
     await page.screenshot({ path: `results/evidence/${testInfo.project.name}-${name}.png` })
   }
 
+  await page.context().clearCookies()
   await openGrid(page)
   await card(page, 'LONG').getByRole('button', { name: 'Add to cart' }).click()
   await page.getByRole('link', { name: 'Cart: 1 item' }).click()

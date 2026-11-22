@@ -1,7 +1,7 @@
 from collections.abc import Mapping
 from typing import Any
 
-from ecommerce.ordering.application.errors import IdempotencyKeyReused
+from ecommerce.ordering.application.errors import AdminCannotBuy, IdempotencyKeyReused
 from ecommerce.ordering.domain.errors import NotEnoughStock, ProductsNotSellable
 from ecommerce.shared_kernel.api.problem_details import ProblemMapping, ProblemType
 
@@ -22,6 +22,12 @@ IDEMPOTENCY_KEY_REUSED = ProblemType(
     "idempotency-key-reused",
     422,
     "This Idempotency-Key was already used for a different request.",
+)
+
+ADMIN_CANNOT_BUY = ProblemType(
+    "admin-cannot-buy",
+    403,
+    "Administrator accounts can't place orders. Log out, or use a customer account.",
 )
 
 REASONS = {
@@ -78,4 +84,5 @@ ORDERING_PROBLEMS: Mapping[type[Exception], ProblemMapping] = {
     IdempotencyKeyMissing: ProblemMapping(IDEMPOTENCY_KEY_MISSING),
     IdempotencyKeyInvalid: ProblemMapping(IDEMPOTENCY_KEY_INVALID),
     IdempotencyKeyReused: ProblemMapping(IDEMPOTENCY_KEY_REUSED),
+    AdminCannotBuy: ProblemMapping(ADMIN_CANNOT_BUY),
 }

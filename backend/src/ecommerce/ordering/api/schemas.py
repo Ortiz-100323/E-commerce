@@ -166,3 +166,19 @@ class BuyerOrdersResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class AdminOrderResponse(OrderResponse):
+    customer_account: bool
+
+    @classmethod
+    def of_order(cls, order: Order) -> "AdminOrderResponse":
+        base = OrderResponse.of(order).model_dump()
+        return cls(**base, customer_account=order.buyer_id is not None)
+
+
+class AdminOrdersResponse(BaseModel):
+    items: list[AdminOrderResponse]
+    total: int
+    page: int
+    page_size: int

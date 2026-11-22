@@ -3008,3 +3008,123 @@ Your containers are rebuilt; your database is on migration 0011 and has the seed
 - **Commits:** ECOM-019 and ECOM-020 are on `feature/ECOM-019-single-login` but **not committed yet**.
 
 **Status:** say "commit" (and "push" if you want them on GitHub) whenever you're ready, and tell me when to start ECOM-017.
+
+## #049 — 2026-11-22 — ECOM-019 and ECOM-020 committed; ECOM-021 plan proposed
+
+### User
+
+> commit then and lets go for 21
+
+### Assistant
+
+**ECOM-019 and ECOM-020 are committed. The ECOM-021 plan is ready for your approval; nothing is built yet.**
+
+**The commit**
+- `35fccd2` on `feature/ECOM-019-single-login`, one commit for both tickets, since they share the login code. Not pushed.
+- Before committing, I pixelated your name and email in your three screenshots with the project's redaction script, and checked each one by eye.
+- Your private `.claude/` folder and `skills-lock.json` stay out, as always.
+
+**ECOM-021: the plan** (full detail in [tasks/ECOM-021.md](tasks/ECOM-021.md), decision D-119), on a new branch, `feature/ECOM-021-admin-orders`.
+
+*Part 1: admins don't shop*
+- For an admin: no **Add to cart** on cards or product pages, no **Cart** in the header, and `/cart` and `/checkout` show "Administrator accounts can't place orders".
+- The server refuses an admin's checkout too, before anything is charged or taken from stock. The rule doesn't depend on the screen, like the customer block.
+- Guests and customers buy exactly as today.
+
+*Part 2: an admin Orders screen*
+- A new **Orders** tab lists every order, newest first: date, order number, customer name and email, Guest or Customer account, items, total and status.
+- Search by name, email or order number, filter by status, and pages. An empty state shows when nothing matches.
+- Each order opens a detail page with its lines, payment and customer. On a phone, each order becomes a card.
+- Only admins can open it: the server answers 401 to visitors and 403 to customers.
+
+*Tests first:* about 30 backend tests, 15 screen tests and 2 browser tests on desktop and phone. They include the access checks for the new endpoints and proof that an admin's checkout creates nothing.
+
+**Three decisions for you:**
+1. **An admin with items already in the cart** (added before logging in): keep the cart hidden and bring it back after log-out (recommended), or empty it when an admin logs in.
+2. **Product cards for an admin:** the price and stock with no button (recommended), or a greyed-out "Admins can't buy" button.
+3. **Read-only orders** for now (recommended), or should admins also be able to mark an order, for example refunded? That adds a status change and its history.
+
+**Status:** say "go" with your answers and I'll build it, tests first. The plan is written but not committed.
+
+## #050 — 2026-11-22 — ECOM-021 built: admins don't shop, and an admin Orders screen
+
+### User
+
+> go with your answer and build it
+
+### Assistant
+
+**ECOM-021 is built and checked with Playwright on a desktop and a phone, ready for your review.** Nothing is committed yet.
+
+I used my three recommendations:
+- a cart from before logging in stays hidden for an admin, and comes back after log-out;
+- admins see product cards without a button;
+- orders are read-only.
+
+Screenshots: [tasks/ECOM-021-evidence/](tasks/ECOM-021-evidence/README.md).
+
+## What you'll see
+
+**As an admin, you can't shop:**
+- product cards show the price and stock, but no **Add to cart**;
+- the product page says "You're logged in as an administrator, so you can't buy here.";
+- the header has no **Cart**;
+- the cart and checkout pages show "Administrator accounts can't place orders", with **See all orders** and **Log out**;
+- the server refuses an admin's checkout too, before anything is charged or taken from stock, so the rule doesn't depend on the screen.
+
+Guests and customers buy exactly as before.
+
+**A new Orders tab in the admin area:**
+- every order, newest first: order number, date, customer name and email, **Guest** or **Customer account**, items, total and status;
+- search by name, email or order number, filter by status, and 20 orders per page;
+- "No orders match." with **Clear filters** when nothing fits;
+- click a row to see the order in full: lines, total, the card and payment reference, the customer;
+- on a phone, each order shows as a card;
+- customers and visitors can't open it, neither the page nor the server.
+
+## Acceptance criteria
+
+| # | Criterion | Result | How it was proven |
+|---|---|---|---|
+| 1 | Admins see no Add to cart, cart or checkout; their checkout is refused and creates nothing | ✅ Pass | API test: 3 attempts, no order, no stock taken; screen tests; Playwright on both devices |
+| 2 | Guests and customers buy exactly as before | ✅ Pass | All earlier purchase tests still pass |
+| 3 | Orders lists every order, newest first, with search, status filter and pages | ✅ Pass | API and screen tests; Playwright (a customer's order found by email and opened) |
+| 4 | Customers and visitors can't open it | ✅ Pass | API tests; the access check now covers all 17 admin endpoints |
+| 5 | Tests first, on desktop and phone | ✅ Pass | As above |
+
+**Failure cases and retries:** all pass.
+- An admin's checkout sent straight to the server is refused, and nothing is created.
+- A cart added before logging in is kept and comes back after log-out.
+- A login that ends on the Orders screen goes back to the login page.
+- A search with no results shows "No orders match."
+- An unknown order shows "Order not found".
+- Customers and visitors are refused.
+- An admin pressing Pay many times is refused every time.
+
+**Tests:**
+- 23 new backend tests, 12 screen tests, and the browser test extended (run on 2 devices).
+- Everything passes in the CI container: all static checks, 11 architecture rules, 60 tooling tests, 1,099 backend tests (99% coverage), 204 frontend tests and 14 live smoke checks.
+- 44 browser tests pass on desktop and phone.
+
+Your containers are rebuilt, and your database is on migration 0012.
+
+**Two browser tests changed:** they used to shop after logging in as the admin, so they now log out first.
+
+### What to test (http://localhost:3000; press **Ctrl+F5** first)
+
+1. Log in as admin@example.com.
+   → The cards have no **Add to cart**, and the header has no Cart.
+2. Open a product.
+   → "You're logged in as an administrator, so you can't buy here."
+3. Type `/checkout` in the address bar.
+   → "Administrator accounts can't place orders".
+4. Go to **Admin → Orders**.
+   → Your earlier orders (including the Air Purifiers), each marked Guest or Customer account.
+5. Search for your email, or set Status to "Payment declined".
+   → The list narrows; **Clear filters** brings everything back.
+6. Click an order.
+   → The full order.
+7. Log out, then shop as a customer or a guest.
+   → Everything works as before.
+
+**Status:** ECOM-021 is waiting for your review and isn't committed. Tell me what to change, or say "commit".

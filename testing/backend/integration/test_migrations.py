@@ -239,3 +239,24 @@ def test_the_database_refuses_an_unknown_role_or_a_mixed_case_email(test_databas
         engine.dispose()
 
     assert {"ck_accounts_known_role", "ck_accounts_email_lower_case"} <= constraints
+
+
+def test_the_order_date_index_migration_downgrades_and_upgrades_cleanly(
+    test_database_url: str,
+) -> None:
+    def indexes() -> set[str]:
+        engine = create_engine(test_database_url, poolclass=NullPool)
+        try:
+            with engine.connect() as connection:
+                return {index["name"] or "" for index in inspect(connection).get_indexes("orders")}
+        finally:
+            engine.dispose()
+
+    config = alembic_config(test_database_url)
+    try:
+        command.downgrade(config, "0011")
+        assert "ix_orders_created" not in indexes()
+    finally:
+        upgrade_to_head(test_database_url)
+
+    assert "ix_orders_created" in indexes()

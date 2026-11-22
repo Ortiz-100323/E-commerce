@@ -75,13 +75,13 @@ async def test_my_orders_is_for_customers_only(engine: AsyncEngine) -> None:
     assert_problem(visitor, 401, "authentication-required")
 
 
-async def test_an_admins_purchase_is_a_guest_order(engine: AsyncEngine) -> None:
+async def test_an_admin_cannot_buy(engine: AsyncEngine) -> None:
     async with live_api(engine) as client:
         await add_product(client)
         response = await checkout(client, ANTONIO)
 
-    assert response.status_code == 201
-    assert await count(engine, "SELECT count(*) FROM orders WHERE buyer_id IS NULL") == 1
+    assert_problem(response, 403, "admin-cannot-buy")
+    assert await count(engine, "SELECT count(*) FROM orders") == 0
 
 
 async def test_an_ended_session_at_checkout_charges_nothing(engine: AsyncEngine) -> None:

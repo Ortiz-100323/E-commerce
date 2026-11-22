@@ -6,6 +6,7 @@ import { useProduct } from '../../api/productQueries'
 import type { Product } from '../../api/products'
 import { canAdd } from '../../cart/cart'
 import { useCart } from '../../cart/CartContext'
+import { useIsAdmin } from '../../session/session'
 import controls from '../../styles/controls.module.css'
 import { displayPrice, StockLabel } from './ProductCard'
 import { ProductImage } from './ProductImage'
@@ -64,6 +65,7 @@ function BackLink() {
 }
 
 export function ProductDetailPage() {
+  const admin = useIsAdmin()
   const { productId = '' } = useParams()
   const product = useProduct(productId)
 
@@ -124,7 +126,13 @@ export function ProductDetailPage() {
             {item.gift ? <span className={styles.gift}>Gift</span> : null}
           </p>
           <StockLabel product={item} />
-          <AddToCart product={item} />
+          {admin ? (
+            <p role="note" className={controls.info}>
+              You're logged in as an administrator, so you can't buy here.
+            </p>
+          ) : (
+            <AddToCart product={item} />
+          )}
           {item.description ? <p className={styles.description}>{item.description}</p> : null}
           <dl className={styles.facts}>
             <dt>Category</dt>

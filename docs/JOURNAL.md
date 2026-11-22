@@ -1754,3 +1754,16 @@ Template:
   - **Until then the MVP behaviour stays as D-117 describes:** an admin who buys places a guest order.
   - **The MVP is closed:** "We already created too many new functionalities, I think it is enough for now. I think we have a full MVP cycle." What remains for delivery is ECOM-017 (README and delivery), and the pull requests on the owner's word.
 - **Privacy:** the owner's screenshots showed the owner's name and email. Before the commit (prompt #049) they were pixelated with `testing/scripts/redact_images.py` (D-103) and checked by eye.
+
+### D-119: ECOM-021 plan: admins don't shop, and a read-only admin Orders screen
+- **Date:** 2026-11-22
+- **Status:** Accepted with the three recommendations (prompt #050: "go with your answer and build it"); built and accepted by the owner (prompt #051). As built: the checkout check runs before the use case, so no idempotency key is stored; the admin list is searched with LIKE on lower-cased name and email (wildcards escaped) and the order id's text prefix; the admin detail page reuses the confirmation page's order table and details; on a phone the table becomes one labelled card per order; two browser specs that shopped after logging in as the admin now log out first.
+- **Context:** the owner's direction in prompt #048 (D-118): admins should not have Add to cart, and should have an orders screen like a customer's, covering every order.
+- **Decision (proposed):**
+  - **Admins can't buy:** the server refuses an admin's checkout with 403 `admin-cannot-buy` before anything starts. The screens hide Add to cart and the Cart for admins, and block `/cart` and `/checkout`. Guests and customers are unchanged. This supersedes D-117's third choice (an admin's purchase as a guest order).
+  - **Admin orders:** `GET /api/v1/admin/orders` (search, status filter, 20 per page, newest first) and `GET /api/v1/admin/orders/{id}`, admins only. They read only the `orders` table: "Guest" or "Customer account" comes from `buyer_id`, so ordering never imports identity. Migration 0012 adds an index on `orders.created_at`. A new **Orders** tab and a detail page, read-only.
+  - **Proposed defaults for the owner's three decisions:** a visitor's cart is hidden while an admin is logged in and comes back after log-out; cards show no button for admins; no refunds or status changes.
+- **Alternatives:**
+  - Hiding the buttons only, without a server check (rejected: the rule would depend on the screen, as the buyer block doesn't).
+  - Showing admin orders through the existing public `GET /orders/{id}` (rejected: it can't list or filter, and listing every order must be admin-only).
+  - Joining the identity tables to show the account's name (rejected: it would couple ordering to identity; the order already stores the customer's name and email).

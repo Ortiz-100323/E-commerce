@@ -14,6 +14,7 @@ import { FormProblems } from '../../../forms/FormProblems'
 import formStyles from '../../../forms/Forms.module.css'
 import { TextField } from '../../../forms/TextField'
 import { useSession } from '../../../session/session'
+import { AdminCannotBuy } from '../../account/AdminCannotBuy'
 import { formatPrice } from '../../admin/products/format'
 import styles from './Checkout.module.css'
 import {
@@ -374,6 +375,10 @@ export function CheckoutPage() {
   const quote = useQuote(cart.lines)
   const session = useSession()
   const account = session.data ?? null
+
+  if (account?.role === 'ADMIN') {
+    return <AdminCannotBuy />
+  }
 
   if (cart.lines.length === 0) {
     return (

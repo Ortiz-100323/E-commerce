@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import RowMapping, func, insert, select
+from sqlalchemy import ColumnElement, RowMapping, String, cast, func, insert, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ecommerce.ordering.domain.events import OrderEvent
@@ -80,14 +80,36 @@ class SqlAlchemyOrderRepository:
     async def for_buyer(
         self, buyer_id: UUID, *, offset: int, limit: int
     ) -> tuple[list[Order], int]:
+        return await self._page([orders.c.buyer_id == buyer_id], offset=offset, limit=limit)
+
+    async def search(
+        self, text: str | None, status: OrderStatus | None, *, offset: int, limit: int
+    ) -> tuple[list[Order], int]:
+        conditions: list[ColumnElement[bool]] = []
+        if status is not None:
+            conditions.append(orders.c.status == status.value)
+        if text:
+            needle = text.lower()
+            conditions.append(
+                or_(
+                    func.lower(orders.c.customer_name).contains(needle, autoescape=True),
+                    func.lower(orders.c.customer_email).contains(needle, autoescape=True),
+                    cast(orders.c.id, String).startswith(needle, autoescape=True),
+                )
+            )
+        return await self._page(conditions, offset=offset, limit=limit)
+
+    async def _page(
+        self, conditions: list[ColumnElement[bool]], *, offset: int, limit: int
+    ) -> tuple[list[Order], int]:
         total = await self._session.scalar(
-            select(func.count()).select_from(orders).where(orders.c.buyer_id == buyer_id)
+            select(func.count()).select_from(orders).where(*conditions)
         )
         rows = (
             (
                 await self._session.execute(
                     select(orders)
-                    .where(orders.c.buyer_id == buyer_id)
+                    .where(*conditions)
                     .order_by(orders.c.created_at.desc(), orders.c.id)
                     .offset(offset)
                     .limit(limit)

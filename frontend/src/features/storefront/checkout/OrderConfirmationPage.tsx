@@ -7,7 +7,7 @@ import { formatDateTime, formatPrice } from '../../admin/products/format'
 import styles from './Checkout.module.css'
 import { useOrder } from './orderQueries'
 
-function Lines({ order }: { order: Order }) {
+export function Lines({ order }: { order: Order }) {
   return (
     <table className={styles.table}>
       <thead>
@@ -34,7 +34,7 @@ function Lines({ order }: { order: Order }) {
   )
 }
 
-function Details({ order }: { order: Order }) {
+export function Details({ order }: { order: Order }) {
   return (
     <dl className={styles.details}>
       <dt>Order number</dt>

@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router'
 
 import type { QuoteLine } from '../../../api/orders'
 import { useCart } from '../../../cart/CartContext'
+import { useIsAdmin } from '../../../session/session'
+import { AdminCannotBuy } from '../../account/AdminCannotBuy'
 import type { CartLine } from '../../../cart/cart'
 import { formatPrice } from '../../admin/products/format'
 import styles from './Checkout.module.css'
@@ -137,6 +139,11 @@ export function CartPage() {
   const cart = useCart()
   const navigate = useNavigate()
   const quote = useQuote(cart.lines)
+  const admin = useIsAdmin()
+
+  if (admin) {
+    return <AdminCannotBuy />
+  }
 
   if (cart.lines.length === 0) {
     return (

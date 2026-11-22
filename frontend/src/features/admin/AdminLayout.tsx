@@ -22,6 +22,7 @@ function AdminArea() {
         <Link to="/admin/imports/new" aria-current={importing ? 'page' : undefined}>
           Import CSV
         </Link>
+        <NavLink to="/admin/orders">Orders</NavLink>
         <NavLink to="/admin/accounts">Admins</NavLink>
       </nav>
       <Outlet />

@@ -49,6 +49,7 @@ test('an imported product is found in the shop, bought, and its stock goes down'
   await commit.click()
   await expect(page.getByRole('status')).toContainText('Imported. 2 created, 0 updated, 0 skipped.')
 
+  await page.context().clearCookies()
   await page.goto('/')
   await page.getByPlaceholder('What are you looking for?').fill(lamp.name)
   await page.getByRole('button', { name: 'Search' }).click()

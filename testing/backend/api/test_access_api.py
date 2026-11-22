@@ -61,7 +61,7 @@ def problem_slug(response: httpx.Response) -> str:
 
 
 def test_the_matrix_covers_every_admin_endpoint() -> None:
-    assert len(ADMIN_ENDPOINTS) == 15
+    assert len(ADMIN_ENDPOINTS) == 17
 
 
 @pytest.mark.parametrize(("method", "url"), ADMIN_ENDPOINTS)

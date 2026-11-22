@@ -80,3 +80,19 @@ export type MyOrders = {
   page: number
   page_size: number
 }
+
+export type AdminOrder = Order & { customer_account: boolean }
+
+export type AdminOrders = {
+  items: AdminOrder[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export type AdminOrderQuery = { q?: string; status?: OrderStatus; page?: number }
+
+export const adminOrdersApi = {
+  list: (query: AdminOrderQuery) => request<AdminOrders>('GET', '/admin/orders', { query }),
+  get: (id: string) => request<AdminOrder>('GET', `/admin/orders/${encodeURIComponent(id)}`),
+}

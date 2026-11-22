@@ -97,22 +97,26 @@ export function AppShell() {
               </NavLink>
             ) : null}
           </nav>
-          <p className={styles.cart} aria-live="polite">
-            <NavLink
-              to="/cart"
-              aria-label={`Cart: ${count} ${count === 1 ? 'item' : 'items'}`}
-              className={({ isActive }) =>
-                isActive ? `${styles.cartLink} ${styles.cartActive}` : styles.cartLink
-              }
-            >
-              <BagIcon />
-              Cart<span className={controls.visuallyHidden}>: </span>
-              <span className={count > 0 ? styles.count : `${styles.count} ${styles.empty}`}>
-                {count}
-              </span>
-              <span className={controls.visuallyHidden}>{count === 1 ? ' item' : ' items'}</span>
-            </NavLink>
-          </p>
+          {role === 'ADMIN' ? (
+            <span className={styles.cart} />
+          ) : (
+            <p className={styles.cart} aria-live="polite">
+              <NavLink
+                to="/cart"
+                aria-label={`Cart: ${count} ${count === 1 ? 'item' : 'items'}`}
+                className={({ isActive }) =>
+                  isActive ? `${styles.cartLink} ${styles.cartActive}` : styles.cartLink
+                }
+              >
+                <BagIcon />
+                Cart<span className={controls.visuallyHidden}>: </span>
+                <span className={count > 0 ? styles.count : `${styles.count} ${styles.empty}`}>
+                  {count}
+                </span>
+                <span className={controls.visuallyHidden}>{count === 1 ? ' item' : ' items'}</span>
+              </NavLink>
+            </p>
+          )}
           <AccountArea />
         </div>
       </header>

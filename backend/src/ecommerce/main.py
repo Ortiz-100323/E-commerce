@@ -37,7 +37,7 @@ from ecommerce.identity.infrastructure.settings import IdentitySettings
 from ecommerce.identity.infrastructure.unit_of_work import SqlAlchemyIdentityUnitOfWorkFactory
 from ecommerce.integration.catalog_sales import CatalogSales
 from ecommerce.ordering.api.problems import ORDERING_PROBLEMS
-from ecommerce.ordering.api.router import me_router
+from ecommerce.ordering.api.router import admin_orders_router, me_router
 from ecommerce.ordering.api.router import router as orders_router
 from ecommerce.ordering.application.ports import PaymentGateway, TransientErrors
 from ecommerce.ordering.application.unit_of_work import OrderingUnitOfWorkFactory
@@ -174,6 +174,7 @@ def create_app(dependencies_factory: DependenciesFactory = production_dependenci
     app.include_router(imports_router, prefix=API_PREFIX)
     app.include_router(orders_router, prefix=API_PREFIX)
     app.include_router(me_router, prefix=API_PREFIX)
+    app.include_router(admin_orders_router, prefix=API_PREFIX)
     return app
 
 

@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 
 import type { Product } from '../../api/products'
 import { useCart } from '../../cart/CartContext'
+import { useIsAdmin } from '../../session/session'
 import { canAdd } from '../../cart/cart'
 import { formatPrice } from '../admin/products/format'
 import { LOW_STOCK } from './categoryLook'
@@ -83,6 +84,7 @@ function AddToCart({ product }: { product: Product }) {
 }
 
 export function ProductCard({ product, showSku = false }: { product: Product; showSku?: boolean }) {
+  const admin = useIsAdmin()
   const id = useId()
   const nameId = `${id}-name`
   const skuId = `${id}-sku`
@@ -107,7 +109,7 @@ export function ProductCard({ product, showSku = false }: { product: Product; sh
         <StockLabel product={product} />
         <div className={styles.footer}>
           <span className={styles.price}>{displayPrice(product)}</span>
-          <AddToCart product={product} />
+          {admin ? null : <AddToCart product={product} />}
         </div>
       </div>
     </li>

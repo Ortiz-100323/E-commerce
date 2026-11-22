@@ -29,6 +29,10 @@ export function useSession() {
   })
 }
 
+export function useIsAdmin(): boolean {
+  return useSession().data?.role === 'ADMIN'
+}
+
 export function startSession(client: QueryClient, account: Account | null): void {
   client.removeQueries({
     predicate: (query) => query.queryKey[0] !== sessionKey[0],

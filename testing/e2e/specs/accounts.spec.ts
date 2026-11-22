@@ -123,4 +123,27 @@ test('a customer signs up, buys, finds the order in My orders and is kept out of
 
   const adminCall = await page.context().request.post('/api/v1/products', { data: {} })
   expect(adminCall.status()).toBe(403)
+
+  await page.context().clearCookies()
+  await logInAsAdmin(page)
+  await page.goto(`/admin/orders?q=${encodeURIComponent(email)}`)
+  const table = page.getByRole('table', { name: 'Orders' })
+  const rows = table.getByRole('row', { name: /^Order [0-9A-F]{8}$/ })
+  await expect(rows).toHaveCount(1)
+  await expect(table).toContainText('Customer account')
+  await shot(page, 'admin-orders', testInfo.project.name)
+  await rows.first().getByText('E2E Buyer').click()
+  await expect(page.getByRole('heading', { name: /^Order [0-9A-F]{8}$/ })).toBeVisible()
+  await expect(page.getByText(NAME).first()).toBeVisible()
+  await shot(page, 'admin-order-detail', testInfo.project.name, true)
+
+  await page.goto(`/?q=${SKU}`)
+  await expect(page.getByRole('listitem', { name: NAME })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Add to cart' })).toHaveCount(0)
+  await expect(page.getByRole('banner').getByRole('link', { name: /^Cart: / })).toHaveCount(0)
+  await page.goto('/checkout')
+  await expect(
+    page.getByRole('heading', { name: "Administrator accounts can't place orders" }),
+  ).toBeVisible()
+  await shot(page, 'admin-cannot-buy', testInfo.project.name)
 })
