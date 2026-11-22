@@ -5,6 +5,7 @@ import { useForm, type FieldPath } from 'react-hook-form'
 import { Link, useNavigate } from 'react-router'
 
 import { ApiError, type FieldProblem } from '../../../api/apiError'
+import { newIdempotencyKey } from '../../../api/idempotencyKey'
 import type { Quote, ShortItem, UnsellableItem } from '../../../api/orders'
 import { useCart } from '../../../cart/CartContext'
 import { withoutLine, withQuantity, type CartLine } from '../../../cart/cart'
@@ -224,7 +225,7 @@ function CheckoutForm({ quote, lines }: { quote: Quote; lines: CartLine[] }) {
     const body = checkoutBody(values, requestedLines(lines), paid)
     const request = JSON.stringify(body)
     if (attempt.current === null || attempt.current.request !== request) {
-      attempt.current = { key: crypto.randomUUID(), request }
+      attempt.current = { key: newIdempotencyKey(), request }
     }
     sending.current = true
     setOutcome(null)

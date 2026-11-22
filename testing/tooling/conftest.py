@@ -45,3 +45,18 @@ def profile_csv() -> ModuleType:
 @pytest.fixture(scope="session")
 def simulate_import() -> ModuleType:
     return load_module("scripts/simulate_import.py", "simulate_import")
+
+
+@pytest.fixture(scope="session")
+def redact_images() -> ModuleType:
+    return load_module("scripts/redact_images.py", "redact_images")
+
+
+@pytest.fixture(scope="session")
+def check_containers() -> ModuleType:
+    return load_module("scripts/check_containers.py", "check_containers")
+
+
+@pytest.fixture(scope="session")
+def check_images() -> ModuleType:
+    return load_module("scripts/check_images.py", "check_images")

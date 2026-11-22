@@ -2022,3 +2022,64 @@ Code review through ECOM-015 is complete. Continuing from the reviewed ECOM-012 
 Verification is fully green: all static and architecture checks, 45 tooling tests, 866 backend tests (99.62% scoped coverage), 134 frontend tests (95.81% line coverage), and all live smoke checks. The production images rebuilt successfully, both containers are healthy, and the live database is on migration 0008. `git diff --check` is clean.
 
 `CHECKOUT_FINGERPRINT_SECRET` is now required; Docker Compose supplies a local-development value, while a real deployment must override it with its own secret. The reviewed changes remain uncommitted on `feature/ECOM-015-purchase-ui`.
+
+## #034 — 2026-11-22 — Purchase accepted, ECOM-015 committed; ECOM-016 plan
+
+### User
+
+> you can commit and go to next one
+>
+> *(Five screenshots attached, now stored as [01-cart-prices-from-the-shop.png](../tasks/ECOM-015-evidence/01-cart-prices-from-the-shop.png), [02-quantity-above-stock.png](../tasks/ECOM-015-evidence/02-quantity-above-stock.png), [03-checkout-form.png](../tasks/ECOM-015-evidence/03-checkout-form.png), [04-confirmation-paid.png](../tasks/ECOM-015-evidence/04-confirmation-paid.png) and [05-declined-card.png](../tasks/ECOM-015-evidence/05-declined-card.png).)*
+
+### Assistant
+
+**ECOM-015 is committed as `a6aa96c`, and ECOM-013, ECOM-014 and ECOM-015 are Done.**
+
+- **Your test** is filed in [tasks/ECOM-015-evidence/](tasks/ECOM-015-evidence/README.md). I checked the database afterwards:
+  - 3 orders: $64.99 paid, $189.99 declined, $189.99 paid;
+  - Backpack 90 → 89, Collar gift 20 → 19, Air Purifier 20 → 19 (the declined attempt took nothing);
+  - one audit entry per order and per stock decrease, all by "Shop checkout".
+- **Also in the commit:** Codex's code review round 3 (journal D-099), which ran while you were testing. It fixed three real defects:
+  - an email with a hidden control character could crash a checkout;
+  - the largest allowed order overflowed the total column;
+  - a reused key with a different card that has the same last 4 digits wasn't refused.
+
+  I checked the whole suite myself before committing: 866 backend tests, 134 frontend tests and the live checks all pass.
+- **Not merged into `main`:** you didn't ask this time. Say "merge" when you want it.
+- **Four UX observations** from your screenshots went to ECOM-018:
+  - the "Subtotal: $0.00" next to a flagged line;
+  - the browser disabling card autofill on plain HTTP;
+  - the expiry placeholder looking like a filled value;
+  - the hidden quantity arrows.
+
+## Next: ECOM-016, hardening, browser tests and GitHub Actions (plan for your review)
+
+I'm on `feature/ECOM-016-hardening-e2e`. Nothing is built yet; the plan is in [tasks/ECOM-016.md](tasks/ECOM-016.md) (journal D-101).
+
+**A bug found while planning (journal D-100).** Through the portal, any CSV between 1 MB and 5 MB is refused with a web-server error page, although the app promises 5 MB. A 1.5 MB file failed through http://localhost:3000 and worked straight against the backend. Your 9 KB sample never hit it. The fix is part of this ticket.
+
+**What the plan covers**
+- **Real-browser tests** (Playwright) that walk the whole journey: import a CSV, review, commit, find the product in the shop, buy it, and check the stock dropped. A second test checks that a declined card takes nothing, and a third that a double click buys once.
+  - They use their own test products (SKUs starting `E2E-`) and archive them afterwards, so your catalog isn't touched.
+- **A safer web server:** security headers (including a Content-Security-Policy) on every response, and the 5 MB upload limit fixed.
+- **No container runs as the administrator user**, with a check that proves it, plus a size budget for the images.
+- **GitHub Actions:** the same checks run automatically on GitHub for every change.
+
+| # | Criterion | How I plan to prove it |
+|---|---|---|
+| 1 | Playwright passes: import → review → commit → search → buy → stock decreases | Browser test on the real stack, with exact stock before and after |
+| 2 | Playwright passes: a declined card leaves stock unchanged | Browser test with 4000 0000 0000 0002 |
+| 3 | Responses carry the security headers and CSP | Smoke check on the page, an API answer and an error answer |
+| 4 | Every container runs as a non-root user | A check that asks Docker for each running container's user |
+| 5 | The GitHub Actions run gives the same result as the local `ci` container | The first green run on GitHub, linked in the ticket |
+
+**Three decisions for you**
+
+1. **New package:** may I add **Playwright 1.65.0** (published 5 Nov, the newest version at least two weeks old), with the Chromium browser? It goes into the test container only and makes it about 400 MB bigger; the app images don't change.
+2. **Pushing to GitHub:** GitHub Actions only runs once the code is on GitHub. Your repository `Ortiz-100323/E-commerce` is **public** and still empty, so pushing publishes all the work so far. May I push `main` and the ticket branches?
+3. **Screenshots with your personal details:** if we push, today's screenshots 03, 04 and 05 (ECOM-015 evidence) show your full name and email, and the import screenshots show your name. Should I:
+   - **(a)** blur those details in the images before pushing (my recommendation);
+   - **(b)** publish them as they are; or
+   - **(c)** keep the screenshots out of the repository?
+
+**Status:** ECOM-016 is In Progress (plan). Tell me your three answers and "go", and I'll build it test-first.

@@ -1369,3 +1369,26 @@ Template:
 - **Verification:** the regressions were observed failing before the fixes. Final complete-suite counts are recorded after the run in prompt #033 and the three tickets.
 - **Supersedes:** D-032 and D-096 only where they accepted a last-four-only fingerprint. Their privacy concern remains valid; the secret-keyed HMAC resolves it without storing an offline-guessable card hash.
 - **Final verification:** `python testing/run.py all` passed all static and architecture checks, 45 tooling tests, 866 backend tests (99.62% scoped coverage), 134 frontend tests (95.81% line coverage), and all live smoke checks. The production images rebuilt successfully, both application containers are healthy, migration 0008 is applied to the live database, and the smoke checks passed again against the rebuilt stack.
+
+### D-100: Bug: the portal refuses CSV files over 1 MB (found while planning ECOM-016)
+- **Date:** 2026-11-22
+- **Status:** Open; fixed in ECOM-016 (upload limits)
+- **How it was found:** while checking ECOM-016's "upload limits" scope, a 1.5 MB CSV preview was sent through the website (http://localhost:3000) and directly to the backend (port 8001). The website answered nginx's HTML "413 Request Entity Too Large"; the backend answered 200.
+- **Cause:** nginx's default `client_max_body_size` is 1 MB. The frontend's nginx config never set it, while the import accepts files up to 5 MB (D-090).
+- **Why the tests missed it:** the backend tests talk to the app directly, the frontend tests use a mocked API, and the smoke test never uploads a file. The sample file is 9 KB.
+- **Impact:** an admin importing a CSV between 1 MB and 5 MB through the portal gets an error page the app can't explain. Nothing is written.
+- **Planned fix and guard:** `client_max_body_size 6m` on `/api/`; nginx's own 413 answered as `application/problem+json` (`payload-too-large`); a smoke check that uploads a 2 MB preview through the website.
+
+### D-101: Hardening, browser end-to-end tests and GitHub Actions plan (ECOM-016)
+- **Date:** 2026-11-22
+- **Status:** Proposed (waiting for the owner's review of the plan, prompt #034)
+- **Decision (proposed):**
+  - **Playwright `@playwright/test` 1.65.0** (the newest version at least two weeks old), Chromium only. It lives in `testing/e2e` with its own lockfile and is installed in the `ci` image only. It runs through `run.py e2e` and as the last step of `run.py all`.
+  - **E2E data isolation:** every run creates its own products with a unique `E2E-<run>-` SKU prefix through a generated CSV, buys only those, and archives them at the end. The owner's catalog is never touched.
+  - **nginx:** a CSP that allows only the site itself, plus `nosniff`, `no-referrer`, `DENY` framing, a Permissions-Policy and COOP, all in one included file so every location inherits them; `server_tokens off`; no HSTS on local HTTP.
+  - **Non-root containers:** `nginx-unprivileged` for the frontend, a `runner` user in `ci`; a host-side `run.py containers` check. The image budgets are checked by `run.py images`.
+  - **GitHub Actions:** the same compose stack and `ci` container, actions pinned to commit SHAs, read-only permissions, and the Playwright results uploaded on failure.
+- **Open for the owner:** the package approval; pushing to the public repository; whether the test screenshots that show the owner's name and email should be published as they are.
+- **Alternatives:**
+  - The official Playwright Docker image as a separate `e2e` service (rejected for now: two test containers to keep in step; the `ci` container already has Node).
+  - Running the E2E tests against a separate database (rejected: the test must prove the real stack works, and unique SKUs already keep the owner's data apart).
