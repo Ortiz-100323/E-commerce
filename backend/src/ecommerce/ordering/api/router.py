@@ -9,12 +9,18 @@ from ecommerce.ordering.api.problems import (
     IdempotencyKeyInvalid,
     IdempotencyKeyMissing,
 )
-from ecommerce.ordering.api.schemas import CheckoutRequest, OrderResponse
+from ecommerce.ordering.api.schemas import (
+    CheckoutRequest,
+    OrderResponse,
+    QuoteRequest,
+    QuoteResponse,
+)
 from ecommerce.ordering.application.checkout import (
     CardDetails,
     Checkout,
     CheckoutCommand,
     GetOrder,
+    QuoteCart,
 )
 from ecommerce.ordering.application.ports import PaymentGateway, TransientErrors
 from ecommerce.ordering.application.unit_of_work import OrderingUnitOfWorkFactory
@@ -67,7 +73,15 @@ def get_checkout(request: Request) -> Checkout:
     clock: Clock = state.clock
     transient: TransientErrors = state.transient_errors
     lifetime: timedelta = state.idempotency_key_lifetime
-    return Checkout(ordering, payments, clock, key_lifetime=lifetime, transient=transient)
+    secret: bytes = state.checkout_fingerprint_secret
+    return Checkout(
+        ordering,
+        payments,
+        clock,
+        fingerprint_secret=secret,
+        key_lifetime=lifetime,
+        transient=transient,
+    )
 
 
 def get_get_order(request: Request) -> GetOrder:
@@ -121,6 +135,23 @@ async def place_order(
     response.headers["Location"] = f"{request.url.path}/{order.id}"
     response.headers.update(replayed)
     return order
+
+
+def get_quote_cart(request: Request) -> QuoteCart:
+    ordering: OrderingUnitOfWorkFactory = request.app.state.ordering_unit_of_work
+    return QuoteCart(ordering)
+
+
+@router.post(
+    "/quote",
+    response_model=QuoteResponse,
+    summary="Price a cart from the catalog without buying anything",
+)
+async def quote_cart(
+    body: QuoteRequest, use_case: Annotated[QuoteCart, Depends(get_quote_cart)]
+) -> QuoteResponse:
+    quote = await use_case.execute(tuple((line.sku, line.quantity) for line in body.lines))
+    return QuoteResponse.of(quote)
 
 
 @router.get(

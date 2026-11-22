@@ -3,7 +3,7 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
-from live import ANTONIO, ORDERS, PRODUCTS, live_api
+from live import ANTONIO, ORDERS, PRODUCTS, QUOTE, live_api
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -160,6 +160,11 @@ async def test_quantities_above_the_stock_are_refused_with_what_is_available(
             "customer.email",
             "invalid_email",
         ),
+        (
+            {"customer": {"name": "Ana", "email": "ana\x00@example.com"}},
+            "customer.email",
+            "control_characters_not_allowed",
+        ),
         ({"lines": []}, "lines", "too_few_items"),
         ({"lines": [{"sku": "RS-001", "quantity": 0}]}, "lines[0].quantity", "too_small"),
         ({"lines": [{"sku": "RS-001", "quantity": 1}] * 51}, "lines", "too_many_items"),
@@ -238,3 +243,73 @@ async def every_text_value(engine: AsyncEngine) -> str:
             rows = await connection.execute(text(f'SELECT "{column}"::text FROM "{table}"'))
             values.extend(str(value) for (value,) in rows)
     return "\n".join(values)
+
+
+async def test_a_quote_prices_the_cart_and_flags_problems_without_writing_anything(
+    engine: AsyncEngine,
+) -> None:
+    async with live_api(engine) as client:
+        shoes = await add_product(client, stock=3)
+        await add_product(client, sku="CT-005", name="Camping Tent", stock=0)
+        response = await client.post(
+            QUOTE,
+            json={
+                "lines": [
+                    {"sku": "rs-001", "quantity": 2, "unit_price": "0.01"},
+                    {"sku": "CT-005", "quantity": 1},
+                    {"sku": "ZZ-999", "quantity": 1},
+                ]
+            },
+        )
+        stock = await stock_of(client, shoes)
+
+    assert response.status_code == 200, response.text
+    quote = response.json()
+    assert quote["lines"] == [
+        {
+            "sku": "CT-005",
+            "product_id": quote["lines"][0]["product_id"],
+            "name": "Camping Tent",
+            "unit_price": "89.99",
+            "quantity": 1,
+            "gift": False,
+            "available": 0,
+            "line_total": "89.99",
+            "problem": "out_of_stock",
+        },
+        {
+            "sku": "RS-001",
+            "product_id": shoes["id"],
+            "name": "Running Shoes",
+            "unit_price": "89.99",
+            "quantity": 2,
+            "gift": False,
+            "available": 3,
+            "line_total": "179.98",
+            "problem": None,
+        },
+        {
+            "sku": "ZZ-999",
+            "product_id": None,
+            "name": None,
+            "unit_price": None,
+            "quantity": 1,
+            "gift": False,
+            "available": 0,
+            "line_total": None,
+            "problem": "unknown",
+        },
+    ]
+    assert (quote["total"], quote["currency"]) == ("179.98", "USD")
+    assert (quote["ready"], quote["payment_required"]) == (False, True)
+    assert stock == 3
+    assert await count(engine, "SELECT count(*) FROM orders") == 0
+    assert await count(engine, "SELECT count(*) FROM audit_log WHERE entity = 'order'") == 0
+
+
+async def test_a_quote_needs_at_least_one_line(engine: AsyncEngine) -> None:
+    async with live_api(engine) as client:
+        response = await client.post(QUOTE, json={"lines": []})
+
+    problem = assert_problem(response, 422, "validation-error")
+    assert problem["errors"][0]["field"] == "lines"

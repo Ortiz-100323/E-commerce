@@ -23,7 +23,9 @@ export function AppShell() {
           </NavLink>
         </nav>
         <p className={styles.cart} aria-live="polite">
-          Cart: {count} {count === 1 ? 'item' : 'items'}
+          <NavLink to="/cart" className={linkClass}>
+            {`Cart: ${count} ${count === 1 ? 'item' : 'items'}`}
+          </NavLink>
         </p>
       </header>
       <main className={styles.main}>

@@ -94,6 +94,24 @@ async def test_the_same_key_with_another_body_is_refused_and_changes_nothing(
     assert await count(engine, "SELECT count(*) FROM orders") == 1
 
 
+async def test_the_same_key_with_another_card_sharing_the_last_four_is_refused(
+    engine: AsyncEngine,
+) -> None:
+    key = str(uuid4())
+    first_body = order_body()
+    second_body = order_body(payment=card("0000000000004242"))
+    async with live_api(engine) as client:
+        shoes = await add_product(client)
+        first = await place(client, first_body, key)
+        second = await place(client, second_body, key)
+        stock = await stock_of(client, shoes)
+
+    assert first.status_code == 201
+    assert_problem(second, 422, "idempotency-key-reused")
+    assert stock == 8
+    assert await count(engine, "SELECT count(*) FROM orders") == 1
+
+
 @pytest.mark.parametrize(
     ("headers", "slug"),
     [

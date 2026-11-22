@@ -24,7 +24,7 @@ orders = Table(
     Column("status", String(16), nullable=False),
     Column("customer_name", String(MAX_NAME_LENGTH), nullable=False),
     Column("customer_email", String(MAX_EMAIL_LENGTH), nullable=False),
-    Column("total", Numeric(16, 2), nullable=False),
+    Column("total", Numeric(18, 2), nullable=False),
     Column("payment_reference", String(64), nullable=True),
     Column("card_last4", String(4), nullable=True),
     Column("decline_reason", String(64), nullable=True),
@@ -62,7 +62,7 @@ idempotency_keys = Table(
     metadata,
     Column("key", Uuid, primary_key=True),
     Column("endpoint", String(64), nullable=False),
-    Column("request_fingerprint", String(64), nullable=False),
+    Column("request_fingerprint", String(67), nullable=False),
     Column(
         "order_id",
         Uuid,

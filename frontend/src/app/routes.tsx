@@ -6,6 +6,9 @@ import { ImportUploadPage } from '../features/admin/imports/ImportUploadPage'
 import { EditProductPage, NewProductPage } from '../features/admin/products/ProductFormPages'
 import { ProductHistoryPage } from '../features/admin/products/ProductHistoryPage'
 import { ProductsTablePage } from '../features/admin/products/ProductsTablePage'
+import { CartPage } from '../features/storefront/checkout/CartPage'
+import { CheckoutPage } from '../features/storefront/checkout/CheckoutPage'
+import { OrderConfirmationPage } from '../features/storefront/checkout/OrderConfirmationPage'
 import { ProductDetailPage } from '../features/storefront/ProductDetailPage'
 import { StorefrontPage } from '../features/storefront/StorefrontPage'
 import { AppShell } from './AppShell'
@@ -17,6 +20,9 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: <StorefrontPage /> },
       { path: 'products/:productId', element: <ProductDetailPage /> },
+      { path: 'cart', element: <CartPage /> },
+      { path: 'checkout', element: <CheckoutPage /> },
+      { path: 'orders/:orderId', element: <OrderConfirmationPage /> },
       {
         path: 'admin',
         element: <AdminLayout />,

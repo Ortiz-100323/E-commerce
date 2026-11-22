@@ -21,6 +21,7 @@ from fakes import dependencies_factory
 
 PRODUCTS = f"{API_PREFIX}/products"
 ORDERS = f"{API_PREFIX}/orders"
+QUOTE = f"{API_PREFIX}/orders/quote"
 CATEGORIES = f"{API_PREFIX}/categories"
 IMPORT_PREVIEW = f"{API_PREFIX}/imports/preview"
 IMPORTS = f"{API_PREFIX}/imports"

@@ -50,6 +50,14 @@ def name_issues(raw: str) -> list[ValidationIssue]:
 
 def email_issues(raw: str) -> list[ValidationIssue]:
     field = "customer.email"
+    if has_control_characters(raw):
+        return [
+            ValidationIssue(
+                field,
+                "control_characters_not_allowed",
+                "The email address must not contain control characters.",
+            )
+        ]
     email = raw.strip()
     if not email:
         return [ValidationIssue(field, "required", "Enter your email address.")]

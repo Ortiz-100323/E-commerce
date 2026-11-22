@@ -27,6 +27,11 @@ The owner's browser test of ECOM-007 showed that the screens work, but some part
   - A short read-only summary for rows of a finished import, instead of disabled editors (OBS-04).
   - "line 2" rather than "line(s) 2" (OBS-05).
   - A commit bar that stays in view on long lists, and focus moved to the next row after a decision (OBS-06).
+- **Purchase screens** (owner's portal test of ECOM-013 to ECOM-015, prompt #034, [evidence](ECOM-015-evidence/README.md)):
+  - A clearer subtotal when a line is flagged. Today 600 Backpacks ($38,994.00) sit next to "Subtotal: $0.00", because the subtotal counts only the items that can be bought (OBS-07).
+  - Card autofill needs HTTPS: the browser disables it on http://localhost. Handle this in deployment and the README, not in the app (OBS-08).
+  - "MM/YY" as the expiry placeholder, so a cleared field doesn't look filled (OBS-09).
+  - Visible − and + buttons for quantities (OBS-10).
 
 ## Acceptance criteria
 

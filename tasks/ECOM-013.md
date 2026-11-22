@@ -4,10 +4,10 @@
 |---|---|
 | Type | Story (backend) |
 | Phase | 4 |
-| Status | **In Review**: committed (prompt #031); the owner tests it through the ECOM-015 checkout screens |
+| Status | **Done**: accepted by the owner after the portal test of the purchase (prompt #034) |
 | Depends on | ECOM-005 |
 | Architecture | §3.1, §4.2 (`Order`), §4.5, §7.1, CC-06 |
-| Journal | D-095, D-096 |
+| Journal | D-095, D-096, D-099 |
 
 ## Context
 
@@ -132,7 +132,7 @@ Written test-first: the new tests were run before any ordering code existed and 
 
 **Also proven:** orders round-trip through PostgreSQL; migration 0007 downgrades and upgrades cleanly; the database refuses an unknown status, a non-digit last 4, a negative total, a quantity of 0, a negative price and a line total that doesn't match; 8 import-linter contracts hold, including "ordering and catalog never import each other".
 
-**Totals (ECOM-013 and ECOM-014 together):** 127 new backend tests and 2 new live smoke checks. The `ci` container passes all static checks, 45 tooling tests, 852 backend tests (99.60% coverage of the domain and application code, ordering included), 114 frontend tests and the smoke checks on the owner's stack. The backend container is rebuilt and the owner's database is on migration 0007.
+**Totals after code review (ECOM-013 and ECOM-014 together):** 132 new backend tests and 2 live smoke checks. The complete suite passes 866 backend tests with 99.62% scoped coverage. The backend container is rebuilt and the owner's database is on migration 0008.
 
 ## Business view
 
@@ -156,3 +156,12 @@ Written test-first: the new tests were run before any ordering code existed and 
 - Acceptance criteria pass, written test-first.
 - `run.py all` is green in the `ci` container.
 - Journal, prompt history and this ticket are updated; the owner has accepted it.
+
+## Code review round 3 (2026-11-22)
+
+Two boundary defects were reproduced and fixed:
+
+- An email containing a NUL control character passed the simple email pattern and reached PostgreSQL, which cannot store that byte. Email validation now rejects every control character with a normal 422 before locking, charging or writing anything.
+- The largest cart allowed by the public limits (50 lines, maximum catalog price and quantity 10,000) produced a valid domain total that overflowed `orders.total numeric(16,2)` during commit. Migration 0008 widens the total to `numeric(18,2)`, which exactly covers the maximum valid order; a PostgreSQL round-trip regression proves it.
+
+No other defect was found in the order aggregate, server-side pricing, payment outcomes, stock changes, audit mapping or sensitive-value handling.

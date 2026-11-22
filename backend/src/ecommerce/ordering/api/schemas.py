@@ -4,6 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ecommerce.ordering.application.checkout import Quote, QuoteLine
 from ecommerce.ordering.domain.order import Order, OrderLine
 from ecommerce.ordering.domain.value_objects import MAX_LINES, OrderStatus
 
@@ -49,6 +50,58 @@ class CheckoutRequest(BaseModel):
     customer: CustomerRequest
     lines: list[OrderLineRequest] = Field(min_length=1, max_length=MAX_LINES)
     payment: PaymentRequest | None = None
+
+
+class QuoteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    lines: list[OrderLineRequest] = Field(min_length=1, max_length=MAX_LINES)
+
+
+class QuoteLineResponse(BaseModel):
+    sku: str
+    product_id: UUID | None
+    name: str | None
+    unit_price: str | None
+    quantity: int
+    gift: bool
+    available: int
+    line_total: str | None
+    problem: str | None
+
+    @classmethod
+    def of(cls, line: QuoteLine) -> Self:
+        price = line.unit_price
+        total = line.line_total
+        return cls(
+            sku=line.sku,
+            product_id=None if line.product is None else line.product.product_id,
+            name=line.name,
+            unit_price=None if price is None else str(price.amount),
+            quantity=line.quantity,
+            gift=line.product is not None and line.product.gift,
+            available=line.available,
+            line_total=None if total is None else str(total.amount),
+            problem=line.problem,
+        )
+
+
+class QuoteResponse(BaseModel):
+    lines: list[QuoteLineResponse]
+    total: str
+    currency: str
+    ready: bool
+    payment_required: bool
+
+    @classmethod
+    def of(cls, quote: Quote) -> Self:
+        return cls(
+            lines=[QuoteLineResponse.of(line) for line in quote.lines],
+            total=str(quote.total.amount),
+            currency=quote.total.currency,
+            ready=quote.ready,
+            payment_required=quote.payment_required,
+        )
 
 
 class CustomerResponse(BaseModel):

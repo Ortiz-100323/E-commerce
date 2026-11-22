@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
@@ -9,7 +10,9 @@ from ecommerce.ordering.application.checkout import (
     Checkout,
     CheckoutCommand,
     GetOrder,
+    QuoteCart,
     fingerprint,
+    legacy_fingerprint,
 )
 from ecommerce.ordering.application.errors import IdempotencyKeyReused
 from ecommerce.ordering.domain.errors import (
@@ -20,6 +23,7 @@ from ecommerce.ordering.domain.errors import (
     UnsellableItem,
 )
 from ecommerce.ordering.domain.order import OrderId, RequestedLine
+from ecommerce.ordering.domain.payment import PaymentCard
 from ecommerce.ordering.domain.value_objects import Customer, OrderStatus
 from ecommerce.shared_kernel.domain.errors import DomainValidationError
 from ecommerce.shared_kernel.domain.money import Money
@@ -32,6 +36,7 @@ from ordering_fakes import (
 )
 
 NOW = datetime(2026, 11, 22, 10, 0, tzinfo=UTC)
+FINGERPRINT_SECRET = b"test-checkout-fingerprint-secret-32"
 KEY = UUID("6f1c2a00-0000-4000-8000-000000000001")
 OTHER_KEY = UUID("6f1c2a00-0000-4000-8000-000000000002")
 VISA = CardDetails(number="4242 4242 4242 4242", expiry_month=12, expiry_year=2030, cvc="123")
@@ -67,6 +72,7 @@ def checkout(
         state,
         payments or RecordingPaymentGateway(),
         clock or SequenceClock(NOW),
+        fingerprint_secret=FINGERPRINT_SECRET,
         transient=transient,
     )
 
@@ -208,6 +214,23 @@ async def test_the_same_key_and_request_replays_the_first_order() -> None:
     assert state.products["RS-001"].stock == 8
 
 
+async def test_a_key_created_before_the_fingerprint_upgrade_still_replays() -> None:
+    state = shop()
+    payments = RecordingPaymentGateway()
+    use_case = checkout(state, payments)
+    first = await use_case.execute(command())
+    record, expires_at = state.keys[KEY]
+    customer = Customer.of("Ana Souza", "ana@example.com")
+    old = legacy_fingerprint(customer, (RequestedLine("RS-001", 2),), "4242")
+    state.keys[KEY] = (replace(record, fingerprint=old), expires_at)
+
+    second = await use_case.execute(command())
+
+    assert second.replayed is True
+    assert second.order.id == first.order.id
+    assert len(payments.charges) == 1
+
+
 async def test_a_declined_checkout_is_replayed_with_the_same_key() -> None:
     state = shop()
     use_case = checkout(state)
@@ -291,13 +314,19 @@ def test_the_fingerprint_ignores_spelling_and_order_but_not_content() -> None:
     same_customer = Customer.of(" Ana Souza ", "ANA@example.com")
     lines = (RequestedLine("RS-001", 2), RequestedLine("YM-015", 1))
 
-    base = fingerprint(customer, lines, "4242")
+    approved = PaymentCard.of("4242424242424242", 12, 2030, "123", today=NOW.date())
+    other = PaymentCard.of("0000000000004242", 12, 2030, "123", today=NOW.date())
 
-    assert fingerprint(same_customer, lines, "4242") == base
-    assert fingerprint(customer, lines, "0002") != base
-    assert fingerprint(customer, lines, None) != base
-    assert fingerprint(customer, (RequestedLine("RS-001", 3),), "4242") != base
-    assert len(base) == 64
+    base = fingerprint(customer, lines, approved, FINGERPRINT_SECRET)
+
+    assert fingerprint(same_customer, lines, approved, FINGERPRINT_SECRET) == base
+    assert fingerprint(customer, lines, other, FINGERPRINT_SECRET) != base
+    assert fingerprint(customer, lines, None, FINGERPRINT_SECRET) != base
+    assert (
+        fingerprint(customer, (RequestedLine("RS-001", 3),), approved, FINGERPRINT_SECRET) != base
+    )
+    assert len(base) == 67
+    assert base.startswith("v2:")
     assert "4242424242424242" not in base
 
 
@@ -320,3 +349,52 @@ async def test_an_order_can_be_read_back() -> None:
 async def test_an_unknown_order_is_not_found() -> None:
     with pytest.raises(OrderNotFound):
         await GetOrder(shop()).execute(OrderId(OTHER_KEY))
+
+
+async def test_a_quote_prices_the_cart_from_the_catalog_and_flags_every_problem() -> None:
+    state = shop()
+
+    quote = await QuoteCart(state).execute(
+        (
+            ("rs-001", 1),
+            ("RS-001", 1),
+            ("YM-015", 5),
+            ("MB-001", 1),
+            ("CT-005", 1),
+            ("ZZ-9", 1),
+        )
+    )
+
+    assert [(line.sku, line.quantity, line.problem, line.available) for line in quote.lines] == [
+        ("CT-005", 1, "out_of_stock", 0),
+        ("MB-001", 1, "archived", 0),
+        ("RS-001", 2, None, 10),
+        ("YM-015", 5, "insufficient_stock", 3),
+        ("ZZ-9", 1, "unknown", 0),
+    ]
+    shoes = quote.lines[2]
+    assert (shoes.name, shoes.unit_price, shoes.line_total) == (
+        "Product RS-001",
+        Money.of("89.99"),
+        Money.of("179.98"),
+    )
+    assert quote.lines[4].unit_price is None
+    assert quote.lines[4].line_total is None
+    assert quote.total == Money.of("179.98")
+    assert quote.ready is False
+    assert quote.payment_required is True
+    assert state.locked == []
+    assert state.orders == {}
+
+
+async def test_a_quote_for_free_gifts_needs_no_card() -> None:
+    quote = await QuoteCart(shop()).execute((("GF-002", 2),))
+
+    assert quote.ready is True
+    assert quote.payment_required is False
+    assert quote.total == Money(Decimal("0"))
+
+
+async def test_a_quote_refuses_bad_lines() -> None:
+    with pytest.raises(DomainValidationError):
+        await QuoteCart(shop()).execute((("RS-001", 0),))

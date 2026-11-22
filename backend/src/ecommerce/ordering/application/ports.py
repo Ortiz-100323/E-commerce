@@ -21,6 +21,8 @@ class SaleProduct:
 
 
 class CatalogGateway(Protocol):
+    async def products_for_sale(self, skus: Collection[str]) -> dict[str, SaleProduct]: ...
+
     async def lock_for_sale(self, skus: Collection[str]) -> dict[str, SaleProduct]: ...
 
     async def decrease_stock(

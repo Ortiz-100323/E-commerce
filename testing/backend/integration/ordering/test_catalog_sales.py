@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from ecommerce.catalog.domain.product import Product, new_product_id
@@ -108,3 +109,19 @@ async def test_stock_can_only_be_decreased_for_a_locked_product(
     async with sessions() as session:
         with pytest.raises(KeyError):
             await CatalogSales(session).decrease_stock("RS-001", 1, order_reference=ORDER, at=AT)
+
+
+async def test_products_are_read_for_a_quote_without_locking_and_odd_skus_are_skipped(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    shoes = await create(sessions, "RS-001")
+
+    async with sessions() as session:
+        found = await CatalogSales(session).products_for_sale(["RS-001", "not a sku!", "ZZ-9"])
+        locks = await session.scalar(
+            text("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory'")
+        )
+
+    assert list(found) == ["RS-001"]
+    assert found["RS-001"].product_id == shoes.id
+    assert locks == 0

@@ -93,6 +93,32 @@ async def test_a_paid_order_round_trips_with_its_lines(
     assert loaded.pull_events() == []
 
 
+async def test_the_largest_valid_order_total_round_trips(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    order = order_of(
+        *(
+            OrderLine(
+                sku=f"MAX-{index:02}",
+                product_id=UUID(int=index + 1),
+                name=f"Maximum product {index}",
+                unit_price=Money.of("9999999999.99"),
+                quantity=10_000,
+                gift=False,
+            )
+            for index in range(50)
+        )
+    )
+    order.mark_paid(payment_reference="fake_max", card_last4="4242", at=LATER)
+
+    await store(sessions, order)
+    loaded = await load(sessions, order.id)
+
+    assert loaded is not None
+    assert loaded.total == Money.of("4999999999995000.00")
+    assert state(loaded) == state(order)
+
+
 async def test_a_declined_order_round_trips(sessions: async_sessionmaker[AsyncSession]) -> None:
     order = order_of()
     order.mark_payment_failed(reason="card_declined", card_last4="0002", at=LATER)

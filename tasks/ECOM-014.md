@@ -4,10 +4,10 @@
 |---|---|
 | Type | Story (backend) |
 | Phase | 4 |
-| Status | **In Review**: committed (prompt #031); the owner tests it through the ECOM-015 checkout screens |
+| Status | **Done**: accepted by the owner after the portal test of the purchase (prompt #034) |
 | Depends on | ECOM-013 |
 | Architecture | §7.2, §7.3 |
-| Journal | D-072, D-095, D-096 |
+| Journal | D-072, D-095, D-096, D-099 |
 
 ## Context
 
@@ -40,7 +40,7 @@ Built together with ECOM-013 at the owner's request (prompt #030).
    5. commit the key, the order, the stock change and the audit entries together.
 
    A refused checkout (409 or 422) rolls back, so its key stays free.
-3. **The fingerprint** is a SHA-256 of the canonical request: customer name trimmed, email lower-cased, lines merged and sorted by SKU, and the card's last 4 digits (never the full number).
+3. **The fingerprint after code review (D-099)** is a versioned HMAC-SHA-256 of the entire canonical request, including all payment fields. The HMAC key comes from the required `CHECKOUT_FINGERPRINT_SECRET` setting, so neither the stored fingerprint nor a database leak permits offline guessing of a card or CVC. Records made before this review remain replayable until their normal 24-hour expiry.
 4. **`idempotency_keys` (migration 0007):** key, endpoint, fingerprint, order id, response status, created and expires times.
    - The claim is `INSERT … ON CONFLICT DO NOTHING`. A concurrent request with the same key waits on the primary key until the first one commits, then reads its outcome and replays it.
    - An expired key (24 hours, the `CHECKOUT_IDEMPOTENCY_KEY_HOURS` setting) is taken over with a conditional `UPDATE`, so it starts a new checkout.
@@ -104,3 +104,13 @@ Built together with ECOM-013 at the owner's request (prompt #030).
 - Acceptance criteria pass, written test-first.
 - `run.py all` is green in the `ci` container.
 - Journal, prompt history and this ticket are updated; the owner has accepted it.
+
+## Code review round 3 (2026-11-22)
+
+- Fixed a reused key with a different card being accepted when both cards had the same last four digits. That violated the ticket's "same key, different body" rule and replayed the first order instead of returning 422.
+- New records use the full canonical checkout under a secret-keyed, versioned HMAC. The raw card and CVC still never enter the database or logs. The fingerprint column grows from 64 to 67 characters in migration 0008 for the `v2:` marker.
+- The application still recognises an old last-four-only fingerprint for a record created before deployment, preserving safe retries during its remaining 24-hour lifetime. New records reject the collision, proven through the real API.
+
+The locking order, key claim race, expiry, 402 replay, lock timeout and deadlock retry were rechecked with no further defect found.
+
+**Review verification:** the complete suite passes all static and architecture checks, 45 tooling tests, 866 backend tests with 99.62% scoped coverage, 134 frontend tests with 95.81% line coverage, and every live smoke check.

@@ -224,6 +224,7 @@ def dependencies_factory(
         payment_gateway=payments or RecordingPaymentGateway(),
         transient_errors=transient or NoTransientErrors(),
         idempotency_key_lifetime=KEY_LIFETIME,
+        checkout_fingerprint_secret=b"test-checkout-fingerprint-secret-32",
     )
 
     @asynccontextmanager

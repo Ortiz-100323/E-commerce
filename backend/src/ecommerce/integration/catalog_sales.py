@@ -6,10 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ecommerce.catalog.application.audit import audit_entries
 from ecommerce.catalog.domain.product import Product, ProductStatus
+from ecommerce.catalog.domain.value_objects import Sku
 from ecommerce.catalog.infrastructure.product_repository import SqlAlchemyProductRepository
 from ecommerce.ordering.application.ports import SaleProduct
 from ecommerce.shared_kernel.application.audit import AuditEntry, JsonObject
 from ecommerce.shared_kernel.domain.actor import Actor
+from ecommerce.shared_kernel.domain.errors import DomainValidationError
 
 CHECKOUT_SOURCE = "checkout"
 
@@ -31,6 +33,18 @@ class CatalogSales:
         self._products = SqlAlchemyProductRepository(session)
         self._locked: dict[str, Product] = {}
         self._contexts: dict[UUID, JsonObject] = {}
+
+    async def products_for_sale(self, skus: Collection[str]) -> dict[str, SaleProduct]:
+        found = {}
+        for raw in sorted(skus):
+            try:
+                sku = Sku(raw)
+            except DomainValidationError:
+                continue
+            product = await self._products.get_by_sku(sku)
+            if product is not None:
+                found[product.sku.value] = sale_product(product)
+        return found
 
     async def lock_for_sale(self, skus: Collection[str]) -> dict[str, SaleProduct]:
         locked = await self._products.lock_by_skus(skus)

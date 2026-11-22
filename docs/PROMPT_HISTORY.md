@@ -1860,3 +1860,165 @@ All 12 rows in [tasks/ECOM-013.md](tasks/ECOM-013.md) and all 14 in [tasks/ECOM-
 - the smoke checks on your running stack.
 
 **Status:** ECOM-013 and ECOM-014 are In Review, waiting for your Swagger test. When you're happy, say "commit" and I'll commit them on `feature/ECOM-013-ordering`. Next on the board is ECOM-015, the cart and checkout screens.
+
+## #031 — 2026-11-22 — ECOM-013 and ECOM-014 committed; ECOM-015 plan
+
+### User
+
+> You can commit it, I want to test this one in the portal. I agreee with the out of stock. We need to test it if really works, when I have the screeen I'll do it.
+
+### Assistant
+
+I committed ECOM-013 and ECOM-014 as `bd8d8e0` on `feature/ECOM-013-ordering`. That branch is ready for you to merge.
+
+- **Status:** both tickets stay **In Review**. You'll test them through the checkout screens of ECOM-015, the same way ECOM-010 was tested through ECOM-012.
+- **Out of stock:** your agreement is recorded in journal D-096.
+- **Checked before the commit:** the full suite was green: all static checks, 45 tooling tests, 852 backend tests, 114 frontend tests and the smoke checks on your stack.
+- **New branch:** I'm on `feature/ECOM-015-purchase-ui`, started from the commit.
+
+## Next: ECOM-015, the cart, checkout and confirmation screens (plan for your review)
+
+Nothing is built yet. The full technical plan is in [tasks/ECOM-015.md](tasks/ECOM-015.md) (journal D-097).
+
+**What you'll be able to do**
+- **Cart** (click "Cart: N items" in the header):
+  - change quantities or remove products;
+  - prices and the subtotal come from the shop, not the browser;
+  - if something sold out or was archived since you added it, the line says so and offers a one-click fix: "Only 3 left → Use 3", or "No longer sold → Remove".
+- **Checkout:**
+  - name, email, card number, expiry (MM/YY) and CVC, and a **Pay $189.98** button;
+  - free gift orders skip the card fields.
+- **Confirmation:** "Thank you, Ana. Your order is paid.", with the order number, the items, the total and "card ending in 4242".
+- **When something goes wrong**, you always see what happened and how to fix it:
+  - **declined card:** "Nothing was charged and nothing was taken from stock. Try another card." Only the card fields are cleared;
+  - **stock gone between the cart and Pay:** which items and how many are left, with a **Fix my cart** button;
+  - **a wrong field:** the message under that field;
+  - **no connection:** "Press Pay again: you won't be charged twice."
+- **A double click on Pay** sends one payment. Even if a second one got through, it would carry the same key, and the shop would return the first answer.
+
+**The acceptance criteria (from the ticket)**
+
+| # | Criterion | How I plan to prove it |
+|---|---|---|
+| 1 | A shopper can add products, pay with 4242… and see the confirmation | Screen test: add, cart, checkout, pay, confirmation page with the order |
+| 2 | A double-click on pay creates one order | Screen test with a fake shop that replays by key, like the real one: one order |
+| 3 | A declined card shows a clear message and lets the shopper try another card | Screen test: declined message, card cleared, the next attempt uses a new key and succeeds |
+| 4 | An insufficient-stock response shows which items and how many are available | Screen test: the 409 lists each item and what's left; **Fix my cart** updates the cart |
+
+**One choice for you: the cart's subtotal**
+
+§5 of the architecture says the cart shows "a subtotal computed by the server". No endpoint can price a cart without buying it yet, so I recommend adding a small one: `POST /orders/quote`.
+- It prices the cart from the catalog and flags sold-out or archived items. It writes nothing, locks nothing and charges nothing.
+- It uses the same rules as the checkout, so the cart and the checkout can never disagree.
+- The other option is for the browser to multiply the prices it already knows. I'd advise against it: the project's rule is that the browser never decides prices or totals (PR-07), and the cart couldn't warn about sold-out items before checkout.
+
+**Status:** ECOM-015 is In Progress (plan). Say "go" and I'll build it test-first, including the quote endpoint unless you'd rather not have it. When it's done, you can test ECOM-013, ECOM-014 and ECOM-015 together in the portal.
+
+## #032 — 2026-11-22 — main fast-forwarded; ECOM-015 built: cart, checkout and confirmation
+
+### User
+
+> merge it and go for 15
+
+### Assistant
+
+**Merged, and ECOM-015 is built: you can now test ECOM-013, ECOM-014 and ECOM-015 together in the portal.**
+
+- **The merge:** your local `main` now points at `bd8d8e0` (everything up to ECOM-014). It was a clean fast-forward, with no merge commit.
+- **Nothing is on GitHub.** Your repository there is still empty: nothing has ever been pushed. I didn't push, because that publishes the code. Say "push" if you want it there.
+- **ECOM-015:** built on `feature/ECOM-015-purchase-ui` and not committed. Both containers are rebuilt with the new code.
+- **Logged:** the merge is journal D-098.
+
+**Test-first:** the 19 new screen tests and the backend tests for the quote ran first and failed. Then I wrote the code until they passed.
+
+## ECOM-015: cart, checkout and confirmation
+
+**What was built**
+- **Cart:** click **Cart: N items** in the header.
+  - Change quantities or remove products.
+  - Prices and the subtotal come from the shop, not from what the browser saved.
+  - A product that sold out or was archived gets a one-click fix: "Only 3 left → **Use 3**", or "Out of stock → **Remove**".
+- **Checkout:**
+  - name, email, card number, expiry (MM/YY) and CVC, all checked before anything is sent;
+  - the test cards are shown under the card field;
+  - free gift orders skip the card.
+- **Confirmation:** "Thank you, Ana Souza. Your order is paid.", with the items, the total, the card ending, the order number and the payment reference.
+- **When something goes wrong:**
+  - **declined card:** the message, and only the card fields are cleared;
+  - **stock gone while you were paying:** which items and how many are left, with **Fix my cart**;
+  - **lost connection:** "Press Pay again: you won't be charged twice."
+- **Behind the scenes:** a small read-only service prices the cart (`POST /orders/quote`). It writes nothing, reserves no stock and charges nothing, and it uses the same rules as checkout.
+
+**Why it was built**
+Challenge rules CC-06 and CC-07 (buying through a UI), and so you can test ECOM-013 and ECOM-014 in the portal.
+
+**Main goal**
+A shopper buys in a few clicks, is never charged twice, and always understands what went wrong and how to fix it.
+
+| # | Criterion | Result | How it was proven |
+|---|---|---|---|
+| 1 | A shopper can add products, pay with 4242… and see the confirmation | ✅ Pass | Screen test: cart, checkout, pay, confirmation; the cart is emptied; the price comes from the shop even though the cart had saved a different one |
+| 2 | A double-click on pay creates one order | ✅ Pass | Screen test with a fake shop that recognises repeated attempts like the real one: one order, one key, stock taken once |
+| 3 | A declined card shows a clear message and lets the shopper try another card | ✅ Pass | Declined message, card cleared, name and cart kept; the next card is paid |
+| 4 | An insufficient-stock response shows which items and how many are available | ✅ Pass | "Running Shoes: you asked for 2, 1 available."; **Fix my cart** sets it to 1 |
+
+**Human testable or background?** **Testable** in the portal.
+
+### What to test (http://localhost:3000; press **Ctrl+F5** once first)
+
+This also covers ECOM-013 and ECOM-014.
+
+1. **Shop → Running Shoes → Add to cart** twice, then **Collar gift → Add to cart**. Click **Cart: 3 items** in the header.
+   → Running Shoes $94.99 × 2 = $189.98, Collar gift $0.00, **Subtotal: $189.98**.
+2. Type **500** as the Running Shoes quantity.
+   → "Only 120 left.", with **Use …**, and **Go to checkout** is disabled. Set it back to **2**.
+3. **Go to checkout**. Fill in your name and email, card **4000 0000 0000 0002**, expiry **12/30**, CVC **123**, and press **Pay $189.98**.
+   → "Your card was declined. Nothing was charged…"; the card fields are empty and your name is still there.
+4. Card **4242 4242 4242 4242**, **12/30**, **123**, then **Pay $189.98**.
+   → "Thank you, …", "Your order is paid.", Total $189.98, "Paid with the card ending in 4242", and the order number. The header says **Cart: 0 items**.
+5. **Admin → Products**: Running Shoes went down by exactly 2. Its **History** shows "Stock decreased" by **Shop checkout**, with the order number.
+6. **Double click:** add Running Shoes once, check out, and double-click **Pay**.
+   → One confirmation; in Admin, the stock went down by exactly 1.
+7. **Free order:** add only **Collar gift**, then check out.
+   → "This order is free. No card is needed." → **Place free order** → "No card was needed: this order was free."
+8. **Stock gone while paying:** put 2 Running Shoes in the cart and open the checkout. In a second tab, Admin → edit Running Shoes, and set the stock to **1**. Back in the first tab, fill in the form and press **Pay**.
+   → "Running Shoes: you asked for 2, 1 available." → **Fix my cart** → the cart shows 1. Afterwards, set the stock back in Admin.
+9. *(Optional)* **Sold out in the cart:** put a product in the cart, then archive it in Admin and reopen the cart.
+   → "No longer sold." with **Remove**, and checkout is disabled until you remove it.
+
+### Failure cases and retries
+
+All 11 rows in [tasks/ECOM-015.md](tasks/ECOM-015.md) pass. The main ones:
+- **Pressing Pay twice,** or again after a lost connection, reuses the same key, so the shop gives back the first answer instead of charging again.
+- **Changing the cart or the form** makes it a new attempt with a new key.
+- **The screen never works out prices, totals or stock.** It shows what the shop answers, and the checkout re-checks everything with the stock locked.
+
+**Tests:** 9 new backend tests and 19 new frontend tests. In the CI container:
+- all static checks;
+- 45 tooling tests;
+- 861 backend tests, with 99.6% of the business rules covered;
+- 133 frontend tests, with 96% line coverage;
+- the smoke checks on your running stack.
+
+Live, the three new pages load through the website, and pricing a cart works (RS-001 × 2 = $189.98, Trail Shoes flagged as out of stock) without creating any order.
+
+**Status:** ECOM-013, ECOM-014 and ECOM-015 are In Review, waiting for your portal test. When you're happy, say "commit" and I'll commit ECOM-015. Next on the board is ECOM-016 (hardening, browser end-to-end tests and GitHub Actions).
+
+## #033 — 2026-11-22 — Code review round 3: ECOM-013 through ECOM-015
+
+### User
+
+> Do a code review to ecommet 15. Log every discovery as always
+
+### Assistant
+
+Code review through ECOM-015 is complete. Continuing from the reviewed ECOM-012 baseline, I found and fixed four defects. Every cause, regression and fix is recorded in journal decision D-099, the three tickets, and architecture revision 25.
+
+- **ECOM-013 — invalid email reached persistence:** a NUL control character passed email validation but PostgreSQL cannot store it. Emails now reject all control characters with a 422 before payment or writes.
+- **ECOM-013 — valid maximum cart overflowed:** 50 maximum-price lines at quantity 10,000 exceeded `orders.total numeric(16,2)`. Migration 0008 widens it to `numeric(18,2)` and the largest permitted order now round-trips exactly.
+- **ECOM-014 — idempotency card collision:** different cards sharing the last four digits were treated as the same request. New fingerprints use a versioned HMAC-SHA-256 of the complete canonical checkout under `CHECKOUT_FINGERPRINT_SECRET`; old keys remain replayable for their remaining 24-hour lifetime.
+- **ECOM-015 — visible and purchased quantities could differ:** entering `0`, blank, or more than 10,000 left the invalid value visible while checkout used the previous stored quantity. The cart is now a real constrained form and cannot navigate until the visible quantity is valid.
+
+Verification is fully green: all static and architecture checks, 45 tooling tests, 866 backend tests (99.62% scoped coverage), 134 frontend tests (95.81% line coverage), and all live smoke checks. The production images rebuilt successfully, both containers are healthy, and the live database is on migration 0008. `git diff --check` is clean.
+
+`CHECKOUT_FINGERPRINT_SECRET` is now required; Docker Compose supplies a local-development value, while a real deployment must override it with its own secret. The reviewed changes remain uncommitted on `feature/ECOM-015-purchase-ui`.

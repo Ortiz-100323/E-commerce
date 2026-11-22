@@ -2,6 +2,7 @@ import { ApiError } from './apiError'
 
 export const API_PREFIX = '/api/v1'
 export const ACTOR_HEADER = 'X-Actor-Name'
+export const IDEMPOTENCY_HEADER = 'Idempotency-Key'
 
 type QueryValue = string | number | boolean | null | undefined
 
@@ -10,6 +11,7 @@ export type RequestOptions = {
   file?: Blob
   query?: Record<string, QueryValue>
   actor?: string
+  idempotencyKey?: string
 }
 
 export const CSV_MEDIA_TYPE = 'text/csv'
@@ -40,6 +42,9 @@ export async function request<T>(
   }
   if (options.actor !== undefined) {
     headers[ACTOR_HEADER] = encodeURIComponent(options.actor)
+  }
+  if (options.idempotencyKey !== undefined) {
+    headers[IDEMPOTENCY_HEADER] = options.idempotencyKey
   }
   let response: Response
   try {

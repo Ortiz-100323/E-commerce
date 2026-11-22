@@ -65,6 +65,7 @@ class Dependencies:
     payment_gateway: PaymentGateway
     transient_errors: TransientErrors
     idempotency_key_lifetime: timedelta
+    checkout_fingerprint_secret: bytes
 
 
 DependenciesFactory = Callable[[], AbstractAsyncContextManager[Dependencies]]
@@ -93,6 +94,7 @@ async def production_dependencies() -> AsyncIterator[Dependencies]:
             payment_gateway=FakePaymentGateway(),
             transient_errors=DatabaseTransientErrors(),
             idempotency_key_lifetime=checkout.idempotency_key_lifetime,
+            checkout_fingerprint_secret=checkout.fingerprint_key,
         )
     finally:
         await engine.dispose()
@@ -113,6 +115,7 @@ def create_app(dependencies_factory: DependenciesFactory = production_dependenci
             app.state.payment_gateway = dependencies.payment_gateway
             app.state.transient_errors = dependencies.transient_errors
             app.state.idempotency_key_lifetime = dependencies.idempotency_key_lifetime
+            app.state.checkout_fingerprint_secret = dependencies.checkout_fingerprint_secret
             yield
 
     app = FastAPI(title="E-commerce API", version="0.1.0", lifespan=lifespan)

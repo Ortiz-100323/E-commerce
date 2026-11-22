@@ -84,6 +84,10 @@ class InMemoryCatalogGateway:
     def __init__(self, work: "InMemoryOrderingUnitOfWork") -> None:
         self._work = work
 
+    async def products_for_sale(self, skus: Collection[str]) -> dict[str, SaleProduct]:
+        products = self._work.state.products
+        return {sku: products[sku] for sku in sorted(skus) if sku in products}
+
     async def lock_for_sale(self, skus: Collection[str]) -> dict[str, SaleProduct]:
         state = self._work.state
         if state.failures:

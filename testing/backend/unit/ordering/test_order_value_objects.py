@@ -38,6 +38,7 @@ def test_a_customer_is_trimmed_and_the_email_lower_cased() -> None:
         ("Ana", "ana.example.com", [("customer.email", "invalid_email")]),
         ("Ana", "ana@example", [("customer.email", "invalid_email")]),
         ("Ana", "ana @example.com", [("customer.email", "invalid_email")]),
+        ("Ana", "ana\x00@example.com", [("customer.email", "control_characters_not_allowed")]),
         ("Ana", "a@" + "b" * 250 + ".com", [("customer.email", "too_long")]),
         ("", "nope", [("customer.name", "required"), ("customer.email", "invalid_email")]),
     ],

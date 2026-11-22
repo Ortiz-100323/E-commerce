@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -41,6 +42,10 @@ from ecommerce.shared_kernel.domain.errors import (
 )
 from ecommerce.shared_kernel.domain.money import Money
 
+UNKNOWN = "unknown"
+ARCHIVED = "archived"
+OUT_OF_STOCK = "out_of_stock"
+INSUFFICIENT_STOCK = "insufficient_stock"
 KEY_LIFETIME = timedelta(hours=24)
 DEFAULT_DECLINE_REASON = "card_declined"
 ATTEMPTS = 2
@@ -85,7 +90,31 @@ def response_status(order: Order) -> int:
     return HTTPStatus.CREATED
 
 
-def fingerprint(customer: Customer, lines: Sequence[RequestedLine], last4: str | None) -> str:
+def fingerprint(
+    customer: Customer,
+    lines: Sequence[RequestedLine],
+    card: PaymentCard | None,
+    secret: bytes,
+) -> str:
+    canonical = {
+        "customer": {"email": customer.email.strip().lower(), "name": customer.name.strip()},
+        "lines": [[line.sku, line.quantity] for line in lines],
+        "payment": None
+        if card is None
+        else {
+            "card_number": card.number,
+            "cvc": card.cvc,
+            "expiry_month": card.expiry_month,
+            "expiry_year": card.expiry_year,
+        },
+    }
+    text = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
+    return "v2:" + hmac.new(secret, text.encode(), hashlib.sha256).hexdigest()
+
+
+def legacy_fingerprint(
+    customer: Customer, lines: Sequence[RequestedLine], last4: str | None
+) -> str:
     canonical = {
         "card_last4": last4,
         "customer": {"email": customer.email.strip().lower(), "name": customer.name.strip()},
@@ -116,19 +145,28 @@ def prepare(command: CheckoutCommand, today: date) -> PreparedCheckout:
     return PreparedCheckout(customer=customer, lines=lines, card=card)
 
 
+def line_problem(line: RequestedLine, product: SaleProduct | None) -> str | None:
+    if product is None:
+        return UNKNOWN
+    if not product.active:
+        return ARCHIVED
+    if product.stock == 0:
+        return OUT_OF_STOCK
+    if line.quantity > product.stock:
+        return INSUFFICIENT_STOCK
+    return None
+
+
 def check_sellable(lines: Sequence[RequestedLine], products: dict[str, SaleProduct]) -> None:
     unsellable: list[UnsellableItem] = []
     short: list[ShortItem] = []
     for line in lines:
         product = products.get(line.sku)
-        if product is None:
-            unsellable.append(UnsellableItem(line.sku, "unknown"))
-        elif not product.active:
-            unsellable.append(UnsellableItem(line.sku, "archived"))
-        elif product.stock == 0:
-            unsellable.append(UnsellableItem(line.sku, "out_of_stock"))
-        elif line.quantity > product.stock:
+        problem = line_problem(line, product)
+        if problem == INSUFFICIENT_STOCK and product is not None:
             short.append(ShortItem(line.sku, line.quantity, product.stock))
+        elif problem is not None:
+            unsellable.append(UnsellableItem(line.sku, problem))
     if unsellable:
         raise ProductsNotSellable(unsellable)
     if short:
@@ -201,12 +239,14 @@ class Checkout:
         payments: PaymentGateway,
         clock: Clock,
         *,
+        fingerprint_secret: bytes,
         key_lifetime: timedelta = KEY_LIFETIME,
         transient: TransientErrors | None = None,
     ) -> None:
         self._ordering = ordering
         self._payments = payments
         self._clock = clock
+        self._fingerprint_secret = fingerprint_secret
         self._key_lifetime = key_lifetime
         self._transient = transient
 
@@ -216,12 +256,24 @@ class Checkout:
         key_fingerprint = fingerprint(
             prepared.customer,
             prepared.lines,
+            prepared.card,
+            self._fingerprint_secret,
+        )
+        previous_fingerprint = legacy_fingerprint(
+            prepared.customer,
+            prepared.lines,
             None if prepared.card is None else prepared.card.last4,
         )
         attempt = 1
         while True:
             try:
-                return await self._attempt(command.idempotency_key, key_fingerprint, prepared, now)
+                return await self._attempt(
+                    command.idempotency_key,
+                    key_fingerprint,
+                    previous_fingerprint,
+                    prepared,
+                    now,
+                )
             except Exception as error:
                 if attempt >= ATTEMPTS or not self._is_transient(error):
                     raise
@@ -231,14 +283,19 @@ class Checkout:
         return self._transient is not None and self._transient.is_transient(error)
 
     async def _attempt(
-        self, key: UUID, key_fingerprint: str, prepared: PreparedCheckout, now: datetime
+        self,
+        key: UUID,
+        key_fingerprint: str,
+        previous_fingerprint: str,
+        prepared: PreparedCheckout,
+        now: datetime,
     ) -> CheckoutResult:
         async with self._ordering() as work:
             existing = await work.idempotency.claim(
                 key, key_fingerprint, now=now, expires_at=now + self._key_lifetime
             )
             if existing is not None:
-                if existing.fingerprint != key_fingerprint:
+                if existing.fingerprint not in (key_fingerprint, previous_fingerprint):
                     raise IdempotencyKeyReused()
                 stored = await work.orders.get(OrderId(existing.order_id))
                 if stored is None:
@@ -263,3 +320,74 @@ class GetOrder:
         if order is None:
             raise OrderNotFound(order_id)
         return order
+
+
+@dataclass(frozen=True, kw_only=True)
+class QuoteLine:
+    sku: str
+    quantity: int
+    product: SaleProduct | None
+    problem: str | None
+
+    @property
+    def unit_price(self) -> Money | None:
+        return None if self.product is None else Money(self.product.price)
+
+    @property
+    def line_total(self) -> Money | None:
+        price = self.unit_price
+        return None if price is None else price * self.quantity
+
+    @property
+    def name(self) -> str | None:
+        return None if self.product is None else self.product.name
+
+    @property
+    def available(self) -> int:
+        product = self.product
+        if product is None or not product.active:
+            return 0
+        return product.stock
+
+
+@dataclass(frozen=True, kw_only=True)
+class Quote:
+    lines: tuple[QuoteLine, ...]
+
+    @property
+    def total(self) -> Money:
+        total = Money.zero()
+        for line in self.lines:
+            line_total = line.line_total
+            if line.problem is None and line_total is not None:
+                total = total + line_total
+        return total
+
+    @property
+    def ready(self) -> bool:
+        return all(line.problem is None for line in self.lines)
+
+    @property
+    def payment_required(self) -> bool:
+        return not self.total.is_zero
+
+
+class QuoteCart:
+    def __init__(self, ordering: OrderingUnitOfWorkFactory) -> None:
+        self._ordering = ordering
+
+    async def execute(self, lines: tuple[tuple[str, int], ...]) -> Quote:
+        requested = merge_lines(lines)
+        async with self._ordering() as work:
+            products = await work.catalog.products_for_sale([line.sku for line in requested])
+        return Quote(
+            lines=tuple(
+                QuoteLine(
+                    sku=line.sku,
+                    quantity=line.quantity,
+                    product=products.get(line.sku),
+                    problem=line_problem(line, products.get(line.sku)),
+                )
+                for line in requested
+            )
+        )

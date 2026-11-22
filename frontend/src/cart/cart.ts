@@ -87,3 +87,14 @@ export function addOne(lines: CartLine[], product: Product): CartLine[] {
     },
   ]
 }
+
+export function withQuantity(lines: CartLine[], sku: string, quantity: number): CartLine[] {
+  if (quantity < 1) {
+    return withoutLine(lines, sku)
+  }
+  return lines.map((line) => (line.sku === sku ? { ...line, quantity } : line))
+}
+
+export function withoutLine(lines: CartLine[], sku: string): CartLine[] {
+  return lines.filter((line) => line.sku !== sku)
+}

@@ -22,6 +22,7 @@ services:
     build: ./backend
     environment:
       DATABASE_URL: postgresql+psycopg://ecommerce:ecommerce@db:5432/ecommerce
+      CHECKOUT_FINGERPRINT_SECRET: local-development-checkout-secret-change-me
     ports:
       - "8001:8000"
     depends_on:

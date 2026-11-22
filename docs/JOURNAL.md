@@ -1311,7 +1311,7 @@ Template:
 
 ### D-096: Checkout safety as built: idempotency key, lock timeout and deadlock retry (ECOM-014)
 - **Date:** 2026-11-22
-- **Status:** Accepted (owner, prompt #031: "I agreee with the out of stock"); the owner will test it through the ECOM-015 screens
+- **Status:** Accepted (owner, prompt #031: "I agreee with the out of stock"); verified by the owner's portal test in prompt #034. The fingerprint was later changed by D-099.
 - **Context:** the owner asked to build ECOM-013 and ECOM-014 together with the proposed defaults (prompt #030). §7.2 and §7.3 describe the design; this entry records how it was built and where it differs.
 - **Decision:**
   - **One use case, one transaction.** `Checkout` validates the request, opens the unit of work, claims the key, places the order and records the outcome before committing. The key, the order, the stock change and the audit entries commit or roll back together. A refused checkout (409 or 422) leaves no key behind, so the shopper can fix the cart and retry with the same key.
@@ -1330,3 +1330,42 @@ Template:
   - A separate `IdempotentCheckout` class around `Checkout` (rejected: both need the same unit of work and transaction; one class is simpler, and the order steps stay in their own function, `place_order`).
   - Storing the whole response body against the key (rejected: the order is already stored and immutable, so the answer can be rebuilt, and nothing about a customer is duplicated).
   - Catching the database's deadlock error inside the application (rejected: it would import the driver into the application layer, which the layer contract forbids).
+
+### D-097: Purchase screens plan, with a server-side cart quote (ECOM-015)
+- **Date:** 2026-11-22
+- **Status:** Accepted (owner, prompt #032); verified by the owner's portal test in prompt #034
+- **Context:** the owner committed ECOM-013 and ECOM-014 and wants to test them through the portal, so ECOM-015 (cart, checkout and confirmation) is next.
+- **Decision (proposed):**
+  - **A read-only `POST /orders/quote`** prices a cart from the catalog and reports each line's problem (`unknown`, `archived`, `out_of_stock`, `insufficient_stock`) without writing or locking anything. The cart's subtotal therefore comes from the server, as §5 and PR-07 require. It reuses checkout's merging and checks through a read-only `CatalogGateway.products_for_sale`, so the cart and the checkout follow one rule.
+  - **The idempotency key lives in the checkout screen:** created when the page opens, reused for double clicks, network errors and 503s, replaced when the cart or form changes and after a final answer (§7.2).
+  - **Every refusal leads to a fix:** a 409 offers **Fix my cart** (quantities set to what's available, unsellable lines removed); a 402 keeps the form and clears only the card; a 422 shows each error under its field.
+  - **The cart is emptied only after a 201.**
+- **Alternatives:**
+  - The browser multiplies prices it fetched from `GET /products/{id}` (rejected: the client would be computing totals, against PR-07, with one request per line).
+  - No subtotal until checkout (rejected: §5 promises a subtotal in the cart, and problems are better found before the shopper types a card).
+
+### D-098: `main` fast-forwarded to ECOM-014, nothing pushed
+- **Date:** 2026-11-22
+- **Status:** Done (owner's request in prompt #032: "merge it")
+- **Context:**
+  - Until now the owner merged the branches. Local `main` was still the first commit (`9aad811`), and each ticket branch had been started from the previous one, so `feature/ECOM-013-ordering` contained every ticket up to ECOM-014.
+  - The GitHub repository has no branches yet: nothing has ever been pushed.
+- **Decision:**
+  - Local `main` was fast-forwarded to `bd8d8e0` (ECOM-013 and ECOM-014) with `git fetch . feature/ECOM-013-ordering:main`. There is no merge commit, the history stays linear, and the branch being worked on did not change.
+  - Nothing was pushed, because pushing publishes the code and the owner did not ask for it.
+- **Consequences:** ECOM-015 continues on `feature/ECOM-015-purchase-ui`, started from the same commit, so merging it later is again a fast-forward.
+
+### D-099: Code review round 3 for ECOM-013 through ECOM-015
+- **Date:** 2026-11-22
+- **Status:** Accepted (review and fixes requested by the owner)
+- **Scope:** ECOM-013, ECOM-014 and the uncommitted ECOM-015, reviewed together because order validation, idempotency, quoting and the purchase screens are one checkout path.
+- **Discoveries and fixes:**
+  - **ECOM-013 — email control character:** `ana\u0000@example.com` matched the deliberately small email pattern, but PostgreSQL cannot store a NUL byte. It could therefore reach persistence after the payment step and fail as an infrastructure error. Email validation now rejects every control character as `control_characters_not_allowed`; unit and API regressions prove a 422 with no order or stock change.
+  - **ECOM-013 — maximum total overflow:** every individual input could be valid while 50 maximum-price lines at quantity 10,000 totalled `4999999999995000.00`, beyond `orders.total numeric(16,2)`. The reproduced PostgreSQL error was `NumericValueOutOfRange`. Migration 0008 widens only the order total to `numeric(18,2)`; line totals already fit `numeric(16,2)`. The largest valid order now round-trips exactly.
+  - **ECOM-014 — card collision in the idempotency fingerprint:** the old fingerprint used only the last four card digits. Reusing a key with a different Luhn-valid card ending in the same four digits returned the first 201 as a replay, violating "same key, different body". New fingerprints are `v2:` plus HMAC-SHA-256 of the whole canonical checkout, including every payment field, under the required `CHECKOUT_FINGERPRINT_SECRET` (minimum 32 characters). The database stores neither the card nor a guessable unkeyed card hash.
+  - **ECOM-014 — deployment compatibility:** migration 0008 widens the fingerprint column to 67 characters. Unversioned records from the previous build are still recognised by the old last-four calculation for their remaining 24-hour lifetime, so deploying the fix does not break an in-flight safe retry. Every new record uses v2 and rejects the collision.
+  - **ECOM-015 — visible quantity differed from purchased quantity:** an invalid draft such as `0`, blank or over 10,000 stayed visible while the cart retained its previous valid number. Because **Go to checkout** was a plain button, it still navigated and could buy the hidden previous quantity. The cart is now a form, the quantity is required, and checkout is its submit; native min/max/required validation blocks navigation while the visible value is invalid.
+- **Per-ticket conclusion:** no other defect was found in ECOM-013's pricing/payment/audit flow, ECOM-014's key claim/locking/timeout paths, or ECOM-015's quote, retry, conflict-repair and confirmation paths.
+- **Verification:** the regressions were observed failing before the fixes. Final complete-suite counts are recorded after the run in prompt #033 and the three tickets.
+- **Supersedes:** D-032 and D-096 only where they accepted a last-four-only fingerprint. Their privacy concern remains valid; the secret-keyed HMAC resolves it without storing an offline-guessable card hash.
+- **Final verification:** `python testing/run.py all` passed all static and architecture checks, 45 tooling tests, 866 backend tests (99.62% scoped coverage), 134 frontend tests (95.81% line coverage), and all live smoke checks. The production images rebuilt successfully, both application containers are healthy, migration 0008 is applied to the live database, and the smoke checks passed again against the rebuilt stack.

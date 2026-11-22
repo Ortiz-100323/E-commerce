@@ -27,6 +27,8 @@
 > | 21 | 2026-11-21 | Review fixes through ECOM-012: confirmations bind to the outcome the reviewer saw, selected-file media types reach server validation unchanged, and absent SKUs are protected with shared transaction advisory locks (§4.4, §4.5, D-093). |
 > | 22 | 2026-11-22 | The owner's portal test of the import: skipped rows leave their tab for a new **Skipped** tab, where a decision can still be changed (§5, D-094). |
 > | 23 | 2026-11-22 | ECOM-013 and ECOM-014: ordering, the fake payment and the checkout safety net as built. The catalog adapter lives outside both contexts, `ordering` and `catalog` never import each other, an unknown SKU is `product-not-sellable`, and the last unit gives `out_of_stock` (§3.1, §4.5, §4.6, §7.2, §7.3, §8.3, D-095, D-096). |
+> | 24 | 2026-11-22 | ECOM-015: the purchase screens as built (cart, checkout, confirmation), and a read-only `POST /orders/quote` so the cart subtotal comes from the server (§4.5, §5, D-097). |
+> | 25 | 2026-11-22 | Review fixes through ECOM-015: full checkout bodies use a secret-keyed idempotency fingerprint, migration 0008 widens the maximum order total, email controls are rejected, and invalid visible cart quantities cannot navigate to checkout (§4.2, §5, §7.2, D-099). |
 >
 > Every decision here also appears in [JOURNAL.md](JOURNAL.md) with its context and the alternatives considered.
 
@@ -268,6 +270,7 @@ Exact versions are pinned in Phase 0 and logged in the journal.
 - **State:** `OrderId`, `status`, `customer` (name and email), `lines[]`, `total`, `payment_reference`, `idempotency_key` and timestamps.
   - `status` moves from `PENDING` to either `PAID` or `PAYMENT_FAILED`.
 - `OrderLine` is a **snapshot** of the SKU, name, unit price, quantity and gift flag at the moment of purchase.
+- Customer names and emails reject control characters before persistence. Migration 0008 stores the order total as `numeric(18,2)`, enough for all 50 maximum-price lines at the maximum quantity of 10,000 (D-099).
 - **Invariants:**
   - There is at least 1 line.
   - Every quantity is ≥ 1.
@@ -360,6 +363,7 @@ Exact versions are pinned in Phase 0 and logged in the journal.
   - Answers: 201 with `Location` and the order (`PAID`); 402 `payment-declined` with `order_id` and the failed order; 409 `product-not-sellable` or `insufficient-stock`; 422 for bad input or a reused key; 503 after a 5-second lock wait. A replay carries `Idempotent-Replayed: true`.
   - An order is returned with its customer, its lines (SKU, product id, name, unit price, quantity, gift, line total), total, currency, card last 4, payment reference, decline reason, and created and settled times. Money is sent as strings.
   - `GET /orders/{id}` returns the order, or 404.
+  - `POST /orders/quote` (ECOM-015, D-097) takes `{lines: [{sku, quantity}]}` and prices the cart from the catalog without writing or locking anything. Each line comes back with its name, unit price, line total, how many are available and its problem (`unknown`, `archived`, `out_of_stock`, `insufficient_stock`, or none). The answer also carries the total of the lines without problems, `ready` and `payment_required`. It uses the same rules as checkout.
 
 ### 4.6 Errors: one format for everything
 
@@ -491,6 +495,12 @@ Domain validation **collects every issue before raising**, rather than stopping 
 | | `/admin/imports/:id` | **Review screen**, with one tab per outcome. Needs-review rows get an inline editor plus confirm and skip actions. Update rows show an old → new diff per field with a confirm checkbox, plus "confirm all". Rejected rows show their reasons, and warnings are listed too. The commit button stays disabled until the batch can be committed. |
 
 **Import screens as built (ECOM-012, D-092).** The admin menu has **Import CSV**. The upload sends the file itself as a `text/csv` body. The review screen takes every row, allowed action and the commit state from the server, replaces a row from the server's answer after each decision, and explains each 409 (`import-stale-rows`, `import-not-committable`, `import-not-pending`) on the page. A skipped row leaves its outcome tab and is listed under **Skipped**, where it can still be corrected, confirmed or ticked again; tab counts are counted from the server's rows (D-094).
+**Purchase screens as built (ECOM-015, D-097, D-099).**
+- The header's **Cart: N items** links to `/cart`. The cart asks the server for a quote whenever it changes, shows the server's prices and subtotal, and offers a fix for each problem: **Use N** or **Remove**.
+- The cart is a form: `required`, minimum and maximum quantity constraints block checkout while the visible value is invalid. The stored previous quantity can never be bought behind a visibly invalid field.
+- `/checkout` checks the name, email, card (Luhn), expiry (MM/YY, not past) and CVC in the browser. It creates a fresh `Idempotency-Key` for each new request, and reuses it after a lost connection or a 503, so a retry is replayed rather than charged twice.
+- A 402 clears only the card fields. A 409 lists the items with **Fix my cart**. A 422 is shown under each field.
+- `/orders/:id` is the confirmation page. The cart is emptied only after a 201.
 
 ---
 
@@ -781,7 +791,7 @@ POST /api/v1/orders    Idempotency-Key: 6f1c2a…    body: {customer, lines[], p
 - the email in lower case;
 - JSON keys sorted, with no whitespace.
 
-The **card number is never part of the fingerprint**. Only its last 4 digits are, because a hash of a full card number can be brute-forced. As a result, retrying the same key with a different card that has the same last 4 digits counts as the same request. That trade-off is acceptable.
+**Fingerprint privacy and completeness (D-099).** The full canonical checkout, including the card, expiry and CVC, is authenticated with HMAC-SHA-256 under the required `CHECKOUT_FINGERPRINT_SECRET`; the stored value is `v2:` plus the digest. A database reader cannot test guessed card values without the separate application secret, and no raw payment value is stored or logged. This also means any changed payment field is a different request, even when two cards share their last four digits. Unversioned fingerprints created by the previous release remain replayable until their normal 24-hour expiry, then disappear naturally.
 
 **What happens in each case**
 
@@ -816,7 +826,7 @@ None of this is needed for the fake gateway. It is recorded here so the design i
 - After a 402, the same key replays the 402.
 - A missing or malformed key gives 400.
 - An expired key is treated as new.
-**As built (ECOM-014, D-096):** every test above passes, plus a replayed 402. The claim is `INSERT … ON CONFLICT DO NOTHING`; an expired key is taken over with a conditional `UPDATE`; a replay rebuilds the answer from the stored order, which never changes once settled. The key's lifetime and the lock timeout are the settings `CHECKOUT_IDEMPOTENCY_KEY_HOURS` (24) and `CHECKOUT_LOCK_TIMEOUT_MS` (5000).
+**As built (ECOM-014, D-096, D-099):** every test above passes, plus a replayed 402. The claim is `INSERT … ON CONFLICT DO NOTHING`; an expired key is taken over with a conditional `UPDATE`; a replay rebuilds the answer from the stored order, which never changes once settled. The key's lifetime and the lock timeout are the settings `CHECKOUT_IDEMPOTENCY_KEY_HOURS` (24) and `CHECKOUT_LOCK_TIMEOUT_MS` (5000). `CHECKOUT_FINGERPRINT_SECRET` is required and must contain at least 32 characters.
 
 ### 7.3 Stock: never sell what we no longer have
 

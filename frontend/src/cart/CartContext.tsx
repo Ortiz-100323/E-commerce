@@ -14,6 +14,8 @@ import {
   canAdd,
   quantityIn,
   readCart,
+  withoutLine,
+  withQuantity,
   writeCart,
   type AddResult,
   type CartLine,
@@ -24,6 +26,10 @@ type CartApi = {
   count: number
   quantityOf: (productId: string) => number
   add: (product: Product) => AddResult
+  setQuantity: (sku: string, quantity: number) => void
+  remove: (sku: string) => void
+  update: (change: (lines: CartLine[]) => CartLine[]) => void
+  clear: () => void
 }
 
 const CartContext = createContext<CartApi | null>(null)
@@ -32,16 +38,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [lines, setLines] = useState<CartLine[]>(() => readCart())
   const latest = useRef(lines)
 
-  const add = useCallback((product: Product): AddResult => {
-    const result = canAdd(latest.current, product)
-    if (result === 'added') {
-      const next = addOne(latest.current, product)
-      latest.current = next
-      writeCart(next)
-      setLines(next)
-    }
-    return result
+  const update = useCallback((change: (current: CartLine[]) => CartLine[]) => {
+    const next = change(latest.current)
+    latest.current = next
+    writeCart(next)
+    setLines(next)
   }, [])
+
+  const add = useCallback(
+    (product: Product): AddResult => {
+      const result = canAdd(latest.current, product)
+      if (result === 'added') {
+        update((current) => addOne(current, product))
+      }
+      return result
+    },
+    [update],
+  )
 
   const api = useMemo(
     () => ({
@@ -49,8 +62,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
       count: lines.reduce((total, line) => total + line.quantity, 0),
       quantityOf: (productId: string) => quantityIn(lines, productId),
       add,
+      setQuantity: (sku: string, quantity: number) =>
+        update((current) => withQuantity(current, sku, quantity)),
+      remove: (sku: string) => update((current) => withoutLine(current, sku)),
+      update,
+      clear: () => update(() => []),
     }),
-    [lines, add],
+    [lines, add, update],
   )
 
   return <CartContext.Provider value={api}>{children}</CartContext.Provider>
