@@ -5,7 +5,7 @@
 | Type | Technical task |
 | Phase | 6 |
 | Status | **Backlog** |
-| Depends on | ECOM-016 |
+| Depends on | ECOM-016, ECOM-018, ECOM-019, ECOM-020 (delivered last, owner's priority order, prompt #037) |
 | Architecture | §12 (Phase 6), CC-04, CC-09 to CC-12 |
 
 ## Context

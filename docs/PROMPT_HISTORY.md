@@ -2229,3 +2229,141 @@ One difference: the images measure smaller on GitHub's Linux machines (frontend 
 These notes were pushed to the same pull request, which runs the checks once more.
 
 **Status:** ECOM-016 is In Review. When you're happy, merge pull request #1 on GitHub, or tell me "merge" and I'll do it. Next on the board is ECOM-017 (README and delivery).
+
+## #037 — 2026-11-22 — New priority order; ECOM-019 and ECOM-020 created; ECOM-018 plan (product card)
+
+### User
+
+> New priority order: ECOM-018 next, then two new tasks, and ECOM-017 last. Keep the existing IDs, only change the order.
+>
+> *(Pasted text:)*
+>
+> Let's refine the product card in the catalog. Today it only shows name, category and price, and to buy anything I have to open the product. I want it to feel like a real store card.
+>
+> Put an image area on top, with a 4:3 ratio. We don't have photos yet, so use a clean placeholder with the category color and icon, and when the product has an image URL, show the image instead.
+>
+> Below the image, the name in at most two lines, the category in a smaller, softer text, and the price highlighted. If stock is low, show a small "Only N left" badge; if it's sold out, show "Out of stock" and disable the button.
+>
+> Add an "Add to cart" button right on the card, so I can buy without opening the product. Clicking anywhere else on the card opens the product page.
+>
+> On hover, lift the card a little with a soft shadow, and make sure every card has the same height so the grid stays aligned. It also needs to work with the keyboard and look good on mobile.
+>
+> One more thing: we have two "Bluetooth Speaker" cards with different prices, so show something that tells them apart.
+>
+> Show me the plan first, then check the card with Playwright on desktop and mobile before you show me.
+>
+> *(End of pasted text.)*
+>
+> Create ECOM-019: login screen for admins. Product management and CSV import are only reachable after an admin logs in. Reuse the backend admin auth if it already exists, otherwise add the minimum needed.
+>
+> Create ECOM-020: a very simple buyer account. Register with name, email and password, log in, and a "My orders" page listing their purchases. Orders made while logged in are linked to the buyer; guest checkout keeps working. Keep it minimal: no email confirmation, no password reset, no profile editing.
+>
+> Both tasks with acceptance criteria in the task files, tests first, and decisions in JOURNAL.md. Start with ECOM-018 and show me the plan before you build. Add what you believe will be best standard for those tasks.
+
+### Assistant
+
+**The board has the new order, ECOM-019 and ECOM-020 are created, and the ECOM-018 plan is ready for your review.** Nothing is built yet.
+
+## The new order (journal D-105)
+
+**ECOM-016** (pull request #1, waiting for your merge) → **ECOM-018** → **ECOM-019** → **ECOM-020** → **ECOM-017** last. The IDs are unchanged. I'm on a new branch, `feature/ECOM-018-ui-polish`, started from ECOM-016.
+
+## ECOM-018: the product card first (plan, journal D-106)
+
+The full plan is in [tasks/ECOM-018.md](tasks/ECOM-018.md). I split the ticket in two parts:
+- **Part A:** your card. It's built first, checked with Playwright on desktop and on a phone, and only then shown to you.
+- **Part B:** the UX remarks we collected since ECOM-007. It's planned in detail after you accept the card.
+
+**The card**
+- **Image area, 4:3.** It shows the product's photo when it has an image URL. Otherwise it shows a clean placeholder: a soft tint of the category's colour and a simple icon (Electronics, Sports, Home & Office, Kitchen, Gifts, Books, and so on). The colour stays the same for a category every time.
+  - A broken image falls back to the placeholder, and the space is reserved, so nothing jumps while it loads.
+- **Below the image:** the name in at most two lines (full name on hover), the category smaller and softer, and the price highlighted ("Free" for gifts).
+- **Stock:** "Only N left" when 1 to 5 are left, and "Out of stock" with a disabled button.
+- **Add to cart on the card**, with the same rules as the product page (never more than the stock). It briefly confirms "Added", and screen readers hear it too.
+- **Anywhere else on the card** opens the product page.
+- **Hover:** a small lift with a soft shadow. It stays still for people who ask their computer to reduce motion.
+- **Same height** for every card, with the button aligned at the bottom.
+- **Keyboard:** Tab reaches the card (with a visible frame), then its button.
+- **Mobile:** two columns, big touch targets.
+- **The two Bluetooth Speakers:** every card shows its SKU in small text, "SKU BS-021" and "SKU BS-099", the way real shops show a model number.
+
+**Checked with Playwright before you see it,** on desktop (1280 × 800) and a phone (Pixel 7):
+- the 4:3 ratio, the two-line limit, equal heights, the badges, adding from the card, clicking the card, and the keyboard;
+- screenshots go into the evidence folder for you;
+- nothing is bought, so your stock doesn't change.
+
+**Acceptance criteria (part A):**
+1. The image or the placeholder appears in a 4:3 area.
+2. Two lines of name, softer category, highlighted price.
+3. The stock badges and a disabled button when sold out.
+4. Add to cart from the card, never past the stock.
+5. Clicking the card opens the product.
+6. Equal heights on desktop and mobile.
+7. Keyboard only works.
+8. Look-alikes can be told apart.
+9. Playwright checks all of it on desktop and mobile.
+10. An admin can set an image URL (HTTPS only), and the change shows in the product's history.
+
+**Decisions for you**
+
+1. **Product images need a small backend change.** Products have no image field today.
+   - I'd add an optional **Image URL** to the product: HTTPS only, settable in the admin form with a preview, and recorded in the product's history.
+   - The security policy from ECOM-016 then has to allow images from other HTTPS sites. OK?
+   - The alternative is uploading photos to the shop itself. That's a bigger feature, which I'd leave for later.
+2. **"Only N left" from 5 units down.** OK, or another number?
+3. **An accessibility checker (optional).** I could add `@axe-core/playwright` (a new package, so it needs your approval) to check the card and pages for accessibility problems automatically on every run. Without it, I check the keyboard and labels myself in the tests.
+
+## ECOM-019 and ECOM-020: created
+
+Both have acceptance criteria, failure cases and a test plan in their files ([ECOM-019](tasks/ECOM-019.md), [ECOM-020](tasks/ECOM-020.md)), with the choices in journal D-107 and D-108. I'll show you a detailed plan before building each one.
+
+**The standards I chose** (no admin login exists yet, so this is the minimum needed):
+- **Passwords:**
+  - hashed with scrypt from Python's standard library, so no new package;
+  - at least 12 characters, with no "must contain a symbol" rules (the current NIST guidance).
+- **Sessions:**
+  - stored on the server, behind a secure cookie that scripts can't read, so signing out ends them at once;
+  - admins are signed out after 30 idle minutes or 8 hours;
+  - buyers and admins have separate sessions, and neither grants the other's rights.
+- **Brute force:**
+  - after 5 wrong attempts in 15 minutes, that email is blocked for a while;
+  - the error never says whether the email or the password was wrong.
+- **Who did what:**
+  - the audit log records the signed-in admin;
+  - the "Who is reviewing?" box and its header go away, so nobody can type someone else's name.
+- **The first admin:** a command for a real server, and a development admin for local Docker (public local values, like the database login).
+- **Buyers:**
+  - orders placed while signed in are linked to the buyer, and guest checkout is unchanged;
+  - "My orders" shows only your own orders;
+  - past guest orders aren't linked automatically, because the email isn't verified.
+- **One trade-off to know about:** registering an email that's already used says so clearly. It reveals that the email has an account, which is acceptable for a minimal shop without email confirmation.
+
+**Status:** ECOM-018 is In Progress (plan). Answer the three decisions (or just "go" for my recommendations: yes to image URLs, 5 units, no extra package), and I'll build part A and show it to you with the Playwright screenshots.
+
+## #038 — 2026-11-22 — ECOM-018 plan accepted, registered and committed; not started
+
+### User
+
+> I agree with three questions. But register everything and commit. Dont start it yet.
+
+### Assistant
+
+**Registered and committed. Nothing is started.**
+
+I read your answer as accepting my three recommendations:
+1. **Product images:** an optional, HTTPS-only image URL for each product, set in the admin form and recorded in its history. The security policy will allow images from HTTPS sites.
+2. **"Only N left"** from 5 units down.
+3. **No accessibility package:** the keyboard and label checks are written in our own tests.
+
+If you meant "yes" to adding the accessibility checker, tell me and I'll change decision 3.
+
+**Where it's recorded**
+- **Journal D-106:** the plan is marked accepted, with your three answers.
+- **[tasks/ECOM-018.md](tasks/ECOM-018.md):** status **To Do** (plan accepted, not started), with your decisions above the plan.
+- **The board:** the new order (ECOM-018 → ECOM-019 → ECOM-020 → ECOM-017), and ECOM-018 as "To Do (plan accepted)".
+- **New tickets:** ECOM-019 and ECOM-020, with their acceptance criteria and failure cases (journal D-107 and D-108, still proposed until you review each detailed plan).
+- **The prompt history:** this exchange and the previous one.
+
+**The commit** is on `feature/ECOM-018-ui-polish`, which starts from ECOM-016. It's local only, because you asked to commit, not to push. Your `.claude/` skill files and `skills-lock.json` are left out.
+
+**Status:** ECOM-016 is waiting for your merge of pull request #1. ECOM-018 is ready to start when you say so.

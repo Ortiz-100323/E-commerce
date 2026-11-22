@@ -1451,3 +1451,69 @@ Template:
   - The official `mcr.microsoft.com/playwright` image (rejected: it carries every browser, about 2 GB, where only the headless shell is needed).
   - The browser baked into the image (rejected: a browser update would rebuild the image; a cache folder is simpler to keep in CI).
 - **Image sizes on GitHub Actions (addendum, prompt #036):** the same images measure smaller on the Linux runner: frontend 62 MB, backend 341 MB. Docker Desktop on Windows reports 93 MB and 487 MB. The budgets (120 MB and 500 MB) are set against the larger, local figures, so both pass.
+
+### D-105: New priority order: ECOM-018, ECOM-019, ECOM-020, then ECOM-017
+- **Date:** 2026-11-22
+- **Status:** Accepted (owner, prompt #037)
+- **Decision:**
+  - After ECOM-016, the order is: ECOM-018 (UI polish, starting with the shop's product card), then the two new tickets ECOM-019 (admin login) and ECOM-020 (buyer account), and ECOM-017 (README and delivery) last.
+  - IDs are kept; only the order changes. The board lists the tickets in that order, and ECOM-017 now depends on ECOM-018 to ECOM-020.
+- **Consequence:** the README is written once everything it describes exists, including the logins.
+
+### D-106: ECOM-018 plan: a real store card first, then the collected polish
+- **Date:** 2026-11-22
+- **Status:** Accepted (owner, prompt #038: "I agree with three questions", read as accepting the three recommendations). Not started yet: the owner asked to register and commit only.
+- **Decision (proposed):**
+  - **Part A, reviewed first:**
+    - **Layout:** a 4:3 image area on top; a name of at most two lines; a softer category; the SKU in small text; the price highlighted.
+    - **Stock and buying:** badges for low stock (1 to 5) and out of stock, and an **Add to cart** button that follows the cart's stock rules.
+    - **Interaction:** the rest of the card is a stretched link to the product page, so there are no nested controls. A hover lift is skipped when reduced motion is requested.
+    - **Layout rules:** equal-height rows (`grid-auto-rows: 1fr`, button at the bottom), keyboard focus on the whole card, and two columns on a phone.
+    - **Checking it:** Playwright on desktop (1280 × 800) and Pixel 7 before the owner sees it, with screenshots in the evidence.
+  - **Product images:**
+    - an optional, HTTPS-only `image_url` on `Product` (value object, migration 0009, admin form field, audited like any change);
+    - the CSP gains `img-src https:`;
+    - without an image, the card shows a placeholder: a stable colour and inline SVG icon per category, with no icon package.
+  - **Look-alike products** are told apart by the SKU on every card, which is also part of the card's accessible name.
+  - **Part B**, the observations collected since ECOM-007, is planned in detail after part A is accepted.
+- **Alternatives:**
+  - Images uploaded to the shop itself (rejected for now: file storage, size limits and scanning are a feature of their own; a URL meets the request).
+  - Images only from the shop's own origin (rejected: there is no upload yet, so no image could ever show).
+  - Telling look-alikes apart only when the names clash on screen (rejected: the cards would behave inconsistently; a SKU is how real shops do it).
+  - An icon package (rejected: about 16 icons are needed, and inline SVG adds no dependency).
+  - An accessibility checker package (`@axe-core/playwright`, offered to the owner, not added without approval).
+- **Owner's answers to the three decisions (prompt #038):**
+  1. **Product images:** yes. An optional HTTPS-only `image_url` on `Product`, set in the admin form and audited; the CSP allows `img-src https:`. Uploading photos to the shop stays out of scope.
+  2. **Low stock:** "Only N left" from 5 units down.
+  3. **Accessibility package:** not added. `@axe-core/playwright` is not installed. Keyboard and label checks are written in the component and Playwright tests instead.
+
+### D-107: ECOM-019 plan: admin sign-in with server-side sessions
+- **Date:** 2026-11-22
+- **Status:** Proposed (written for the owner's priority order, prompt #037; detailed plan before building)
+- **Decision (proposed):**
+  - **A new `identity` context,** with `AdminAccount`.
+  - **Passwords:** scrypt from the standard library, with a salt per password and the parameters stored with the hash; 12 to 128 characters, no composition rules (NIST SP 800-63B).
+  - **Sessions:** server-side, behind a random 256-bit token stored only as a hash. They end after 30 idle minutes or 8 hours, and signing out deletes them.
+  - **Cookie:** `HttpOnly`, `SameSite=Strict`, `Path=/api`, and `Secure` when configured.
+  - **Sign-in:** a throttle of 5 failures in 15 minutes per email; the same message and timing for wrong passwords and unknown emails.
+  - **Defence in depth:** an `Origin` check on cookie-authenticated changes.
+  - **Protected:** every admin endpoint, plus product searches beyond active products.
+  - **Audit:** the actor comes from the session, and the `X-Actor-Name` header is removed.
+  - **The first admin** comes from a CLI command for real deployments, or from compose bootstrap variables for local use (public development values).
+- **Alternatives:**
+  - JWT in local storage (rejected: tokens readable by scripts and hard to revoke; a server-side session can be ended at once).
+  - Argon2 (a fine choice, but it needs the `argon2-cffi` package; scrypt is in the standard library and OWASP-recommended).
+  - HTTP Basic auth (rejected: no sign-out, and the password is sent on every request).
+  - Keeping `X-Actor-Name` (rejected: anyone could still claim any name in the audit log).
+
+### D-108: ECOM-020 plan: minimal buyer accounts
+- **Date:** 2026-11-22
+- **Status:** Proposed (written for the owner's priority order, prompt #037; detailed plan before building)
+- **Decision (proposed):**
+  - **`BuyerAccount`** in the `identity` context, with the same password, session and throttle rules as admins, but its own `shop_session` cookie (`SameSite=Lax`). Admin and buyer rights never mix.
+  - **Endpoints:** registering signs you in at once; plus sign-in, sign-out and "My orders".
+  - **Orders:** a nullable `buyer_id`, set by checkout when a valid buyer session is present. Guest checkout is unchanged, and the idempotency key is scoped to (buyer, key) for signed-in buyers.
+  - **A buyer sees only their own orders.** Past guest orders are not linked, because the email isn't verified.
+  - **A clear "already registered" message** on sign-up: an accepted enumeration trade-off for a shop with no email confirmation.
+  - **A sign-in cookie that is present but expired** gets 401 at checkout, so a buyer never places an unlinked order by surprise.
+- **Out of scope (owner):** email confirmation, password reset, profile editing.
