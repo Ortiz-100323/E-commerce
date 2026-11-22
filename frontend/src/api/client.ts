@@ -1,7 +1,6 @@
 import { ApiError } from './apiError'
 
 export const API_PREFIX = '/api/v1'
-export const ACTOR_HEADER = 'X-Actor-Name'
 export const IDEMPOTENCY_HEADER = 'Idempotency-Key'
 
 type QueryValue = string | number | boolean | null | undefined
@@ -10,7 +9,6 @@ export type RequestOptions = {
   body?: unknown
   file?: Blob
   query?: Record<string, QueryValue>
-  actor?: string
   idempotencyKey?: string
 }
 
@@ -40,15 +38,17 @@ export async function request<T>(
     headers['Content-Type'] = 'application/json'
     body = JSON.stringify(options.body)
   }
-  if (options.actor !== undefined) {
-    headers[ACTOR_HEADER] = encodeURIComponent(options.actor)
-  }
   if (options.idempotencyKey !== undefined) {
     headers[IDEMPOTENCY_HEADER] = options.idempotencyKey
   }
   let response: Response
   try {
-    response = await fetch(apiUrl(path, options.query), { method, headers, body })
+    response = await fetch(apiUrl(path, options.query), {
+      method,
+      headers,
+      body,
+      credentials: 'same-origin',
+    })
   } catch {
     throw ApiError.network()
   }

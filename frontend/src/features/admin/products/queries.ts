@@ -1,6 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
-import { useRequiredActor } from '../../../actor/ActorContext'
 import {
   productsApi,
   type NewProduct,
@@ -33,39 +32,35 @@ function useRefreshAfterChange() {
 const formMeta: MutationMeta = { handledProblems: ['duplicate-sku', 'version-conflict'] }
 
 export function useCreateProduct() {
-  const actor = useRequiredActor()
   const refresh = useRefreshAfterChange()
   return useMutation({
-    mutationFn: (product: NewProduct) => productsApi.create(product, actor),
+    mutationFn: (product: NewProduct) => productsApi.create(product),
     onSuccess: refresh,
     meta: formMeta,
   })
 }
 
 export function useUpdateProduct(id: string) {
-  const actor = useRequiredActor()
   const refresh = useRefreshAfterChange()
   return useMutation({
-    mutationFn: (update: ProductUpdate) => productsApi.update(id, update, actor),
+    mutationFn: (update: ProductUpdate) => productsApi.update(id, update),
     onSuccess: refresh,
     meta: formMeta,
   })
 }
 
 export function useArchiveProduct() {
-  const actor = useRequiredActor()
   const refresh = useRefreshAfterChange()
   return useMutation({
-    mutationFn: (id: string) => productsApi.archive(id, actor),
+    mutationFn: (id: string) => productsApi.archive(id),
     onSuccess: refresh,
   })
 }
 
 export function useRestoreProduct() {
-  const actor = useRequiredActor()
   const refresh = useRefreshAfterChange()
   return useMutation({
-    mutationFn: (id: string) => productsApi.restore(id, actor),
+    mutationFn: (id: string) => productsApi.restore(id),
     onSuccess: refresh,
   })
 }

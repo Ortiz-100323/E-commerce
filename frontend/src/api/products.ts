@@ -13,6 +13,7 @@ export type Product = {
   stock: number
   weight_kg: string
   gift: boolean
+  image_url: string | null
   tags: string[]
   status: ProductStatus
   is_sellable: boolean
@@ -29,6 +30,7 @@ export type ProductFields = {
   stock: number
   weight_kg: string
   gift: boolean
+  image_url: string | null
 }
 
 export type NewProduct = ProductFields & { sku: string }
@@ -79,10 +81,9 @@ export const productsApi = {
   get: (id: string) => request<Product>('GET', path(id)),
   history: (id: string) => request<ProductHistory>('GET', path(id, '/history')),
   categories: () => request<{ items: string[] }>('GET', '/categories'),
-  create: (product: NewProduct, actor: string) =>
-    request<Product>('POST', '/products', { body: product, actor }),
-  update: (id: string, update: ProductUpdate, actor: string) =>
-    request<Product>('PUT', path(id), { body: update, actor }),
-  archive: (id: string, actor: string) => request<Product>('DELETE', path(id), { actor }),
-  restore: (id: string, actor: string) => request<Product>('POST', path(id, '/restore'), { actor }),
+  create: (product: NewProduct) => request<Product>('POST', '/products', { body: product }),
+  update: (id: string, update: ProductUpdate) =>
+    request<Product>('PUT', path(id), { body: update }),
+  archive: (id: string) => request<Product>('DELETE', path(id)),
+  restore: (id: string) => request<Product>('POST', path(id, '/restore')),
 }

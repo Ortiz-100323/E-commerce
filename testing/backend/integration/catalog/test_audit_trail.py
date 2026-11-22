@@ -115,6 +115,7 @@ async def test_creating_a_product_writes_one_entry_with_the_full_product(
         "stock": 10,
         "weight_kg": "0.800",
         "tags": [],
+        "image_url": None,
         "status": "ACTIVE",
     }
 

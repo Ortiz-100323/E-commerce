@@ -5,6 +5,7 @@ from uuid import UUID
 
 import httpx
 import pytest
+from identity_fakes import ANTONIO_TOKEN
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from ecommerce.catalog.domain.product import Product, ProductId
@@ -14,6 +15,8 @@ from ecommerce.shared_kernel.domain.actor import Actor
 from ecommerce.shared_kernel.infrastructure.database import create_session_factory
 from fakes import dependencies_factory
 from problems import assert_problem
+
+ADMIN = {"Cookie": f"session={ANTONIO_TOKEN}"}
 
 PRODUCT_ID = ProductId(UUID("00000000-0000-4000-8000-000000000001"))
 CREATED_AT = datetime(2026, 11, 21, 10, 0, tzinfo=UTC)
@@ -69,7 +72,7 @@ async def test_the_history_returns_the_products_entries_oldest_first(
     await store_a_changed_product(catalog)
 
     async with api(catalog) as client:
-        response = await client.get(history_url(PRODUCT_ID))
+        response = await client.get(history_url(PRODUCT_ID), headers=ADMIN)
 
     assert response.status_code == 200, response.text
     body = response.json()
@@ -96,7 +99,7 @@ async def test_the_history_of_an_unknown_product_is_404(
     catalog: SqlAlchemyCatalogUnitOfWorkFactory,
 ) -> None:
     async with api(catalog) as client:
-        response = await client.get(history_url(PRODUCT_ID))
+        response = await client.get(history_url(PRODUCT_ID), headers=ADMIN)
 
     body = assert_problem(response, 404, "not-found")
     assert body["detail"] == "Product not found."
@@ -106,7 +109,7 @@ async def test_the_history_with_an_id_that_is_not_a_uuid_is_422(
     catalog: SqlAlchemyCatalogUnitOfWorkFactory,
 ) -> None:
     async with api(catalog) as client:
-        response = await client.get(history_url("not-a-uuid"))
+        response = await client.get(history_url("not-a-uuid"), headers=ADMIN)
 
     body = assert_problem(response, 422, "validation-error")
     [error] = body["errors"]

@@ -7,7 +7,9 @@ import { COLUMNS, columnLabel, confirmLabel, lineList, reviewCodes, warningsOf }
 import styles from './Imports.module.css'
 import { useResolveRow } from './queries'
 
-type RowProps = { batchId: string; row: ImportRow; locked: boolean }
+const LONG_COLUMNS = new Set(['description'])
+
+type RowProps = { batchId: string; row: ImportRow; locked: boolean; nextLine?: number }
 
 function problemsOf(error: unknown): FieldProblem[] {
   if (!(error instanceof ApiError)) {
@@ -27,12 +29,38 @@ function problemsOf(error: unknown): FieldProblem[] {
   ]
 }
 
+export const SPACE_MARK = '·'
+
+export function showSpaces(raw: string): string {
+  return raw.replaceAll(' ', SPACE_MARK)
+}
+
 function RawLine({ row }: { row: ImportRow }) {
   return (
-    <p>
-      CSV line {row.line}: <code className={styles.raw}>{row.raw || '(empty line)'}</code>
-    </p>
+    <>
+      <p>
+        CSV line {row.line}:{' '}
+        <code className={styles.raw} title={row.raw}>
+          {row.raw ? showSpaces(row.raw) : '(empty line)'}
+        </code>
+      </p>
+      {row.raw.includes(' ') ? <p className={styles.hint}>{SPACE_MARK} marks a space.</p> : null}
+    </>
   )
+}
+
+export function focusLine(line: number | undefined) {
+  if (line === undefined) {
+    return
+  }
+  const card = document.getElementById(`import-line-${line}`)
+  if (card === null) {
+    return
+  }
+  card.focus({ preventScroll: true })
+  if (typeof card.scrollIntoView === 'function') {
+    card.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }
 }
 
 function changedValues(row: ImportRow, values: Record<string, string>): Record<string, string> {
@@ -41,12 +69,16 @@ function changedValues(row: ImportRow, values: Record<string, string>): Record<s
   )
 }
 
-export function ReviewRowCard({ batchId, row, locked }: RowProps) {
+export function ReviewRowCard({ batchId, row, locked, nextLine }: RowProps) {
   const resolve = useResolveRow(batchId)
   const [values, setValues] = useState<Record<string, string>>(() => ({ ...row.values }))
   const changed = changedValues(row, values)
   const busy = locked || resolve.isPending
-  const send = (action: Resolve) => resolve.mutate({ line: row.line, resolve: action })
+  const send = (action: Resolve) =>
+    resolve.mutate(
+      { line: row.line, resolve: action },
+      { onSuccess: () => window.setTimeout(() => focusLine(nextLine), 0) },
+    )
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -54,7 +86,12 @@ export function ReviewRowCard({ batchId, row, locked }: RowProps) {
   }
 
   return (
-    <article aria-label={`Line ${row.line}`} className={styles.card}>
+    <article
+      id={`import-line-${row.line}`}
+      tabIndex={-1}
+      aria-label={`Line ${row.line}`}
+      className={styles.card}
+    >
       <h3>
         Line {row.line} · {row.sku ?? 'no SKU'} · {row.name ?? 'no name'}
         {row.decision === 'skipped' ? <span className={styles.skipped}> · Skipped</span> : null}
@@ -69,18 +106,21 @@ export function ReviewRowCard({ batchId, row, locked }: RowProps) {
       <RawLine row={row} />
       <form onSubmit={submit} aria-label={`Correct line ${row.line}`}>
         <div className={styles.editor}>
-          {COLUMNS.map((column) => (
-            <label key={column.key}>
-              {column.label}
-              <input
-                value={values[column.key] ?? ''}
-                disabled={busy}
-                onChange={(event) =>
-                  setValues((current) => ({ ...current, [column.key]: event.target.value }))
-                }
-              />
-            </label>
-          ))}
+          {COLUMNS.map((column) => {
+            const props = {
+              value: values[column.key] ?? '',
+              disabled: busy,
+              onChange: (event: { target: { value: string } }) =>
+                setValues((current) => ({ ...current, [column.key]: event.target.value })),
+            }
+            const long = LONG_COLUMNS.has(column.key)
+            return (
+              <label key={column.key} className={long ? styles.wide : undefined}>
+                {column.label}
+                {long ? <textarea rows={3} {...props} /> : <input {...props} />}
+              </label>
+            )
+          })}
         </div>
         <FormProblems problems={problemsOf(resolve.error)} />
         <div className={styles.rowActions}>
@@ -196,8 +236,8 @@ export function OutcomeTable({ rows }: { rows: ImportRow[] }) {
             <td>
               {row.history.length > 0 ? <span className={styles.badge}>Reviewed</span> : null}
               {row.decision === 'skipped' ? <span className={styles.skipped}> Skipped</span> : null}
-              {warningsOf(row).map((issue) => (
-                <span key={issue.code}> {issue.message}</span>
+              {row.issues.map((issue) => (
+                <span key={`${issue.field}:${issue.code}`}> {issue.message}</span>
               ))}
             </td>
           </tr>

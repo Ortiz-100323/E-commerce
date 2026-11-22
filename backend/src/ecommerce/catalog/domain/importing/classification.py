@@ -183,6 +183,13 @@ def lines_of(drafts: Sequence[Draft]) -> str:
     return ", ".join(str(draft.line) for draft in drafts)
 
 
+def line_words(drafts: Sequence[Draft]) -> str:
+    numbers = [str(draft.line) for draft in drafts]
+    if len(numbers) == 1:
+        return f"line {numbers[0]}"
+    return f"lines {', '.join(numbers[:-1])} and {numbers[-1]}"
+
+
 def describe_same_product(drafts: Sequence[Draft], policies: ImportPolicies) -> bool:
     names = [draft.name for draft in drafts if draft.name is not None]
     return all(
@@ -228,7 +235,7 @@ def resolve_duplicates(drafts: Sequence[Draft], policies: ImportPolicies) -> Non
             warning(
                 "sku",
                 "duplicate_sku_in_file",
-                f"SKU {sku} also appears on line(s) {lines_of(others)}; this row is imported.",
+                f"SKU {sku} also appears on {line_words(others)}; this row is imported.",
                 superseded=lines_of(others),
             )
         )

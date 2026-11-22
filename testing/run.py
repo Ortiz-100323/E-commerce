@@ -75,6 +75,8 @@ COVERED_PACKAGES = [
     "ecommerce.catalog.application",
     "ecommerce.ordering.domain",
     "ecommerce.ordering.application",
+    "ecommerce.identity.domain",
+    "ecommerce.identity.application",
     "ecommerce.shared_kernel.domain",
 ]
 COVERAGE_THRESHOLD = 95

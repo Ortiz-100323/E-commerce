@@ -2,11 +2,12 @@ import { Link, useParams } from 'react-router'
 
 import { ApiError } from '../../../api/apiError'
 import type { Order } from '../../../api/orders'
+import { useSession } from '../../../session/session'
 import { formatDateTime, formatPrice } from '../../admin/products/format'
 import styles from './Checkout.module.css'
 import { useOrder } from './orderQueries'
 
-function Lines({ order }: { order: Order }) {
+export function Lines({ order }: { order: Order }) {
   return (
     <table className={styles.table}>
       <thead>
@@ -33,7 +34,7 @@ function Lines({ order }: { order: Order }) {
   )
 }
 
-function Details({ order }: { order: Order }) {
+export function Details({ order }: { order: Order }) {
   return (
     <dl className={styles.details}>
       <dt>Order number</dt>
@@ -53,6 +54,8 @@ function Details({ order }: { order: Order }) {
 }
 
 function PaidOrder({ order }: { order: Order }) {
+  const session = useSession()
+  const buyer = session.data?.role === 'BUYER'
   return (
     <section aria-labelledby="order-title" className={styles.page}>
       <h2 id="order-title">Thank you, {order.customer.name}</h2>
@@ -67,6 +70,12 @@ function PaidOrder({ order }: { order: Order }) {
       <Details order={order} />
       <p>
         <Link to="/">Continue shopping</Link>
+        {buyer ? (
+          <>
+            {' · '}
+            <Link to="/account/orders">See My orders</Link>
+          </>
+        ) : null}
       </p>
     </section>
   )

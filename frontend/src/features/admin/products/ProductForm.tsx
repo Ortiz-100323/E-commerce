@@ -14,6 +14,8 @@ import { TextField } from '../../../forms/TextField'
 import {
   emptyProductForm,
   fieldsOf,
+  imageUrlProblem,
+  MAX_IMAGE_URL_LENGTH,
   formValuesOf,
   isZeroPrice,
   PRODUCT_FORM_FIELDS,
@@ -23,6 +25,17 @@ import {
 } from './productFormSchema'
 import styles from './Products.module.css'
 import { useCategories, useCreateProduct, useUpdateProduct } from './queries'
+
+type ExistingProduct = { id: string; name: string }
+
+function existingProductOf(error: ApiError): ExistingProduct | null {
+  const existing = error.body.existing_product
+  if (typeof existing !== 'object' || existing === null) {
+    return null
+  }
+  const { id, name } = existing as Record<string, unknown>
+  return typeof id === 'string' && typeof name === 'string' ? { id, name } : null
+}
 
 type ProductFormProps = {
   product?: Product
@@ -40,6 +53,7 @@ export function ProductForm({ product: current, onSaved, onReload }: ProductForm
   const [problems, setProblems] = useState<FieldProblem[]>([])
   const [conflict, setConflict] = useState(false)
   const [askingGift, setAskingGift] = useState(false)
+  const [takenBy, setTakenBy] = useState<ExistingProduct | null>(null)
   const waiting = useRef<ProductFormValues | null>(null)
 
   const {
@@ -56,6 +70,7 @@ export function ProductForm({ product: current, onSaved, onReload }: ProductForm
     defaultValues: product ? formValuesOf(product) : emptyProductForm,
   })
   const gift = watch('gift')
+  const imageUrl = watch('image_url')
   const priceBeforeGift = useRef('')
 
   const giftField = register('gift', {
@@ -76,6 +91,7 @@ export function ProductForm({ product: current, onSaved, onReload }: ProductForm
         { type: error.problem, message: error.detail ?? error.title },
         { shouldFocus: true },
       )
+      setTakenBy(existingProductOf(error))
       return
     }
     if (error instanceof ApiError && error.problem === 'version-conflict') {
@@ -91,6 +107,7 @@ export function ProductForm({ product: current, onSaved, onReload }: ProductForm
     }
     setProblems([])
     setConflict(false)
+    setTakenBy(null)
     const callbacks = { onSuccess: onSaved, onError: showError }
     if (product) {
       update.mutate({ ...fieldsOf(values), version: product.version }, callbacks)
@@ -148,6 +165,12 @@ export function ProductForm({ product: current, onSaved, onReload }: ProductForm
         error={errors.sku}
         {...register('sku')}
       />
+      {takenBy ? (
+        <p className={styles.takenBy}>
+          <Link to={`/products/${takenBy.id}`}>View {takenBy.name}</Link>
+          <Link to={`/admin/products/${takenBy.id}/edit`}>Edit {takenBy.name}</Link>
+        </p>
+      ) : null}
       <TextField label="Name" error={errors.name} {...register('name')} />
       <TextAreaField label="Description" error={errors.description} {...register('description')} />
       <TextField
@@ -179,6 +202,20 @@ export function ProductForm({ product: current, onSaved, onReload }: ProductForm
           {...register('weight_kg')}
         />
       </div>
+      <TextField
+        label="Image URL (optional)"
+        type="url"
+        inputMode="url"
+        autoComplete="off"
+        maxLength={MAX_IMAGE_URL_LENGTH}
+        placeholder="https://"
+        hint="A photo address starting with https://. Without one, the shop shows the category's placeholder."
+        error={errors.image_url}
+        {...register('image_url')}
+      />
+      {imageUrl.trim() !== '' && imageUrlProblem(imageUrl) === null ? (
+        <img src={imageUrl.trim()} alt="Image preview" className={styles.imagePreview} />
+      ) : null}
       <div className={styles.actions}>
         <Link to="/admin/products">Cancel</Link>
         <button type="submit" disabled={saving} className={styles.primary}>

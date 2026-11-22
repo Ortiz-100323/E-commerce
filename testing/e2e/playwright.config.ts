@@ -14,5 +14,15 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    {
+      name: 'desktop',
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } },
+    },
+    {
+      name: 'mobile',
+      testMatch: /(product-card|polish|accounts)\.spec\.ts/,
+      use: { ...devices['Pixel 7'] },
+    },
+  ],
 })

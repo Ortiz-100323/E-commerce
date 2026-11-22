@@ -6,7 +6,10 @@ import { useProduct } from '../../api/productQueries'
 import type { Product } from '../../api/products'
 import { canAdd } from '../../cart/cart'
 import { useCart } from '../../cart/CartContext'
-import { displayPrice } from './ProductCard'
+import { useIsAdmin } from '../../session/session'
+import controls from '../../styles/controls.module.css'
+import { displayPrice, StockLabel } from './ProductCard'
+import { ProductImage } from './ProductImage'
 import styles from './Storefront.module.css'
 
 function AddToCart({ product }: { product: Product }) {
@@ -33,39 +36,67 @@ function AddToCart({ product }: { product: Product }) {
 
   return (
     <div className={styles.buy}>
-      <button type="button" className={styles.primary} disabled={state !== 'added'} onClick={add}>
+      <button
+        type="button"
+        className={`${controls.primary} ${styles.buyButton}`}
+        disabled={state !== 'added'}
+        onClick={add}
+      >
         {label}
       </button>
       <p role="status" className={styles.added}>
         {message}
       </p>
+      {inCart > 0 ? (
+        <Link to="/cart" className={styles.toCart}>
+          Go to your cart
+        </Link>
+      ) : null}
     </div>
   )
 }
 
+function BackLink() {
+  return (
+    <Link to="/" className={styles.back}>
+      <span aria-hidden="true">‹ </span>Back to the shop
+    </Link>
+  )
+}
+
 export function ProductDetailPage() {
+  const admin = useIsAdmin()
   const { productId = '' } = useParams()
   const product = useProduct(productId)
 
   if (product.isPending) {
-    return <p>Loading…</p>
+    return <p className={styles.loading}>Loading…</p>
   }
   if (product.isError) {
     const missing = product.error instanceof ApiError && product.error.status === 404
     return (
-      <section aria-labelledby="detail-title">
-        <h1 id="detail-title">
+      <section aria-labelledby="detail-title" className={styles.empty}>
+        <h1 id="detail-title" className={styles.emptyTitle}>
           {missing ? 'Product not found' : "We couldn't load this product."}
         </h1>
-        <p>
+        <p className={styles.emptyText}>
+          {missing
+            ? 'It may have been removed, or the link is incomplete.'
+            : 'Check your connection and try again.'}
+        </p>
+        <p className={styles.emptyActions}>
           {missing ? null : (
-            <>
-              <button type="button" onClick={() => void product.refetch()}>
-                Try again
-              </button>{' '}
-            </>
+            <button
+              type="button"
+              className={controls.secondary}
+              onClick={() => void product.refetch()}
+            >
+              Try again
+            </button>
           )}
-          <Link to="/">Back to the shop</Link>
+          <Link to="/" className={controls.primary}>
+            Back to the shop
+          </Link>
         </p>
       </section>
     )
@@ -74,29 +105,47 @@ export function ProductDetailPage() {
   const item = product.data
   return (
     <article aria-labelledby="detail-title" className={styles.detail}>
-      <p>
-        <Link to="/">Back to the shop</Link>
+      <p className={styles.crumbs}>
+        <BackLink />
       </p>
-      <h1 id="detail-title">{item.name}</h1>
-      {item.status === 'ARCHIVED' ? (
-        <p role="note" className={styles.notice}>
-          This product is no longer available.
-        </p>
-      ) : null}
-      <p className={styles.detailPrice}>
-        {displayPrice(item)}
-        {item.gift ? <span className={styles.gift}>Gift</span> : null}
-      </p>
-      {item.description ? <p>{item.description}</p> : null}
-      <dl className={styles.facts}>
-        <dt>Category</dt>
-        <dd>{item.category}</dd>
-        <dt>Weight</dt>
-        <dd>{item.weight_kg} kg</dd>
-        <dt>Availability</dt>
-        <dd>{item.stock === 0 ? 'Out of stock' : `${item.stock} in stock`}</dd>
-      </dl>
-      <AddToCart product={item} />
+      <div className={styles.detailGrid}>
+        <div className={styles.gallery}>
+          <ProductImage imageUrl={item.image_url} category={item.category} />
+        </div>
+        <div className={styles.info}>
+          <h1 id="detail-title" className={styles.detailName}>
+            {item.name}
+          </h1>
+          {item.status === 'ARCHIVED' ? (
+            <p role="note" className={controls.notice}>
+              This product is no longer available.
+            </p>
+          ) : null}
+          <p className={styles.detailPrice}>
+            <span>{displayPrice(item)}</span>
+            {item.gift ? <span className={styles.gift}>Gift</span> : null}
+          </p>
+          <StockLabel product={item} />
+          {admin ? (
+            <p role="note" className={controls.info}>
+              You're logged in as an administrator, so you can't buy here.
+            </p>
+          ) : (
+            <AddToCart product={item} />
+          )}
+          {item.description ? <p className={styles.description}>{item.description}</p> : null}
+          <dl className={styles.facts}>
+            <dt>Category</dt>
+            <dd>{item.category}</dd>
+            <dt>SKU</dt>
+            <dd>{item.sku}</dd>
+            <dt>Weight</dt>
+            <dd>{item.weight_kg} kg</dd>
+            <dt>Availability</dt>
+            <dd>{item.stock === 0 ? 'Out of stock' : `${item.stock} in stock`}</dd>
+          </dl>
+        </div>
+      </div>
     </article>
   )
 }

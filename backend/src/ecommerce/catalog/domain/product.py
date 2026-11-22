@@ -19,6 +19,7 @@ from ecommerce.catalog.domain.events import (
 from ecommerce.catalog.domain.value_objects import (
     Category,
     Description,
+    ImageUrl,
     Price,
     ProductName,
     ProductTag,
@@ -26,7 +27,11 @@ from ecommerce.catalog.domain.value_objects import (
     StockQuantity,
     Weight,
 )
-from ecommerce.shared_kernel.domain.errors import IssueCollector, ValidationIssue
+from ecommerce.shared_kernel.domain.errors import (
+    DomainValidationError,
+    IssueCollector,
+    ValidationIssue,
+)
 
 ProductId = NewType("ProductId", UUID)
 Amount = Decimal | int | str
@@ -82,6 +87,19 @@ def keep_if_equal[T](parsed: T | None, current: T) -> T | None:
     return current if parsed == current else parsed
 
 
+def parsed_image(
+    collector: IssueCollector, value: str | None, current: ImageUrl | None
+) -> ImageUrl | None:
+    if value is None:
+        return current
+    try:
+        return ImageUrl.of(value)
+    except DomainValidationError as error:
+        for found in error.issues:
+            collector.add(found)
+        return current
+
+
 @dataclass(frozen=True)
 class ProductDetails:
     name: ProductName
@@ -91,6 +109,7 @@ class ProductDetails:
     stock: StockQuantity
     weight: Weight
     tags: frozenset[ProductTag]
+    image: ImageUrl | None = None
 
     def __post_init__(self) -> None:
         issue = gift_rule_issue(self.price, self.tags, "price")
@@ -106,6 +125,7 @@ class ProductDetails:
             "stock": self.stock.value,
             "weight_kg": str(self.weight.kg),
             "tags": tuple(sorted(tag.value for tag in self.tags)),
+            "image_url": None if self.image is None else self.image.value,
         }
 
 
@@ -143,6 +163,7 @@ class Product:
         stock: int,
         weight_kg: Amount,
         gift: bool,
+        image_url: str | None = None,
         at: datetime,
     ) -> Self:
         collector = IssueCollector()
@@ -154,6 +175,7 @@ class Product:
         parsed_stock = collector.attempt(StockQuantity, stock)
         parsed_weight = collector.attempt(Weight.of, weight_kg)
         tags = tags_with_gift(frozenset(), gift)
+        image = parsed_image(collector, image_url, None)
         gift_issue = None if parsed_price is None else gift_rule_issue(parsed_price, tags, "price")
         if gift_issue is not None:
             collector.add(gift_issue)
@@ -180,6 +202,7 @@ class Product:
                 stock=parsed_stock,
                 weight=parsed_weight,
                 tags=tags,
+                image=image,
             ),
             status=ProductStatus.ACTIVE,
             version=INITIAL_VERSION,
@@ -230,6 +253,10 @@ class Product:
         return ProductTag.GIFT in self._details.tags
 
     @property
+    def image_url(self) -> ImageUrl | None:
+        return self._details.image
+
+    @property
     def status(self) -> ProductStatus:
         return self._status
 
@@ -273,6 +300,7 @@ class Product:
         stock: int | None = None,
         weight_kg: Amount | None = None,
         gift: bool | None = None,
+        image_url: str | None = None,
         at: datetime,
     ) -> None:
         current = self._details
@@ -308,6 +336,7 @@ class Product:
             else keep_if_equal(collector.attempt(Weight.of, weight_kg), current.weight)
         )
         tags = current.tags if gift is None else tags_with_gift(current.tags, gift)
+        new_image = parsed_image(collector, image_url, current.image)
         field = "price" if price is not None else "gift"
         gift_issue = None if new_price is None else gift_rule_issue(new_price, tags, field)
         if gift_issue is not None:
@@ -332,6 +361,7 @@ class Product:
                 stock=new_stock,
                 weight=new_weight,
                 tags=tags,
+                image=new_image,
             ),
             at,
         )

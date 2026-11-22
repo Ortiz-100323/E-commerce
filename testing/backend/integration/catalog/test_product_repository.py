@@ -183,6 +183,8 @@ async def test_a_second_product_with_the_same_sku_is_rejected(
         await work.commit()
 
     assert raised.value.sku == "RS-001"
+    assert raised.value.existing_id == product_id(1)
+    assert raised.value.existing_name == "Running Shoes"
     assert (await load(sessions, 3)).sku == Sku("RS-003")
 
 

@@ -30,6 +30,12 @@ class ProductFieldsRequest(BaseModel):
     gift: StrictBool = Field(
         default=False, description="Required to confirm a price of 0 as a free gift."
     )
+    image_url: str | None = Field(
+        default=None,
+        max_length=MAX_TEXT,
+        examples=["https://images.example.com/running-shoes.jpg"],
+        description="Optional. An https:// address of the product photo; leave it out for none.",
+    )
 
     def fields(self) -> ProductFields:
         return ProductFields(
@@ -40,6 +46,7 @@ class ProductFieldsRequest(BaseModel):
             stock=self.stock,
             weight_kg=self.weight_kg,
             gift=self.gift,
+            image_url=self.image_url,
         )
 
 
@@ -65,6 +72,7 @@ class ProductResponse(BaseModel):
     stock: int
     weight_kg: str = Field(examples=["0.800"])
     gift: bool
+    image_url: str | None
     tags: list[str]
     status: str = Field(examples=["ACTIVE"])
     is_sellable: bool
@@ -85,6 +93,7 @@ class ProductResponse(BaseModel):
             stock=view.stock,
             weight_kg=str(view.weight_kg),
             gift=view.gift,
+            image_url=view.image_url,
             tags=list(view.tags),
             status=view.status,
             is_sellable=view.is_sellable,

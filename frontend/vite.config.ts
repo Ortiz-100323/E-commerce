@@ -27,29 +27,47 @@ function resolveTestImportsFromFrontend(): Plugin {
   }
 }
 
-export default defineConfig({
-  plugins: [react(), resolveTestImportsFromFrontend()],
-  server: {
-    port: 5173,
-    proxy: {
-      '/api': 'http://localhost:8001',
+function buildVersion(build: string): Plugin {
+  return {
+    name: 'build-version',
+    apply: 'build',
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'version.json',
+        source: `${JSON.stringify({ build })}\n`,
+      })
     },
-    fs: {
-      allow: [frontendRoot, testingRoot],
+  }
+}
+
+export default defineConfig(({ command }) => {
+  const build = command === 'build' ? (process.env.APP_BUILD_ID ?? new Date().toISOString()) : 'dev'
+  return {
+    plugins: [react(), resolveTestImportsFromFrontend(), buildVersion(build)],
+    define: { __APP_BUILD__: JSON.stringify(build) },
+    server: {
+      port: 5173,
+      proxy: {
+        '/api': 'http://localhost:8001',
+      },
+      fs: {
+        allow: [frontendRoot, testingRoot],
+      },
     },
-  },
-  test: {
-    root: frontendRoot,
-    dir: testingRoot,
-    include: ['**/*.test.{ts,tsx}'],
-    environment: 'jsdom',
-    setupFiles: [path.join(testingRoot, 'setup.ts')],
-    coverage: {
-      provider: 'v8',
-      include: ['src/**/*.{ts,tsx}'],
-      exclude: ['src/main.tsx', 'src/**/*.d.ts'],
-      reporter: ['text-summary', 'text'],
-      thresholds: { lines: 80, statements: 80, functions: 80, branches: 80 },
+    test: {
+      root: frontendRoot,
+      dir: testingRoot,
+      include: ['**/*.test.{ts,tsx}'],
+      environment: 'jsdom',
+      setupFiles: [path.join(testingRoot, 'setup.ts')],
+      coverage: {
+        provider: 'v8',
+        include: ['src/**/*.{ts,tsx}'],
+        exclude: ['src/main.tsx', 'src/**/*.d.ts'],
+        reporter: ['text-summary', 'text'],
+        thresholds: { lines: 80, statements: 80, functions: 80, branches: 80 },
+      },
     },
-  },
+  }
 })

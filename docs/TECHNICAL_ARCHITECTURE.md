@@ -29,7 +29,12 @@
 > | 23 | 2026-11-22 | ECOM-013 and ECOM-014: ordering, the fake payment and the checkout safety net as built. The catalog adapter lives outside both contexts, `ordering` and `catalog` never import each other, an unknown SKU is `product-not-sellable`, and the last unit gives `out_of_stock` (§3.1, §4.5, §4.6, §7.2, §7.3, §8.3, D-095, D-096). |
 > | 24 | 2026-11-22 | ECOM-015: the purchase screens as built (cart, checkout, confirmation), and a read-only `POST /orders/quote` so the cart subtotal comes from the server (§4.5, §5, D-097). |
 > | 25 | 2026-11-22 | ECOM-016: browser tests in their own `e2e` compose service (profile `e2e`, Playwright 1.65.0, headless shell only), security headers and CSP, a 6 MB upload limit in nginx, no root process in any container, image budgets, and a GitHub Actions workflow (§8.1, §10, D-100 to D-104). |
-> | 25 | 2026-11-22 | Review fixes through ECOM-015: full checkout bodies use a secret-keyed idempotency fingerprint, migration 0008 widens the maximum order total, email controls are rejected, and invalid visible cart quantities cannot navigate to checkout (§4.2, §5, §7.2, D-099). |
+> | 26 | 2026-11-22 | Review fixes through ECOM-015: full checkout bodies use a secret-keyed idempotency fingerprint, migration 0008 widens the maximum order total, email controls are rejected, and invalid visible cart quantities cannot navigate to checkout (§4.2, §5, §7.2, D-099). |
+> | 27 | 2026-11-22 | ECOM-018 part A: the shop's product card (a 4:3 image area with a category placeholder, low-stock and sold-out badges, Add to cart on the card, equal heights, keyboard and phone layouts), an optional HTTPS-only product `image_url` (migration 0009), and the CSP allowing HTTPS images (§4.2, §4.5, §5, §10, D-106). |
+> | 28 | 2026-11-22 | Review fixes through ECOM-018: malformed image URLs are always validation errors, invalid ports are rejected, and the admin form enforces the same 2,048-character limit as the domain (§4.2, §5, D-110). |
+> | 29 | 2026-11-22 | ECOM-018 round 2 and part B: shared design tokens and controls (D-109); the `duplicate-sku` problem names the existing product; a `version.json` build id with a reload banner; auto-closing success notices; a phone actions panel for the admin table; the import and cart polish (§5, D-111, D-112). |
+> | 30 | 2026-11-22 | ECOM-019 and ECOM-020: an `identity` context with one account per email and a fixed role (`ADMIN` or `BUYER`), server-side sessions behind an `HttpOnly; SameSite=Strict` cookie, scrypt passwords, a login throttle, a same-site check on every change, the first admin from a seed, admins creating admins, buyer sign-up, orders linked to buyers and "My orders" (§3.1, §5, §7.2, D-114 to D-117). |
+> | 31 | 2026-11-22 | ECOM-021: admins can't place orders (403 `admin-cannot-buy`, and no Add to cart, cart or checkout for them); a read-only admin Orders screen backed by `GET /api/v1/admin/orders` (search, status filter, pages) and `GET /api/v1/admin/orders/{id}`; migration 0012 indexes `orders.created_at` (D-119). |
 >
 > Every decision here also appears in [JOURNAL.md](JOURNAL.md) with its context and the alternatives considered.
 
@@ -232,6 +237,7 @@ Exact versions are pinned in Phase 0 and logged in the journal.
 **The `Product` aggregate** belongs to catalog.
 - **Identity:** `ProductId` (a UUID). The natural key is `Sku`, which is unique.
 - **State:** name, description, category, price, stock, weight, `tags`, `status` (`ACTIVE` or `ARCHIVED`), `version` (for optimistic locking) and timestamps.
+- **Optional image (ECOM-018, D-106, D-110):** `image_url`, an `ImageUrl` value object, HTTPS only, with a valid host and port, and at most 2,048 characters. Every malformed address is returned as a field validation error. The admin form enforces the same rules before submitting. An empty value clears it, and it is audited like any other field. The database adds the CHECK `ck_products_image_url_https`.
 - **Invariant:** `price == 0 ⇔ GIFT ∈ tags`: a gift is always free, and a free product is always a gift (D-083, which replaced the earlier one-way rule). Removing the GIFT tag requires a price above 0, and adding it requires a price of 0.
 - **Behaviour:**
   - `rename`, `reprice`, `recategorize`, `restock`
@@ -432,9 +438,17 @@ Domain validation **collects every issue before raising**, rather than stopping 
 | `idempotency-key-missing`, `idempotency-key-invalid` | 400 | §7.2 | — |
 | `not-found` | 404 | An unknown product, order, import or route | — |
 | `method-not-allowed` | 405 | The wrong HTTP method | — |
+| `authentication-required` | 401 | No session, or one that ended, on an endpoint that needs a login; the answer also clears the cookie | — |
+| `invalid-credentials` | 401 | A wrong email or password at log-in (one message for both) | — |
+| `admin-required` | 403 | A customer session on an admin endpoint | — |
+| `admin-cannot-buy` | 403 | An admin's session at checkout (ECOM-021) | — |
+| `buyer-required` | 403 | An admin session on "My orders" | — |
+| `cross-site-request` | 403 | A change whose `Origin` or `Sec-Fetch-Site` says another site sent it | — |
+| `email-already-registered` | 409 | Sign-up or "create admin" with an email that already has an account | — |
+| `too-many-login-attempts` | 429 | 5 failed log-ins for one email within 15 minutes; `Retry-After` is set | `retry_after_seconds` |
 | `payment-declined` | 402 | The fake gateway declined the card | `order_id` |
 | `version-conflict` | 409 | A stale `version` on PUT | `current_version` |
-| `duplicate-sku` | 409 | Creating a product with an SKU that is already taken | `sku` |
+| `duplicate-sku` | 409 | Creating a product with an SKU that is already taken | `sku`; `existing_product` (`id`, `name`) when the product holding the SKU is found (D-111) |
 | `insufficient-stock` | 409 | Checkout (§7.3) | `items[] {sku, requested, available}` |
 | `product-not-sellable` | 409 | A SKU is unknown, archived or has 0 stock; every such line is listed (D-095) | `items[] {sku, reason}`, reason `unknown`, `archived` or `out_of_stock` |
 | `import-not-committable` | 409 | Rows are still unresolved | `pending_lines[]` |
@@ -496,6 +510,64 @@ Domain validation **collects every issue before raising**, rather than stopping 
 | | `/admin/imports/:id` | **Review screen**, with one tab per outcome. Needs-review rows get an inline editor plus confirm and skip actions. Update rows show an old → new diff per field with a confirm checkbox, plus "confirm all". Rejected rows show their reasons, and warnings are listed too. The commit button stays disabled until the batch can be committed. |
 
 **Import screens as built (ECOM-012, D-092).** The admin menu has **Import CSV**. The upload sends the file itself as a `text/csv` body. The review screen takes every row, allowed action and the commit state from the server, replaces a row from the server's answer after each decision, and explains each 409 (`import-stale-rows`, `import-not-committable`, `import-not-pending`) on the page. A skipped row leaves its outcome tab and is listed under **Skipped**, where it can still be corrected, confirmed or ticked again; tab counts are counted from the server's rows (D-094).
+**The product card as built (ECOM-018, D-106).** Each card in the shop grid has:
+- a 4:3 image area: the product photo, or a tint and line icon for its kind of category (the colours are CSS classes, never inline styles);
+- the name, at most two lines;
+- the category, a stock label ("In stock", "Only N left", "Out of stock"), and the price beside a compact **Add to cart**;
+- the SKU only when another product on the same page has the same name (D-109).
+
+The name link is stretched over the card, so a click anywhere except the button opens the product. The grid keeps every card the same height, and a phone gets two columns. Playwright checks the card on desktop and on a Pixel 7 (`testing/e2e/specs/product-card.spec.ts`).
+
+**Shared look (ECOM-018, D-109).**
+- `frontend/src/index.css` holds the design tokens (colours, radii, control height, page width) as CSS custom properties. It also styles the base controls inside `:where()`, so they carry no specificity.
+- `frontend/src/styles/controls.module.css` holds the shared variants (`primary`, `secondary`, `quiet`, `alert`, `notice`, `success`, `info`, `visuallyHidden`). Feature modules reuse them with `composes` instead of redefining them.
+- The shop's search panel folds its filters behind **Filters (N)** on phones. The product page has two columns (the picture, then the details), which stack on phones.
+
+**Polish as built (ECOM-018 part B, D-111).**
+- **New version banner:** every production build writes `version.json` (`{"build": "<build id>"}`) next to the page, and compiles the same id into the app as `__APP_BUILD__` (a Vite plugin in `vite.config.ts`; the id comes from `APP_BUILD_ID`, or from the build time). nginx serves the file with `Cache-Control: no-cache`, and the smoke check verifies it. The app reads the file every 5 minutes and whenever the tab becomes visible. When the ids differ, a banner offers **Reload**. Development builds (`dev`) never check.
+- **Notifications** appear bottom-left, away from the right-aligned actions. Success messages close after 5 seconds; errors stay until dismissed.
+- **Admin products table:** SKUs never wrap. Below 56 rem, a row's Edit, History and Archive move into an **Actions** button that opens a bottom panel (closed by Escape, a tap outside, or a choice). The table's scroll box is the reference for anything positioned inside it, so nothing in the table can widen the page.
+- **Import review:** Description uses a text area; spaces in the raw CSV line show as `·`; a finished import shows a read-only table instead of editors; the commit bar stays under the header while scrolling; after a decision, focus moves to the next row to review.
+- **Cart:** − and + buttons around the quantity (+ stops at the available stock); lines that can't be bought as asked are greyed out, and the total is labelled "Subtotal of available items" until they are fixed. The checkout's expiry placeholder is `MM/YY`.
+
+**Logins and roles as built (ECOM-019, ECOM-020, D-114 to D-117).**
+- **The `identity` context** has one `Account` per email (stored in lower case, with a unique index), a `role` of `ADMIN` or `BUYER` that is fixed when the account is made, and a scrypt hash (`scrypt$N$r$p$salt$key`, N = 2^15, r = 8, p = 3). Migration 0010 creates `accounts` and `account_sessions`, and migration 0011 adds `orders.buyer_id`.
+- **Sessions:**
+  - one `session` cookie, `HttpOnly; SameSite=Strict; Path=/api`, `Max-Age` of 8 hours, and `Secure` when `SESSION_COOKIE_SECURE=true`;
+  - the server keeps only the SHA-256 of the 256-bit token, and reads the account (and its role) on every request;
+  - a session ends after 30 idle minutes or 8 hours; last seen is written at most once a minute;
+  - sessions use their own clock (`session_clock`), so a test can move the shop's clock without ending its logins.
+- **The seam:**
+  - `shared_kernel.api.access` reads the cookie through the `Authenticator` port and offers `require_admin`, `require_buyer`, `require_actor` (an admin's name, for the audit log) and `optional_principal` (checkout);
+  - `identity` implements the port, and `main.py` wires it;
+  - catalog, ordering and identity never import one another, and an import-linter contract keeps it that way.
+- **Who may do what:**
+  - admin endpoints answer 401 without a session and 403 to a customer;
+  - "My orders" answers 403 to an admin;
+  - the shop's reads, the cart quote, checkout and order pages need no login;
+  - a 401 also clears the cookie, so a stale cookie never blocks a guest.
+- **Log-in:**
+  - an unknown email still runs a full scrypt check;
+  - failures are counted from the audit log (`session.login_failed` since the last `session.logged_in`), under a per-email advisory lock;
+  - the sixth failure within 15 minutes gets 429, and a refused attempt is not counted.
+- **Changes from another site:** `SameSiteMiddleware` refuses any POST, PUT, PATCH or DELETE whose `Sec-Fetch-Site` is `cross-site`, or whose `Origin` doesn't match the `Host`. nginx forwards `Host $http_host`, so the port is kept.
+- **First admin:**
+  - the backend's start command runs `python -m ecommerce.identity.seed` after the migrations;
+  - with `ADMIN_SEED_EMAIL` and `ADMIN_SEED_PASSWORD` set and no admin yet, it creates one;
+  - it never changes an existing account and never promotes a customer.
+- **Orders:**
+  - a checkout with a customer's session stores `buyer_id`;
+  - the customer's idempotency key is scoped with `uuid5(namespace, "buyer:key")`, so two customers can never share an order;
+  - an admin can't buy: checkout answers 403 `admin-cannot-buy` before anything starts, and the shop hides Add to cart, the cart and checkout from admins (ECOM-021; until then an admin's purchase was a guest order);
+  - admins see every order in the admin **Orders** tab (`GET /api/v1/admin/orders` with search, status filter and 20 per page, and `GET /api/v1/admin/orders/{id}`), read-only; "Guest" or "Customer account" comes from `buyer_id`, so ordering never reads identity's tables;
+  - `GET /api/v1/me/orders` lists the customer's own orders, newest first, 10 per page.
+- **Screens:**
+  - one `/login` page with a log-in panel and a sign-up panel; after logging in, admins go to `/admin/products` and customers back to the shop page they came from;
+  - the header shows **Log in**, or the person's name and **Log out**, plus **Admin** for admins or **My orders** for customers;
+  - `RequireRole` guards `/admin/*` and `/account/orders`;
+  - the admin area has an **Admins** tab with **Create admin**.
+
+
 **Purchase screens as built (ECOM-015, D-097, D-099).**
 - The header's **Cart: N items** links to `/cart`. The cart asks the server for a quote whenever it changes, shows the server's prices and subtotal, and offers a fix for each problem: **Use N** or **Remove**.
 - The cart is a form: `required`, minimum and maximum quantity constraints block checkout while the visible value is invalid. The stored previous quantity can never be bought behind a visibly invalid field.
@@ -1060,7 +1132,7 @@ GitHub Actions arrives in ECOM-016 and runs the same compose stack and `ci` cont
 | Q-10 | **PostgreSQL only.** | D-025 |
 | Q-14 | Rows flagged for a **zero or empty** value are editable. Rejected rows are only listed. **Every edit is audited** with its value before and after (§6.4). | D-037, D-039 |
 | Q-02 | Accepted the default: the `<script>` name is **rejected**, and the SQL-looking name is accepted as plain text. | D-038 |
-| Q-07 | Accepted the default: **no authentication** (a known gap). The actor is the name the reviewer enters. | D-038, D-040 |
+| Q-07 | Accepted the default: **no authentication** (a known gap), with the actor as the name the reviewer entered. *Superseded:* ECOM-019 added one login with roles, and the actor is now the logged-in admin. | D-038, D-040, D-114 |
 | Q-11 | Accepted the default: **guest checkout** with name and email. | D-038 |
 | Q-12 | Accepted the default: a **weight of 0 is flagged** for review. A stock of 0 is not. | D-038 |
 | Q-13 | Accepted the default: **one app image plus PostgreSQL**, started together with `docker compose up`. *Superseded:* the owner later chose four containers. | D-038, D-053 |

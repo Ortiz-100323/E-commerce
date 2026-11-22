@@ -29,6 +29,7 @@ class ProductView:
     stock: int
     weight_kg: Decimal
     gift: bool
+    image_url: str | None
     tags: tuple[str, ...]
     status: str
     is_sellable: bool
@@ -49,6 +50,7 @@ class ProductView:
             stock=product.stock.value,
             weight_kg=product.weight.kg,
             gift=product.is_gift,
+            image_url=None if product.image_url is None else product.image_url.value,
             tags=tuple(sorted(tag.value for tag in product.tags)),
             status=product.status.value,
             is_sellable=product.is_sellable,
@@ -67,6 +69,7 @@ class ProductFields:
     stock: int
     weight_kg: Decimal
     gift: bool
+    image_url: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -144,6 +147,7 @@ class CreateProduct:
             stock=new.stock,
             weight_kg=new.weight_kg,
             gift=new.gift,
+            image_url=new.image_url,
             at=self._clock.now(),
         )
         async with self._catalog(actor) as work:
@@ -170,6 +174,7 @@ class UpdateProduct:
                 stock=fields.stock,
                 weight_kg=fields.weight_kg,
                 gift=fields.gift,
+                image_url=fields.image_url or "",
                 at=self._clock.now(),
             )
             if product.version != version:

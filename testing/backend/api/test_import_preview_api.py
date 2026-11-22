@@ -15,7 +15,7 @@ from problems import assert_problem
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "csv"
 SAMPLE = (FIXTURES / "sample-products.csv").read_bytes()
-CSV = {"Content-Type": "text/csv"}
+CSV = {"Content-Type": "text/csv", **ANTONIO}
 HEADER = b"name,sku,description,category,price,stock,weight_kg\n"
 
 
@@ -152,7 +152,7 @@ async def test_an_oversized_file_is_413_and_stores_nothing(engine: AsyncEngine) 
 @pytest.mark.parametrize("content_type", ["application/json", "text/plain"])
 async def test_a_file_that_is_not_csv_is_415(engine: AsyncEngine, content_type: str) -> None:
     async with live_api(engine) as client:
-        response = await preview(client, SAMPLE, {"Content-Type": content_type})
+        response = await preview(client, SAMPLE, {"Content-Type": content_type, **ANTONIO})
 
     assert_problem(response, 415, "unsupported-media-type")
 

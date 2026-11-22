@@ -25,7 +25,7 @@ from ecommerce.catalog.application.importing import (
 from ecommerce.catalog.application.unit_of_work import CatalogUnitOfWorkFactory
 from ecommerce.catalog.domain.importing.batch import RowAction
 from ecommerce.catalog.domain.importing.policies import ImportPolicies
-from ecommerce.shared_kernel.api.actor import require_actor
+from ecommerce.shared_kernel.api.access import ADMIN_ONLY_RESPONSES, require_actor, require_admin
 from ecommerce.shared_kernel.api.exception_handlers import validation_problem
 from ecommerce.shared_kernel.api.problem_details import (
     PAYLOAD_TOO_LARGE,
@@ -40,7 +40,12 @@ from ecommerce.shared_kernel.domain.errors import ValidationIssue
 MAX_FILE_NAME_LENGTH = 255
 MAX_LINE = 10_000_000
 
-router = APIRouter(prefix="/imports", tags=["imports"])
+router = APIRouter(
+    prefix="/imports",
+    tags=["imports"],
+    dependencies=[Depends(require_admin)],
+    responses=ADMIN_ONLY_RESPONSES,
+)
 
 CSV_BODY: dict[str, Any] = {
     "requestBody": {

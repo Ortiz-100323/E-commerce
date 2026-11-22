@@ -2,6 +2,7 @@ import { http, HttpResponse } from 'msw/http'
 
 import type { HistoryEntry, Product } from '../../../frontend/src/api/products'
 import { API, problem, validationProblem } from './api'
+import { currentFakeAccount, requireAdmin } from './fakeSession'
 import { server } from './server'
 
 type Draft = {
@@ -13,12 +14,23 @@ type Draft = {
   stock: number
   weight_kg: string
   gift: boolean
+  image_url?: string | null
   version?: number
 }
 
 type Recorded = { method: string; path: string; actor: string | null; body: unknown }
 
-const FIELDS = ['name', 'description', 'category', 'price', 'stock', 'weight_kg', 'tags', 'status']
+const FIELDS = [
+  'name',
+  'description',
+  'category',
+  'price',
+  'stock',
+  'weight_kg',
+  'tags',
+  'image_url',
+  'status',
+]
 
 let counter = 0
 let clock = Date.UTC(2026, 10, 21, 10, 0, 0)
@@ -51,6 +63,7 @@ function snapshot(product: Product): Record<string, unknown> {
     stock: product.stock,
     weight_kg: product.weight_kg,
     tags: product.tags,
+    image_url: product.image_url,
     status: product.status,
   }
 }
@@ -102,7 +115,7 @@ export function fakeCatalog(seed: Partial<Product>[] = []) {
   }
 
   const record = async (request: Request): Promise<{ actor: string; body: unknown }> => {
-    const raw = request.headers.get('X-Actor-Name')
+    const raw = currentFakeAccount()?.name ?? null
     const body =
       request.method === 'POST' || request.method === 'PUT'
         ? await request
@@ -111,7 +124,7 @@ export function fakeCatalog(seed: Partial<Product>[] = []) {
             .catch(() => null)
         : null
     requests.push({ method: request.method, path: new URL(request.url).pathname, actor: raw, body })
-    return { actor: raw === null ? '' : decodeURIComponent(raw), body }
+    return { actor: raw ?? '', body }
   }
 
   const store = (draft: Draft, actor: string): Product => {
@@ -127,6 +140,7 @@ export function fakeCatalog(seed: Partial<Product>[] = []) {
       stock: draft.stock,
       weight_kg: weight(draft.weight_kg),
       gift: draft.gift,
+      image_url: draft.image_url ?? null,
       tags: draft.gift ? ['GIFT'] : [],
       status: 'ACTIVE',
       is_sellable: draft.stock > 0,
@@ -182,6 +196,7 @@ export function fakeCatalog(seed: Partial<Product>[] = []) {
         stock: partial.stock ?? 5,
         weight_kg: partial.weight_kg ?? '1.000',
         gift: partial.gift ?? false,
+        image_url: partial.image_url ?? null,
       },
       'Seed',
     )
@@ -258,12 +273,20 @@ export function fakeCatalog(seed: Partial<Product>[] = []) {
       return product ? HttpResponse.json(product) : notFound()
     }),
     http.get(`${API}/products/:id/history`, ({ params }) => {
+      const refused = requireAdmin()
+      if (refused) {
+        return refused
+      }
       const id = String(params.id)
       return products.has(id)
         ? HttpResponse.json({ product_id: id, entries: history.get(id) ?? [] })
         : notFound()
     }),
     http.post(`${API}/products`, async ({ request }) => {
+      const refused = requireAdmin()
+      if (refused) {
+        return refused
+      }
       const { actor, body } = await record(request)
       const draft = body as Draft
       const invalid = validate(draft)
@@ -271,18 +294,23 @@ export function fakeCatalog(seed: Partial<Product>[] = []) {
         return invalid
       }
       const sku = (draft.sku ?? '').toUpperCase()
-      if ([...products.values()].some((product) => product.sku === sku)) {
+      const holder = [...products.values()].find((product) => product.sku === sku)
+      if (holder) {
         return problem({
           status: 409,
           slug: 'duplicate-sku',
           title: 'This SKU is already taken.',
-          detail: `SKU ${sku} is already taken.`,
-          extra: { sku },
+          detail: `SKU ${sku} is already taken by ${holder.name}.`,
+          extra: { sku, existing_product: { id: holder.id, name: holder.name } },
         })
       }
       return HttpResponse.json(store(draft, actor), { status: 201 })
     }),
     http.put(`${API}/products/:id`, async ({ request, params }) => {
+      const refused = requireAdmin()
+      if (refused) {
+        return refused
+      }
       const { actor, body } = await record(request)
       const current = products.get(String(params.id))
       if (!current) {
@@ -302,6 +330,7 @@ export function fakeCatalog(seed: Partial<Product>[] = []) {
         stock: draft.stock,
         weight_kg: weight(draft.weight_kg),
         gift: draft.gift,
+        image_url: draft.image_url ?? null,
         tags: draft.gift ? ['GIFT'] : [],
       }
       if (draft.version !== current.version) {
@@ -316,6 +345,10 @@ export function fakeCatalog(seed: Partial<Product>[] = []) {
       return HttpResponse.json(change(current, next, actor))
     }),
     http.delete(`${API}/products/:id`, async ({ request, params }) => {
+      const refused = requireAdmin()
+      if (refused) {
+        return refused
+      }
       const { actor } = await record(request)
       const current = products.get(String(params.id))
       return current
@@ -323,6 +356,10 @@ export function fakeCatalog(seed: Partial<Product>[] = []) {
         : notFound()
     }),
     http.post(`${API}/products/:id/restore`, async ({ request, params }) => {
+      const refused = requireAdmin()
+      if (refused) {
+        return refused
+      }
       const { actor } = await record(request)
       const current = products.get(String(params.id))
       return current

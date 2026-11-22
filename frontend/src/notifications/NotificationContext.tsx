@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -11,6 +12,8 @@ import {
 import type { NoticeContent } from './describeProblem'
 import styles from './Notifications.module.css'
 
+export const SUCCESS_NOTICE_MS = 5000
+
 type Notice = NoticeContent & { id: number }
 
 type NotificationApi = {
@@ -18,6 +21,33 @@ type NotificationApi = {
 }
 
 const NotificationContext = createContext<NotificationApi | null>(null)
+
+function NoticeItem({ notice, onDismiss }: { notice: Notice; onDismiss: (id: number) => void }) {
+  const success = notice.tone === 'success'
+  const { id } = notice
+
+  useEffect(() => {
+    if (!success) {
+      return undefined
+    }
+    const timer = window.setTimeout(() => onDismiss(id), SUCCESS_NOTICE_MS)
+    return () => window.clearTimeout(timer)
+  }, [success, id, onDismiss])
+
+  return (
+    <div
+      role={success ? 'status' : 'alert'}
+      className={success ? `${styles.notice} ${styles.success}` : styles.notice}
+    >
+      <p className={styles.title}>{notice.title}</p>
+      {notice.detail ? <p>{notice.detail}</p> : null}
+      {notice.reference ? <p className={styles.reference}>Reference: {notice.reference}</p> : null}
+      <button type="button" className={styles.dismiss} onClick={() => onDismiss(id)}>
+        Dismiss
+      </button>
+    </div>
+  )
+}
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notices, setNotices] = useState<Notice[]>([])
@@ -29,8 +59,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     setNotices((current) => [...current, { ...notice, id }])
   }, [])
 
-  const dismiss = (id: number) =>
-    setNotices((current) => current.filter((notice) => notice.id !== id))
+  const dismiss = useCallback(
+    (id: number) => setNotices((current) => current.filter((notice) => notice.id !== id)),
+    [],
+  )
 
   const api = useMemo(() => ({ notify }), [notify])
 
@@ -39,22 +71,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       {children}
       <section className={styles.region} aria-label="Notifications" aria-live="polite">
         {notices.map((notice) => (
-          <div
-            key={notice.id}
-            role={notice.tone === 'success' ? 'status' : 'alert'}
-            className={
-              notice.tone === 'success' ? `${styles.notice} ${styles.success}` : styles.notice
-            }
-          >
-            <p className={styles.title}>{notice.title}</p>
-            {notice.detail ? <p>{notice.detail}</p> : null}
-            {notice.reference ? (
-              <p className={styles.reference}>Reference: {notice.reference}</p>
-            ) : null}
-            <button type="button" onClick={() => dismiss(notice.id)}>
-              Dismiss
-            </button>
-          </div>
+          <NoticeItem key={notice.id} notice={notice} onDismiss={dismiss} />
         ))}
       </section>
     </NotificationContext.Provider>

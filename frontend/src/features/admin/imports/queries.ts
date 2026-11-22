@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { useRequiredActor } from '../../../actor/ActorContext'
 import { importsApi, type ImportBatch, type Resolve, type RowChange } from '../../../api/imports'
 import { productKeys } from '../../../api/productQueries'
 import type { MutationMeta } from '../../../app/queryClient'
@@ -28,11 +27,10 @@ export function useImport(id: string) {
 }
 
 export function useUploadImport() {
-  const actor = useRequiredActor()
   const client = useQueryClient()
   const meta: MutationMeta = { handledProblems: UPLOAD_PROBLEMS }
   return useMutation({
-    mutationFn: (file: File) => importsApi.upload(file, actor),
+    mutationFn: (file: File) => importsApi.upload(file),
     onSuccess: (batch) => client.setQueryData(importKeys.detail(batch.id), batch),
     meta,
   })
@@ -50,12 +48,11 @@ export function mergeRowChange(batch: ImportBatch | undefined, change: RowChange
 }
 
 export function useResolveRow(id: string) {
-  const actor = useRequiredActor()
   const client = useQueryClient()
   const meta: MutationMeta = { handledProblems: RESOLVE_PROBLEMS }
   return useMutation({
     mutationFn: ({ line, resolve }: { line: number; resolve: Resolve }) =>
-      importsApi.resolve(id, line, resolve, actor),
+      importsApi.resolve(id, line, resolve),
     onSuccess: (change) =>
       client.setQueryData<ImportBatch>(importKeys.detail(id), (batch) =>
         mergeRowChange(batch, change),
@@ -64,12 +61,11 @@ export function useResolveRow(id: string) {
   })
 }
 
-function useFinish(id: string, action: (id: string, actor: string) => Promise<ImportBatch>) {
-  const actor = useRequiredActor()
+function useFinish(id: string, action: (id: string) => Promise<ImportBatch>) {
   const client = useQueryClient()
   const meta: MutationMeta = { handledProblems: COMMIT_PROBLEMS }
   return useMutation({
-    mutationFn: () => action(id, actor),
+    mutationFn: () => action(id),
     onSuccess: async (batch) => {
       client.setQueryData(importKeys.detail(id), batch)
       await client.invalidateQueries({ queryKey: productKeys.lists, refetchType: 'all' })

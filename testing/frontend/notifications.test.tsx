@@ -1,13 +1,14 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { screen, within } from '@testing-library/react'
+import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw/http'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { ApiError } from '../../frontend/src/api/apiError'
 import { productsApi } from '../../frontend/src/api/products'
 import { AppShell } from '../../frontend/src/app/AppShell'
 import { describeProblem } from '../../frontend/src/notifications/describeProblem'
+import { SUCCESS_NOTICE_MS, useNotify } from '../../frontend/src/notifications/NotificationContext'
 import { API, PRODUCT_ID, problem, product, serverError } from './support/api'
 import { expectErrorNotifications } from './support/pageGuard'
 import { renderApp } from './support/renderApp'
@@ -179,5 +180,46 @@ describe('describeProblem', () => {
 
     expect(describeProblem(conflict).reference).toBeUndefined()
     expect(describeProblem(failure).reference).toBe('r2')
+  })
+})
+
+function NotifyProbe() {
+  const notify = useNotify()
+  return (
+    <div>
+      <button type="button" onClick={() => notify({ title: 'Product created', tone: 'success' })}>
+        Save
+      </button>
+      <button type="button" onClick={() => notify({ title: 'It failed', tone: 'error' })}>
+        Fail
+      </button>
+    </div>
+  )
+}
+
+const notifyRoutes = [
+  { element: <AppShell />, children: [{ path: 'notify', element: <NotifyProbe /> }] },
+]
+
+describe('how long notifications stay', () => {
+  it('closes a success message by itself, and keeps an error until it is dismissed', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      renderApp('/notify', { routes: notifyRoutes })
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+      await user.click(screen.getByRole('button', { name: 'Fail' }))
+      expect(notifications().getByText('Product created')).toBeInTheDocument()
+
+      act(() => {
+        vi.advanceTimersByTime(SUCCESS_NOTICE_MS + 100)
+      })
+
+      expect(notifications().queryByText('Product created')).not.toBeInTheDocument()
+      expect(notifications().getByText('It failed')).toBeInTheDocument()
+      expectErrorNotifications()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

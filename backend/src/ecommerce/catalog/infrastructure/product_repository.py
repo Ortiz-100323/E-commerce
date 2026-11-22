@@ -17,6 +17,7 @@ from ecommerce.catalog.domain.product import Product, ProductDetails, ProductId,
 from ecommerce.catalog.domain.value_objects import (
     Category,
     Description,
+    ImageUrl,
     Price,
     ProductName,
     ProductTag,
@@ -59,7 +60,12 @@ class SqlAlchemyProductRepository:
             if is_violation_of(error, PRIMARY_KEY):
                 raise ProductAlreadyExists(product.id) from error
             if is_violation_of(error, SKU_UNIQUE_INDEX):
-                raise DuplicateSku(product.sku.value) from error
+                holder = await self.get_by_sku(product.sku)
+                raise DuplicateSku(
+                    product.sku.value,
+                    existing_id=None if holder is None else holder.id,
+                    existing_name=None if holder is None else holder.name.value,
+                ) from error
             raise
         self._stored_events.extend(product.pull_events())
 
@@ -123,6 +129,7 @@ def changeable_columns(product: Product) -> dict[str, Any]:
         "stock": product.stock.value,
         "weight_kg": product.weight.kg,
         "tags": sorted(tag.value for tag in product.tags),
+        "image_url": None if product.image_url is None else product.image_url.value,
         "status": product.status.value,
         "updated_at": product.updated_at,
     }
@@ -140,6 +147,7 @@ def to_product(row: RowMapping) -> Product:
             stock=StockQuantity(row["stock"]),
             weight=Weight(row["weight_kg"]),
             tags=frozenset(ProductTag(tag) for tag in row["tags"]),
+            image=None if row["image_url"] is None else ImageUrl(row["image_url"]),
         ),
         status=ProductStatus(row["status"]),
         version=row["version"],

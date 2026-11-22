@@ -134,6 +134,13 @@ class TestDuplicatesInTheFile:
         assert codes(winner.issues) == ["duplicate_sku_in_file"]
         assert winner.issues[0].severity is Severity.WARNING
         assert winner.issues[0].params == {"superseded": "2, 5"}
+        assert winner.issues[0].message.startswith("SKU RS-001 also appears on lines 2 and 5;")
+
+    def test_one_earlier_row_is_named_as_a_single_line(self) -> None:
+        result = run(row(2), row(5))
+
+        message = result.rows[1].issues[0].message
+        assert message == "SKU RS-001 also appears on line 2; this row is imported."
 
     def test_first_wins_keeps_the_first_row(self) -> None:
         policies = ImportPolicies(duplicate_sku=DuplicateSkuPolicy.FIRST_WINS)

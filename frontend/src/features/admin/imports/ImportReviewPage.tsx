@@ -129,6 +129,12 @@ function SkippedPanel({ rows, batch, locked }: PanelProps) {
   )
 }
 
+const EDITABLE_TABS = new Set<TabKey>(['needs_review', 'update', 'skipped'])
+
+function nextLineAfter(rows: ImportRow[], index: number): number | undefined {
+  return rows[index + 1]?.line ?? (index > 0 ? rows[0].line : undefined)
+}
+
 function TabPanel({ tab, batch, locked }: { tab: TabKey; batch: ImportBatch; locked: boolean }) {
   if (tab === 'warnings') {
     return <WarningsTable batch={batch} />
@@ -137,12 +143,21 @@ function TabPanel({ tab, batch, locked }: { tab: TabKey; batch: ImportBatch; loc
   if (rows.length === 0) {
     return <p>No rows here.</p>
   }
+  if (batch.status !== 'PENDING_REVIEW' && EDITABLE_TABS.has(tab)) {
+    return <OutcomeTable rows={rows} />
+  }
   switch (tab) {
     case 'skipped':
       return <SkippedPanel rows={rows} batch={batch} locked={locked} />
     case 'needs_review':
-      return rows.map((row) => (
-        <ReviewRowCard key={reviewCardKey(row)} batchId={batch.id} row={row} locked={locked} />
+      return rows.map((row, index) => (
+        <ReviewRowCard
+          key={reviewCardKey(row)}
+          batchId={batch.id}
+          row={row}
+          locked={locked}
+          nextLine={nextLineAfter(rows, index)}
+        />
       ))
     case 'update':
       return (

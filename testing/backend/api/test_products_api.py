@@ -28,7 +28,7 @@ async def create(client: httpx.AsyncClient, **overrides: Any) -> dict[str, Any]:
 
 
 async def history_events(client: httpx.AsyncClient, product_id: str) -> list[tuple[str, str]]:
-    response = await client.get(url(product_id, "/history"))
+    response = await client.get(url(product_id, "/history"), headers=ANTONIO)
     assert response.status_code == 200, response.text
     return [(entry["event"], entry["actor"]) for entry in response.json()["entries"]]
 
@@ -89,7 +89,9 @@ async def test_an_archived_product_is_hidden_from_the_default_search(engine: Asy
         before = (await client.get(PRODUCTS)).json()
         await client.delete(url(product["id"]), headers=MARIA)
         default = (await client.get(PRODUCTS)).json()
-        archived = (await client.get(PRODUCTS, params={"status": "ARCHIVED"})).json()
+        archived = (
+            await client.get(PRODUCTS, params={"status": "ARCHIVED"}, headers=ANTONIO)
+        ).json()
 
     assert [item["sku"] for item in before["items"]] == ["RS-001"]
     assert (default["items"], default["total"]) == ([], 0)
@@ -166,14 +168,18 @@ async def test_a_put_with_a_stale_version_is_a_conflict(engine: AsyncEngine) -> 
 
 async def test_a_duplicate_sku_is_a_conflict_in_any_letter_case(engine: AsyncEngine) -> None:
     async with live_api(engine) as client:
-        await create(client, sku="RS-001")
+        existing = await create(client, sku="RS-001", name="Running Shoes")
         response = await client.post(
             PRODUCTS, json=product_body(sku="rs-001", name="Other"), headers=MARIA
         )
         listed = (await client.get(PRODUCTS)).json()
 
     body = assert_problem(response, 409, "duplicate-sku")
-    assert (body["sku"], body["detail"]) == ("RS-001", "SKU RS-001 is already taken.")
+    assert (body["sku"], body["detail"]) == (
+        "RS-001",
+        "SKU RS-001 is already taken by Running Shoes.",
+    )
+    assert body["existing_product"] == {"id": existing["id"], "name": "Running Shoes"}
     assert listed["total"] == 1
 
 
@@ -349,14 +355,23 @@ async def test_a_body_that_is_not_json_is_400(engine: AsyncEngine, method: str) 
     assert_problem(response, 400, "malformed-request")
 
 
-async def test_a_change_without_an_actor_is_422_and_stores_nothing(engine: AsyncEngine) -> None:
+async def test_a_change_without_a_login_is_401_and_stores_nothing(engine: AsyncEngine) -> None:
     async with live_api(engine) as client:
-        response = await client.post(PRODUCTS, json=product_body())
+        response = await client.post(
+            PRODUCTS, json=product_body(), headers={"X-Actor-Name": "Antonio"}
+        )
         listed = (await client.get(PRODUCTS)).json()
 
-    body = assert_problem(response, 422, "validation-error")
-    assert field_codes(body) == [("header", "X-Actor-Name", "required")]
+    assert_problem(response, 401, "authentication-required")
     assert listed["total"] == 0
+
+
+async def test_a_change_is_recorded_under_the_logged_in_admins_name(engine: AsyncEngine) -> None:
+    async with live_api(engine) as client:
+        created = await create(client)
+        history = await history_events(client, created["id"])
+
+    assert history == [("product.created", "Antonio")]
 
 
 class UnreachableCatalog:
@@ -379,3 +394,56 @@ async def test_created_at_comes_from_the_clock(engine: AsyncEngine) -> None:
         product = await create(client)
 
     assert product["created_at"] == "2026-11-21T14:02:11Z"
+
+
+PHOTO = "https://images.example.com/shoes/rs-001.jpg"
+
+
+async def test_an_image_url_is_saved_shown_changed_cleared_and_audited(
+    engine: AsyncEngine,
+) -> None:
+    async with live_api(engine) as client:
+        created = await create(client, image_url=PHOTO)
+        fetched = await client.get(url(created["id"]))
+        found = await client.get(PRODUCTS, params={"q": "RS-001"})
+        cleared = await client.put(
+            url(created["id"]),
+            json=update_body(created["version"], image_url=None),
+            headers=MARIA,
+        )
+        history = await client.get(url(created["id"], "/history"), headers=ANTONIO)
+
+    assert created["image_url"] == PHOTO
+    assert fetched.json()["image_url"] == PHOTO
+    assert found.json()["items"][0]["image_url"] == PHOTO
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["image_url"] is None
+    change = history.json()["entries"][-1]
+    assert change["event"] == "product.changed"
+    assert change["before"] == {"image_url": PHOTO}
+    assert change["after"] == {"image_url": None}
+
+
+async def test_a_product_without_an_image_has_none(engine: AsyncEngine) -> None:
+    async with live_api(engine) as client:
+        created = await create(client)
+
+    assert created["image_url"] is None
+
+
+@pytest.mark.parametrize(
+    ("value", "code"),
+    [
+        ("http://images.example.com/a.jpg", "image_url_not_https"),
+        ("javascript:alert(1)", "image_url_not_https"),
+        ("https://[invalid-ipv6/photo.jpg", "invalid_image_url"),
+        ("https://images.example.com:99999/photo.jpg", "invalid_image_url"),
+        ("https://images.example.com/a b.jpg", "invalid_image_url"),
+    ],
+)
+async def test_an_unsafe_image_url_is_refused(engine: AsyncEngine, value: str, code: str) -> None:
+    async with live_api(engine) as client:
+        response = await client.post(PRODUCTS, json=product_body(image_url=value), headers=ANTONIO)
+
+    body = assert_problem(response, 422, "validation-error")
+    assert ("body", "image_url", code) in field_codes(body)

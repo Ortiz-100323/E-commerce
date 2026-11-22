@@ -2,8 +2,8 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, vi, type MockInstance } from 'vitest'
 
-import { forgetActorInMemory } from '../../frontend/src/actor/actorStorage'
 import { forgetCartInMemory } from '../../frontend/src/cart/cart'
+import { resetFakeSession } from './support/fakeSession'
 import {
   errorNotificationsOnPage,
   pageShowsUnexpectedError,
@@ -29,7 +29,7 @@ afterEach(() => {
   cleanup()
   server.resetHandlers()
   window.localStorage.clear()
-  forgetActorInMemory()
+  resetFakeSession()
   forgetCartInMemory()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()

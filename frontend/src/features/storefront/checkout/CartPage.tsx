@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router'
 
 import type { QuoteLine } from '../../../api/orders'
 import { useCart } from '../../../cart/CartContext'
+import { useIsAdmin } from '../../../session/session'
+import { AdminCannotBuy } from '../../account/AdminCannotBuy'
 import type { CartLine } from '../../../cart/cart'
 import { formatPrice } from '../../admin/products/format'
 import styles from './Checkout.module.css'
@@ -25,10 +27,19 @@ function problemText(line: QuoteLine): string | null {
   }
 }
 
-function QuantityField({ line, name }: { line: CartLine; name: string }) {
+function QuantityField({
+  line,
+  name,
+  available,
+}: {
+  line: CartLine
+  name: string
+  available: number | undefined
+}) {
   const cart = useCart()
   const [draft, setDraft] = useState({ quantity: line.quantity, text: String(line.quantity) })
   const text = draft.quantity === line.quantity ? draft.text : String(line.quantity)
+  const ceiling = Math.min(MAX_QUANTITY, available ?? MAX_QUANTITY)
 
   const change = (value: string) => {
     const quantity = Number(value)
@@ -39,18 +50,40 @@ function QuantityField({ line, name }: { line: CartLine; name: string }) {
     }
   }
 
+  const step = (by: number) => change(String(line.quantity + by))
+
   return (
-    <input
-      type="number"
-      min={1}
-      max={MAX_QUANTITY}
-      required
-      inputMode="numeric"
-      className={styles.quantity}
-      aria-label={`Quantity of ${name}`}
-      value={text}
-      onChange={(event) => change(event.target.value)}
-    />
+    <div className={styles.stepper}>
+      <button
+        type="button"
+        className={styles.step}
+        aria-label={`One fewer ${name}`}
+        disabled={line.quantity <= 1}
+        onClick={() => step(-1)}
+      >
+        −
+      </button>
+      <input
+        type="number"
+        min={1}
+        max={MAX_QUANTITY}
+        required
+        inputMode="numeric"
+        className={styles.quantity}
+        aria-label={`Quantity of ${name}`}
+        value={text}
+        onChange={(event) => change(event.target.value)}
+      />
+      <button
+        type="button"
+        className={styles.step}
+        aria-label={`One more ${name}`}
+        disabled={line.quantity >= ceiling}
+        onClick={() => step(1)}
+      >
+        +
+      </button>
+    </div>
   )
 }
 
@@ -59,7 +92,11 @@ function CartRow({ line, quoted }: { line: CartLine; quoted: QuoteLine | undefin
   const name = quoted?.name ?? line.name
   const problem = quoted === undefined ? null : problemText(quoted)
   return (
-    <li aria-label={name} className={styles.row}>
+    <li
+      aria-label={name}
+      className={styles.row}
+      data-flagged={problem !== null ? 'true' : undefined}
+    >
       <div className={styles.rowMain}>
         <Link to={`/products/${line.productId}`} className={styles.rowName}>
           {name}
@@ -68,7 +105,7 @@ function CartRow({ line, quoted }: { line: CartLine; quoted: QuoteLine | undefin
           {quoted?.unit_price ? formatPrice(quoted.unit_price, 'USD') : '…'}
         </span>
       </div>
-      <QuantityField line={line} name={name} />
+      <QuantityField line={line} name={name} available={quoted?.available} />
       <span className={styles.amount}>
         {quoted?.line_total ? formatPrice(quoted.line_total, 'USD') : '—'}
       </span>
@@ -102,15 +139,23 @@ export function CartPage() {
   const cart = useCart()
   const navigate = useNavigate()
   const quote = useQuote(cart.lines)
+  const admin = useIsAdmin()
+
+  if (admin) {
+    return <AdminCannotBuy />
+  }
 
   if (cart.lines.length === 0) {
     return (
       <section aria-labelledby="cart-title" className={styles.page}>
         <h2 id="cart-title">Your cart</h2>
-        <p>Your cart is empty.</p>
-        <p>
-          <Link to="/">Continue shopping</Link>
-        </p>
+        <div className={styles.empty}>
+          <p className={styles.emptyTitle}>Your cart is empty.</p>
+          <p className={styles.muted}>Add something from the shop and it will wait for you here.</p>
+          <Link to="/" className={styles.primaryLink}>
+            Continue shopping
+          </Link>
+        </div>
       </section>
     )
   }
@@ -143,7 +188,7 @@ export function CartPage() {
         {quote.data ? (
           <p
             className={styles.total}
-          >{`Subtotal: ${formatPrice(quote.data.total, quote.data.currency)}`}</p>
+          >{`${quote.data.ready ? 'Subtotal' : 'Subtotal of available items'}: ${formatPrice(quote.data.total, quote.data.currency)}`}</p>
         ) : (
           <p>Checking prices…</p>
         )}

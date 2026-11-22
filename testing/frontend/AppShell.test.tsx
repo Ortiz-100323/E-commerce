@@ -2,11 +2,11 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
-import { ACTOR_STORAGE_KEY } from '../../frontend/src/actor/actorStorage'
+import { logInAs } from './support/fakeSession'
 import { renderApp } from './support/renderApp'
 
 function signIn(name = 'Maria') {
-  window.localStorage.setItem(ACTOR_STORAGE_KEY, name)
+  logInAs('ADMIN', name)
 }
 
 describe('the app shell', () => {
@@ -16,7 +16,11 @@ describe('the app shell', () => {
     expect(await screen.findByRole('heading', { name: 'Shop' })).toBeInTheDocument()
     const nav = screen.getByRole('navigation', { name: 'Main' })
     expect(within(nav).getByRole('link', { name: 'Shop' })).toHaveAttribute('aria-current', 'page')
-    expect(within(nav).getByRole('link', { name: 'Admin' })).toBeInTheDocument()
+    expect(within(nav).queryByRole('link', { name: 'Admin' })).not.toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'Log in' })).toHaveAttribute(
+      'href',
+      '/login?next=%2F',
+    )
   })
 
   it('shows the admin products page inside the shell', async () => {
@@ -40,7 +44,7 @@ describe('the app shell', () => {
     signIn()
     renderApp('/')
 
-    await userEvent.click(screen.getByRole('link', { name: 'Admin' }))
+    await userEvent.click(await screen.findByRole('link', { name: 'Admin' }))
     expect(await screen.findByRole('heading', { name: 'Products' })).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('link', { name: 'Shop' }))
@@ -55,7 +59,7 @@ describe('the app shell', () => {
     expect(screen.getByRole('navigation', { name: 'Main' })).toBeInTheDocument()
   })
 
-  it('never asks for a name in the shop', async () => {
+  it('never asks a visitor for a name or a login in the shop', async () => {
     renderApp('/')
 
     await screen.findByRole('heading', { name: 'Shop' })

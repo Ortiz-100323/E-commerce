@@ -32,7 +32,7 @@ Template:
 
 ### D-002: Domain-Driven Design with strict layering
 - **Date:** 2026-11-21
-- **Status:** Accepted (user). The layering details are Proposed.
+- **Status:** Accepted (user). The layering details are Proposed. At delivery: built and in force (D-120).
 - **Context:** The challenge asks for "enterprise-grade". The user chose DDD.
 - **Decision:** A modular monolith with the bounded contexts `catalog` and `ordering` plus a `shared_kernel`. Each context has the layers `domain → application → infrastructure/api`. Layering is enforced by `import-linter` in CI.
 - **Alternatives considered:**
@@ -42,7 +42,7 @@ Template:
 
 ### D-003: Frontend framework: React
 - **Date:** 2026-11-21
-- **Status:** Accepted (user). The tooling details are Proposed.
+- **Status:** Accepted (user). The tooling details are Proposed. At delivery: built and in force (D-120).
 - **Decision:** React with TypeScript (strict), built with Vite. TanStack Query for server state, React Router, react-hook-form and zod, CSS Modules.
 - **Alternatives considered:**
   - Next.js: SSR is not needed, and a second runtime complicates the single container.
@@ -82,7 +82,7 @@ Template:
 
 ### D-007: Challenge rules are codified as non-negotiables CC-01…CC-13
 - **Date:** 2026-11-21
-- **Status:** Proposed
+- **Status:** Proposed At delivery: built and in force (D-120).
 - **Decision:** Every requirement in the PDF becomes a numbered rule in `TECHNICAL_ARCHITECTURE.md §1.1`, mapped to how it is satisfied. Every phase exit criterion references those IDs.
 
 ### D-008: Local DB is SQLite (via SQLAlchemy and Alembic)
@@ -109,7 +109,7 @@ Template:
 
 ### D-010: SKU is the natural key; product names are not unique
 - **Date:** 2026-11-21
-- **Status:** Proposed
+- **Status:** Proposed At delivery: built and in force (D-120).
 - **Context:** The sample has "Running Shoes" ×3 and "Bluetooth Speaker" ×4 under different SKUs.
 - **Decision:** `Sku` is unique (normalised by trimming and upper-casing). `ProductId` (UUID) is the internal identity.
 
@@ -160,7 +160,7 @@ Template:
 
 ### D-013: Product deletion is a soft delete (archive)
 - **Date:** 2026-11-21
-- **Status:** Proposed
+- **Status:** Proposed At delivery: built and in force (D-120).
 - **Context:** Orders must keep referencing what was bought.
 - **Decision:** `DELETE` archives the product. Archived products are hidden from the storefront and are not purchasable. Their SKU stays reserved, and they can be restored. Order lines snapshot the SKU, name and unit price.
 - **Alternatives considered:** A hard delete with `ON DELETE SET NULL` on order lines, which loses product context.
@@ -189,13 +189,13 @@ Template:
 
 ### D-016: Ordering talks to Catalog through an anti-corruption port
 - **Date:** 2026-11-21
-- **Status:** Proposed
+- **Status:** Proposed At delivery: built and in force (D-120).
 - **Decision:** `ordering` depends on a `CatalogGateway` port (`get_sellable`, `decrease_stock`), never on `catalog.domain`. Both contexts share one Unit of Work and transaction, as a pragmatic choice for a monolith.
 - **Alternatives considered:** Domain events with eventual consistency, which is overkill in a single process with one DB.
 
 ### D-017: API conventions
 - **Date:** 2026-11-21
-- **Status:** Proposed. Amended by D-028 (search engine), D-030 (import endpoints) and D-046 (error format).
+- **Status:** Proposed. Amended by D-028 (search engine), D-030 (import endpoints) and D-046 (error format). At delivery: built and in force (D-120).
 - **Decision:**
   - REST under `/api/v1`.
   - RFC 9457 Problem Details for errors.
@@ -215,14 +215,14 @@ Template:
 
 ### D-019: "No comments in code" is enforced automatically
 - **Date:** 2026-11-21
-- **Status:** Proposed
+- **Status:** Proposed At delivery: built and in force (D-120).
 - **Context:** CC-10: AI is used, so comments must be removed.
 - **Decision:** `testing/scripts/check_no_comments.py` tokenizes Python and TS/TSX. Docstrings count as comments. It fails CI and runs as a pre-commit hook. Explanations live in `docs/` and the README.
 - **Alternatives considered:** Manual review only, which is error-prone.
 
 ### D-020: Delivery in vertical-slice phases with a review gate after each
 - **Date:** 2026-11-21
-- **Status:** Proposed
+- **Status:** Proposed At delivery: built and in force (D-120).
 - **Decision:** The project is delivered in these phases:
   - Phase 0: walking skeleton.
   - Phase 1: catalog backend.
@@ -238,7 +238,7 @@ Template:
 
 ### D-021: No authentication (pending confirmation)
 - **Date:** 2026-11-21
-- **Status:** Accepted on its default (D-038). See also D-040 for who is recorded as making each change.
+- **Status:** Superseded by D-114 (ECOM-019: logins with roles). Earlier: accepted on its default (D-038); see also D-040.
 - **Decision:** The challenge does not ask for authentication. The admin area is open, and this is documented in the README as a known gap with the intended approach: OAuth2/JWT with an admin role.
 - **Alternatives considered:** Basic auth for `/admin`. It is cheap, but it adds credentials handling to the run instructions.
 
@@ -291,7 +291,7 @@ Template:
 
 ### D-026: Money and weight are stored as `NUMERIC`
 - **Date:** 2026-11-21
-- **Status:** Proposed. This supersedes the storage part of D-009.
+- **Status:** Proposed. This supersedes the storage part of D-009. At delivery: built and in force (D-120).
 - **Decision:**
   - Price is `NUMERIC(12,2)` and weight is `NUMERIC(10,3)`.
   - In the domain both remain `Decimal`, and the API serialises money as a string.
@@ -300,7 +300,7 @@ Template:
 
 ### D-027: Checkout locks rows with `SELECT … FOR UPDATE`, in SKU order
 - **Date:** 2026-11-21
-- **Status:** Proposed. This amends D-014 and D-015. It is detailed further in D-045.
+- **Status:** Proposed. This amends D-014 and D-015. It is detailed further in D-045. At delivery: built and in force (D-120).
 - **Decision:**
   - Checkout locks the products involved with `FOR UPDATE`, ordered by SKU to prevent deadlocks, then validates stock and decrements it.
   - Admin edits keep the optimistic `version` check.
@@ -310,7 +310,7 @@ Template:
 
 ### D-028: Search uses `ILIKE` with `pg_trgm` GIN indexes
 - **Date:** 2026-11-21
-- **Status:** Proposed. This amends D-017.
+- **Status:** Proposed. This amends D-017. At delivery: built and in force (D-120).
 - **Decision:**
   - Search matches name, SKU and description, using trigram indexes. It is case-insensitive and Unicode-aware.
   - LIKE wildcards in user input are escaped.
@@ -329,7 +329,7 @@ Template:
 
 ### D-030: The CSV import is a review workflow (the `ImportBatch` aggregate)
 - **Date:** 2026-11-21
-- **Status:** Proposed. This supersedes D-011 and follows from the owner's answers to Q-03 and Q-06. Its row outcomes and expected numbers are amended by D-048 to D-051.
+- **Status:** Proposed. This supersedes D-011 and follows from the owner's answers to Q-03 and Q-06. Its row outcomes and expected numbers are amended by D-048 to D-051. At delivery: built and in force (D-120).
 - **Context:** The owner wants zero and empty values, and updates to existing SKUs, to be confirmed or corrected by a person. They should not be decided silently.
 - **Decision:**
   - An import is a server-side `ImportBatch` aggregate with these states: `PENDING_REVIEW` → `COMMITTED`, `DISCARDED` or `EXPIRED` (after 24 hours).
@@ -354,7 +354,7 @@ Template:
 
 ### D-031: A zero price goes to review and can be confirmed as a GIFT
 - **Date:** 2026-11-21
-- **Status:** Accepted (user), with the mechanics Proposed. This amends D-012 and D-015.
+- **Status:** Accepted (user), with the mechanics Proposed. This amends D-012 and D-015. At delivery: built and in force (D-120).
 - **Context:** In the owner's words: "pop up a question to items as 0 … perhaps it is a gift to the user, we may tag it as that … a good question to ask the customer to have a different rule if necessary."
 - **Decision:**
   - **Domain:**
@@ -390,7 +390,7 @@ Template:
 
 ### D-034: Business rules are configurable policies
 - **Date:** 2026-11-21
-- **Status:** Proposed
+- **Status:** Proposed At delivery: built and in force (D-120).
 - **Context:** The owner expects the customer may want "a different rule if necessary".
 - **Decision:**
   - Import rules are domain strategy objects, selected from settings in the composition root:
@@ -408,7 +408,7 @@ Template:
 
 ### D-035: A register of questions for the customer
 - **Date:** 2026-11-21
-- **Status:** Proposed
+- **Status:** Proposed At delivery: built and in force (D-120).
 - **Context:** The challenge values "asking the right questions". Some open points belong to the business, not to engineering.
 - **Decision:**
   - `TECHNICAL_ARCHITECTURE.md` §11.3 tracks business questions as **CQ-xx**, each with the default we built in the meantime. Eight are open now, including stock semantics (absolute or delta), currency, taxonomy and gift rules.
@@ -449,7 +449,7 @@ Template:
 
 ### D-039: Append-only audit trail fed by domain events, written in the same transaction
 - **Date:** 2026-11-21
-- **Status:** Accepted (user requirement). The mechanism is Proposed.
+- **Status:** Accepted (user requirement). The mechanism is Proposed. At delivery: built and in force (D-120).
 - **Context:** The owner wants to "trace it back as how it was and how it became".
 - **Decision:**
   - `ImportRow` keeps the raw CSV line verbatim, and the raw values, unchanged forever. It also keeps a history of every resolution.
@@ -464,7 +464,7 @@ Template:
 
 ### D-040: Who made the change: a self-declared name until authentication exists
 - **Date:** 2026-11-21
-- **Status:** Proposed
+- **Status:** Superseded by D-114 (ECOM-019): the actor is now the logged-in admin, and the typed name and its `X-Actor-Name` header are gone. Earlier: proposed, and built in ECOM-004 to ECOM-018.
 - **Context:** An audit trail needs a "who", but there is no login (D-021).
 - **Decision:**
   - The admin area asks "Who is reviewing?" once, stores the answer in `localStorage`, and sends it as the `X-Actor-Name` header on every request that changes data. If the header is missing, the request fails with 422.
@@ -478,7 +478,7 @@ Template:
 
 ### D-041: The audit covers every product change, not only import corrections
 - **Date:** 2026-11-21
-- **Status:** Proposed
+- **Status:** Proposed At delivery: built and in force (D-120).
 - **Decision:** The audit trail records:
   - every import row resolution;
   - every product create, change, archive and restore, whether it comes from an import or from the admin;
@@ -488,7 +488,7 @@ Template:
 
 ### D-042: Import batches and audit entries are retained indefinitely
 - **Date:** 2026-11-21
-- **Status:** Proposed (CQ-09)
+- **Status:** Proposed (CQ-09) At delivery: built and in force (D-120).
 - **Decision:**
   - Committed, discarded and expired batches are all kept, together with their raw lines.
   - Nothing is purged.
@@ -503,7 +503,7 @@ Template:
 
 ### D-043: The idempotency key is a client-generated UUID v4, one per checkout attempt
 - **Date:** 2026-11-21
-- **Status:** Proposed. This details the idempotency part of D-015.
+- **Status:** Proposed. This details the idempotency part of D-015. At delivery: built and in force (D-120).
 - **Context:** The owner asked what the idempotency key is.
 - **Decision:**
   - **What it is:** the browser creates the key with `crypto.randomUUID()` and sends it in the `Idempotency-Key` header. This follows the IETF draft *The Idempotency-Key HTTP Header Field*.
@@ -524,7 +524,7 @@ Template:
 
 ### D-044: The same key with a different body returns 422 and processes nothing; only lasting outcomes are stored
 - **Date:** 2026-11-21
-- **Status:** Proposed
+- **Status:** Proposed At delivery: built and in force (D-120).
 - **Context:** The owner asked what happens when the same key comes with a different body.
 - **Decision:**
   - **How a body is fingerprinted:**
@@ -543,7 +543,7 @@ Template:
 
 ### D-045: Preventing oversold stock: lock with `FOR UPDATE` in SKU order, with timeouts, one retry and a database guard
 - **Date:** 2026-11-21
-- **Status:** Proposed. This details D-027.
+- **Status:** Proposed. This details D-027. At delivery: built and in force (D-120).
 - **Context:** The owner asked how we stop two purchases from reading the same stock at the same time.
 - **Decision:**
   - **Locking order.** Every writer that changes the same product rows (checkout and the import commit) locks them with `SELECT … FOR UPDATE ORDER BY sku`. A second checkout blocks, then re-reads the committed row under READ COMMITTED, then fails with 409 `insufficient-stock`, which lists each item's `{sku, requested, available}`.
@@ -567,7 +567,7 @@ Template:
 
 ### D-046: One error format: RFC 9457 Problem Details for every error
 - **Date:** 2026-11-21
-- **Status:** Proposed. This amends D-017.
+- **Status:** Proposed. This amends D-017. At delivery: built and in force (D-120).
 - **Context:** The owner asked how to return the right errors from Pydantic validation, in one consistent format.
 - **Decision:**
   - **Coverage.** Every error is `application/problem+json`, whatever produced it: Pydantic, the domain, the application layer, Starlette, or an unexpected failure. Each response carries `type` (`urn:ecommerce:problem:<name>`), `title`, `status`, `detail`, `instance` and `request_id`. Validation errors add `errors[] {location, field, code, message, params}`.
@@ -592,7 +592,7 @@ Template:
 
 ### D-047: One `ValidationIssue` vocabulary for API errors and import rows
 - **Date:** 2026-11-21
-- **Status:** Proposed
+- **Status:** Proposed At delivery: built and in force (D-120).
 - **Decision:**
   - The domain reports problems as `ValidationIssue {field, code, severity, message, params}`.
   - The API's `errors[]` and the import report's per-row issues use the same structure and the same codes.
@@ -601,7 +601,7 @@ Template:
 
 ### D-048: CSV issue taxonomy: warning (imported), review (held for a person) and error (rejected)
 - **Date:** 2026-11-21
-- **Status:** Proposed. This refines D-030 and D-032.
+- **Status:** Proposed. This refines D-030 and D-032. At delivery: built and in force (D-120).
 - **Context:** The owner asked what counts as a warning (row imported) and what counts as an error (row rejected).
 - **Decision:**
   - **Three severities.** The row's outcome follows its most severe issue, and all issues are collected rather than stopping at the first.
@@ -624,7 +624,7 @@ Template:
 
 ### D-049: Duplicate SKUs within one file: earlier rows are `superseded`, a failed winner brings nothing back, and differing names are a conflict
 - **Date:** 2026-11-21
-- **Status:** Proposed. This refines the in-file part of D-011 and D-030.
+- **Status:** Proposed. This refines the in-file part of D-011 and D-030. At delivery: built and in force (D-120).
 - **Decision:**
   - **Last row wins.** When rows share an SKU and describe the same product (the identity check in D-050), the last row is imported. It carries the warning `duplicate_sku_in_file`, and the earlier rows get the new outcome `superseded`.
   - **No fallback.** If the last row is rejected or needs review, the earlier rows are **not** used instead, because the file meant to replace them.
@@ -633,7 +633,7 @@ Template:
 
 ### D-050: SKU identity check: an existing SKU that names a different product is rejected
 - **Date:** 2026-11-21
-- **Status:** Proposed (CQ-10)
+- **Status:** Proposed (CQ-10) At delivery: built and in force (D-120).
 - **Context:** The owner asked us to check that an SKU in the file doesn't already belong to a different product in our database. A reused or mistyped SKU would otherwise overwrite another product, and that product's orders and audit history would no longer describe it.
 - **Decision:**
   - **Normalising names.** For each row whose SKU exists in the database, active or archived, both names are compared after normalisation: NFKC, case-folding and collapsed whitespace.
@@ -653,7 +653,7 @@ Template:
 
 ### D-051: Updated expected numbers for the golden test on the sample
 - **Date:** 2026-11-21
-- **Status:** Proposed. This supersedes the numbers in D-030.
+- **Status:** Proposed. This supersedes the numbers in D-030. At delivery: built and in force (D-120).
 - **Decision:** On an empty database, the 97 rows break down as follows:
   - 2 `blank`
   - 2 `rejected`
@@ -1041,7 +1041,7 @@ Template:
 
 ### D-081: Bug: "Something unexpected went wrong" after creating or editing a product (found by the owner, ECOM-007)
 - **Date:** 2026-11-21
-- **Status:** Fixed; waiting for the owner's re-test ([evidence](../tasks/ECOM-007-evidence/README.md), DEF-01)
+- **Status:** Fixed and verified by the owner in re-test 2 ([evidence](../tasks/ECOM-007-evidence/README.md), DEF-01)
 - **Symptom:**
   - In the browser, a red "Something unexpected went wrong" appeared next to "Product created".
   - Two appeared after a gift was created, and one more after an edit. The data itself was saved correctly.
@@ -1425,6 +1425,7 @@ Template:
   - The owner answered "merge all of them and push, the goal is to have all of them in our repo". `main` was fast-forwarded to ECOM-015 (`42336a7`) and pushed with the 15 ticket branches (ECOM-013 and ECOM-014 share one branch) to the public `github.com/Ortiz-100323/E-commerce`.
   - Pull requests: ECOM-000 to ECOM-015 are already in `main`, and GitHub cannot open a pull request for a branch that `main` already contains. ECOM-016, the only ticket not merged, gets its own pull request into `main`.
 - **Blocked:** pushing ECOM-016 was refused, because the `Ortiz-100323` token has the scopes `gist`, `read:org` and `repo`, and GitHub needs `workflow` to add `.github/workflows/ci.yml`. The owner must grant it in the browser: `gh auth refresh --hostname github.com --scopes workflow`.
+- **Unblocked (prompt #036):** the owner granted the `workflow` scope. ECOM-016 was pushed, pull request #1 was opened into `main`, and its first GitHub Actions run passed.
 
 ### D-104: Playwright in its own compose service; image sizes
 - **Date:** 2026-11-22
@@ -1449,3 +1450,349 @@ Template:
   - Playwright inside the `ci` container (rejected by the owner: it should stay out of the default run).
   - The official `mcr.microsoft.com/playwright` image (rejected: it carries every browser, about 2 GB, where only the headless shell is needed).
   - The browser baked into the image (rejected: a browser update would rebuild the image; a cache folder is simpler to keep in CI).
+- **Image sizes on GitHub Actions (addendum, prompt #036):** the same images measure smaller on the Linux runner: frontend 62 MB, backend 341 MB. Docker Desktop on Windows reports 93 MB and 487 MB. The budgets (120 MB and 500 MB) are set against the larger, local figures, so both pass.
+
+### D-105: New priority order: ECOM-018, ECOM-019, ECOM-020, then ECOM-017
+- **Date:** 2026-11-22
+- **Status:** Accepted (owner, prompt #037)
+- **Decision:**
+  - After ECOM-016, the order is: ECOM-018 (UI polish, starting with the shop's product card), then the two new tickets ECOM-019 (admin login) and ECOM-020 (buyer account), and ECOM-017 (README and delivery) last.
+  - IDs are kept; only the order changes. The board lists the tickets in that order, and ECOM-017 now depends on ECOM-018 to ECOM-020.
+- **Consequence:** the README is written once everything it describes exists, including the logins.
+
+### D-106: ECOM-018 plan: a real store card first, then the collected polish
+- **Date:** 2026-11-22
+- **Status:** Accepted (owner, prompt #038: "I agree with three questions", read as accepting the three recommendations). Not started yet: the owner asked to register and commit only. Part A built and accepted by the owner (prompts #040 to #042, see D-109).
+- **Decision (proposed):**
+  - **Part A, reviewed first:**
+    - **Layout:** a 4:3 image area on top; a name of at most two lines; a softer category; the SKU in small text; the price highlighted.
+    - **Stock and buying:** badges for low stock (1 to 5) and out of stock, and an **Add to cart** button that follows the cart's stock rules.
+    - **Interaction:** the rest of the card is a stretched link to the product page, so there are no nested controls. A hover lift is skipped when reduced motion is requested.
+    - **Layout rules:** equal-height rows (`grid-auto-rows: 1fr`, button at the bottom), keyboard focus on the whole card, and two columns on a phone.
+    - **Checking it:** Playwright on desktop (1280 × 800) and Pixel 7 before the owner sees it, with screenshots in the evidence.
+  - **Product images:**
+    - an optional, HTTPS-only `image_url` on `Product` (value object, migration 0009, admin form field, audited like any change);
+    - the CSP gains `img-src https:`;
+    - without an image, the card shows a placeholder: a stable colour and inline SVG icon per category, with no icon package.
+  - **Look-alike products** are told apart by the SKU on every card, which is also part of the card's accessible name.
+  - **Part B**, the observations collected since ECOM-007, is planned in detail after part A is accepted.
+- **Alternatives:**
+  - Images uploaded to the shop itself (rejected for now: file storage, size limits and scanning are a feature of their own; a URL meets the request).
+  - Images only from the shop's own origin (rejected: there is no upload yet, so no image could ever show).
+  - Telling look-alikes apart only when the names clash on screen (rejected: the cards would behave inconsistently; a SKU is how real shops do it).
+  - An icon package (rejected: about 16 icons are needed, and inline SVG adds no dependency).
+  - An accessibility checker package (`@axe-core/playwright`, offered to the owner, not added without approval).
+- **Owner's answers to the three decisions (prompt #038):**
+  1. **Product images:** yes. An optional HTTPS-only `image_url` on `Product`, set in the admin form and audited; the CSP allows `img-src https:`. Uploading photos to the shop stays out of scope.
+  2. **Low stock:** "Only N left" from 5 units down.
+  3. **Accessibility package:** not added. `@axe-core/playwright` is not installed. Keyboard and label checks are written in the component and Playwright tests instead.
+- **As built, part A (prompt #040):**
+  - **Images:**
+    - `ImageUrl` lower-cases the scheme, because the database CHECK `LIKE 'https://%'` is case-sensitive;
+    - an empty value clears the image and no value keeps it, so the CSV import never touches it;
+    - audit values may now be empty (`None`), so clearing an image is recorded as before and after.
+  - **Colours:** each known kind of category has a fixed tone (sports green, electronics blue, kitchen apricot, gifts plum, outdoors teal, home sand, beauty rose, tools grey). The name hash is used only for unknown categories. The first Playwright screenshots showed three categories in the same grey, which defeats the purpose of a category colour.
+  - **No inline styles:** the tones are 8 CSS classes, never style attributes, so the CSP needs no `unsafe-inline` for styles.
+  - **A bug found by Playwright:** a photo that isn't 4:3 stretched its card. The photo is now positioned inside the 4:3 box.
+  - **Browser projects:** Playwright runs a `desktop` and a `mobile` project. The purchase specs run on desktop only, so a phone run never buys.
+
+### D-107: ECOM-019 plan: admin sign-in with server-side sessions
+- **Date:** 2026-11-22
+- **Status:** Superseded by D-114 and D-115 (prompt #046: one login for admins and buyers, with roles)
+- **Decision (proposed):**
+  - **A new `identity` context,** with `AdminAccount`.
+  - **Passwords:** scrypt from the standard library, with a salt per password and the parameters stored with the hash; 12 to 128 characters, no composition rules (NIST SP 800-63B).
+  - **Sessions:** server-side, behind a random 256-bit token stored only as a hash. They end after 30 idle minutes or 8 hours, and signing out deletes them.
+  - **Cookie:** `HttpOnly`, `SameSite=Strict`, `Path=/api`, and `Secure` when configured.
+  - **Sign-in:** a throttle of 5 failures in 15 minutes per email; the same message and timing for wrong passwords and unknown emails.
+  - **Defence in depth:** an `Origin` check on cookie-authenticated changes.
+  - **Protected:** every admin endpoint, plus product searches beyond active products.
+  - **Audit:** the actor comes from the session, and the `X-Actor-Name` header is removed.
+  - **The first admin** comes from a CLI command for real deployments, or from compose bootstrap variables for local use (public development values).
+- **Alternatives:**
+  - JWT in local storage (rejected: tokens readable by scripts and hard to revoke; a server-side session can be ended at once).
+  - Argon2 (a fine choice, but it needs the `argon2-cffi` package; scrypt is in the standard library and OWASP-recommended).
+  - HTTP Basic auth (rejected: no sign-out, and the password is sent on every request).
+  - Keeping `X-Actor-Name` (rejected: anyone could still claim any name in the audit log).
+
+### D-108: ECOM-020 plan: minimal buyer accounts
+- **Date:** 2026-11-22
+- **Status:** Superseded by D-114 and D-116 (prompt #046: one login for admins and buyers, with roles)
+- **Decision (proposed):**
+  - **`BuyerAccount`** in the `identity` context, with the same password, session and throttle rules as admins, but its own `shop_session` cookie (`SameSite=Lax`). Admin and buyer rights never mix.
+  - **Endpoints:** registering signs you in at once; plus sign-in, sign-out and "My orders".
+  - **Orders:** a nullable `buyer_id`, set by checkout when a valid buyer session is present. Guest checkout is unchanged, and the idempotency key is scoped to (buyer, key) for signed-in buyers.
+  - **A buyer sees only their own orders.** Past guest orders are not linked, because the email isn't verified.
+  - **A clear "already registered" message** on sign-up: an accepted enumeration trade-off for a shop with no email confirmation.
+  - **A sign-in cookie that is present but expired** gets 401 at checkout, so a buyer never places an unlinked order by surprise.
+- **Out of scope (owner):** email confirmation, password reset, profile editing.
+
+### D-109: ECOM-018 part A, round 2: one look for every screen
+- **Date:** 2026-11-22
+- **Status:** Accepted (owner, prompt #042: "now it is good enought"). Part A is done; part B is next
+- **Context:** the owner found the interface "half styled". The product card had its own design, but every other button, field, dropdown and link still used the browser's default look. The owner listed five fixes in order of value:
+  1. one style for every control;
+  2. reorganise the filter bar, with Sort next to the product count;
+  3. a two-column product page with a picture;
+  4. lighter cards: smaller buttons, stock labels, no SKU;
+  5. header, colour and empty-state improvements.
+- **Decision:**
+  - **Shared design tokens** in `index.css`: ink, canvas, surface, lines, a spruce brand colour (`#1d5c57`), states (ok, warning, danger), radii, the control height (2.5 rem) and the page width (72 rem).
+  - **Base styles for every control** (buttons, inputs, selects with their own arrow, text areas, checkboxes, file inputs, tables, focus rings), all inside `:where()`. They carry no specificity, so any component class still wins.
+  - **One shared module** `styles/controls.module.css` defines `primary`, `secondary`, `quiet` (a link-style button), `alert`, `notice`, `success`, `info` and `visuallyHidden`. Each feature module reuses them with `composes`, so the six separate copies of "primary button" are gone.
+  - **Shop:** one search panel. The first row is the search box with its button. The second row holds Category, In stock only and Gifts only (as toggle chips), and the price range. The product count and **Sort** sit together in a results bar above the grid. **On phones** the second row folds behind a **Filters** button that counts the active filters. It opens by itself when a price is wrong, so the error is never hidden.
+  - **Product page:** the picture on the left (the photo, or the category placeholder), with the name, price, stock label, Add to cart, description and details on the right. On a phone they stack. The SKU moves to the details list.
+  - **Card:** stock is a small label with a coloured dot ("In stock", "Only N left", "Out of stock"); the price and a compact pill button share one row; Gift is a small tag on the picture.
+  - **SKU only on look-alikes:** the card shows the SKU only when another product on the same page has the same name. This honours "no SKU" and keeps acceptance criterion 8 (the two Bluetooth Speakers are still told apart).
+  - **Header:** white and sticky, with a wordmark, the active link underlined in the brand colour, and the cart as a pill with a count badge. Its accessible name stays "Cart: N items".
+  - **Empty states:** a no-results panel with a next step ("Clear filters"), an empty cart that invites you back to the shop, and a not-found product page with a way back.
+  - **Touch targets:** card buttons are 34 px with a mouse, and 44 px on touch screens and narrow phones.
+- **Alternatives:**
+  - A UI library such as MUI or Chakra (rejected: a new package needs the owner's approval, and the app is small enough for plain CSS).
+  - Hiding the SKU everywhere (rejected: the two Bluetooth Speakers would look identical again).
+  - Keeping the filters always open on phones (rejected: Playwright showed they filled the whole first screen, with no product visible).
+- **Process slip:** a text-processing command lost a block of the shop page because a Windows path broke it. The block was restored with the editor at once, and the tests confirmed the result. Large edits use the editor tools only.
+
+### D-110: Code review round 4 for ECOM-016 and ECOM-018
+- **Date:** 2026-11-22
+- **Status:** Fixed (review and fixes requested by the owner)
+- **Scope:** the newly implemented tickets through ECOM-018. ECOM-016 and ECOM-018 were reviewed; ECOM-017 was excluded because it remains Backlog and has no implementation.
+- **Discoveries and fixes:**
+  - **ECOM-018 — malformed image URL could return 500:** Python's URL parser raises `ValueError` for malformed IPv6 addresses. The `ImageUrl` constructor let that infrastructure exception escape instead of returning a domain validation problem. It now catches parser errors and reports `invalid_image_url`; a unit regression and a live API-level regression prove the 422 response.
+  - **ECOM-018 — invalid ports were accepted:** validating only `hostname` allowed non-numeric ports and numbers above 65535. Reading the parsed port is now part of validation, with regressions for both cases.
+  - **ECOM-018 — frontend and domain length rules differed:** the admin image field had no 2,048-character limit even though the domain and database column did. Shared frontend validation and the input's `maxlength` now enforce the same limit before submission.
+  - **ECOM-018 — storefront test timing was flaky under full load:** the catalog-name helper used Testing Library's one-second default. It timed out once during the complete parallel frontend run, while the same test passed in isolation and the browser suite stayed green. Its explicit three-second ceiling removes the worker-contention false negative without hiding a real stalled request.
+  - **Architecture revision table:** two entries were numbered 25. They are corrected to 25–27 in chronological order, and this review is revision 28.
+- **Output checked:** all 18 ECOM-018 screenshots were inspected. A fresh production build and all 29 Playwright cases reproduced the screens. The green square is the deliberately simple one-pixel image fixture, and the cart action is enabled despite its muted normal-state colour; the browser test now checks it again after the screenshot. No additional output defect was reproduced.
+- **ECOM-016 conclusion:** the workflow, containers, nginx, checks and recorded GitHub output were reviewed again. No new defect was found.
+- **Verification:** all static and architecture checks, 60 tooling tests, 898 backend tests (99.62% scoped coverage), 157 frontend tests (96.18% line coverage), and all 11 live smoke checks pass. Container users are 999, 70 and 101; images are 93 MB and 486 MB; 26 browser tests pass with 3 device-specific skips.
+
+### D-111: ECOM-018 part B: the polish collected since ECOM-007
+- **Date:** 2026-11-22
+- **Status:** Accepted (owner, prompt #045: "Commit and let's go for 19")
+- **Context:** the UX remarks from ECOM-007 (OBS-01 to OBS-03), D-084 (stale tabs), ECOM-012 (OBS-01 to OBS-06) and ECOM-015 (OBS-07, OBS-09, OBS-10). OBS-08 (card autofill needs HTTPS) stays a README item for ECOM-017.
+- **Decision:**
+  - **Duplicate SKU (ECOM-007 OBS-03):**
+    - when the database refuses a taken SKU, the repository loads the product that holds it;
+    - `DuplicateSku` carries its id and name;
+    - the `duplicate-sku` problem adds `existing_product` (`id`, `name`), and its detail reads "SKU RS-001 is already taken by Running Shoes.";
+    - the form shows **View** and **Edit** links to that product;
+    - if the holder can't be found (a race with a delete), the old message and fields are kept.
+  - **Autofill and styled filters (ECOM-007 OBS-01):** the filters already share the base styles (D-109). Autofilled fields keep the white background, through `:autofill`.
+  - **Admin table (ECOM-007 OBS-02):**
+    - SKUs never wrap.
+    - Below 56 rem, the row actions move into an **Actions** button that opens a bottom panel. It uses a plain open/closed state rather than the browser's `popover`, because a closed popover is hidden from the component tests and its position couldn't be checked.
+    - Notifications sit bottom-left, away from the right-aligned actions, and success messages close after 5 seconds.
+  - **New version banner (D-084):**
+    - Each build publishes `version.json` with a build id that is also compiled into the app.
+    - The app compares them every 5 minutes and when the tab becomes visible, and offers **Reload**.
+    - Polling a small static file was chosen over a server-sent event or a service worker: it needs no backend change and no new package.
+  - **Import screens (ECOM-012):**
+    - OBS-01: a disabled secondary button now looks disabled (dashed border, grey text, `not-allowed` cursor).
+    - OBS-02: Description uses a text area.
+    - OBS-03: spaces in the raw line show as `·`, with "· marks a space."
+    - OBS-04: a finished import shows read-only tables.
+    - OBS-05: "line 2" or "lines 2 and 5", decided on the server.
+    - OBS-06: a sticky commit bar, and focus moves to the next row after a decision.
+  - **Purchase screens (ECOM-015):**
+    - OBS-07: flagged lines are greyed out, with their total struck through, and the total reads "Subtotal of available items".
+    - OBS-09: the expiry placeholder is `MM/YY`.
+    - OBS-10: − and + buttons, and + stops at the available stock.
+- **Alternatives:**
+  - A shared "existing product" lookup in the application layer before the insert (rejected: it would race with concurrent creates; the database's unique index stays the only judge, and the lookup only explains its answer).
+  - The native `popover` attribute for the row actions (tried, then dropped, see above).
+  - Hiding the subtotal until the cart is fixed (rejected: the shopper still sees what the fixable lines cost).
+
+### D-112: Defect found by Playwright: the admin products page was wider than a phone (DEF-02 in the ECOM-018 evidence)
+- **Date:** 2026-11-22
+- **Status:** Fixed before the owner's review
+- **Symptom:** on a phone (Pixel 7, 412 px), the admin products page measured 566 px wide. The browser shrank it to fit, so fixed elements, like the new actions panel, landed below the visible screen.
+- **Cause:**
+  - The table's "Actions" column heading has a text that only screen readers see. It is positioned absolutely.
+  - The table's scroll box had no position of its own, so that text was placed against the whole page, at the far right of the wide table. That made the page wider than the screen.
+  - The defect existed since ECOM-007. Before part B it only showed as a page that could be dragged sideways.
+- **Fix:** the table's scroll box is now `position: relative`, so anything positioned inside it stays inside it.
+- **Guards:**
+  - A Playwright test checks, on the phone, that the shop, a search, the cart, the admin products list, the new-product form and the import page are never wider than the screen.
+  - Another checks that the actions panel touches the bottom of the screen.
+- **Process slip in the same session:** a shell command started with `python -` again and hung. It was stopped at once and nothing changed. The rule is in memory; the slip is recorded so it stays visible.
+
+### D-113: ECOM-019 detailed plan: sign-in behind the existing actor seam
+- **Date:** 2026-11-22
+- **Status:** Superseded by D-114 and D-115 before it was approved (prompt #046)
+- **Context:** D-107 set the direction: server-side sessions, scrypt, a throttle and the `identity` context. This entry fixes how it fits the existing code. The full plan is in [ECOM-019](../tasks/ECOM-019.md#detailed-plan-d-113-proposed-in-prompt-045-waiting-for-the-owners-approval).
+- **Decision (proposed):**
+  - **The seam:** `require_actor` stays in the shared kernel and asks an `AdminAuthenticator` port on `app.state`. `identity` implements it, and `main.py` wires it. The catalog and ordering don't import `identity`, and the audit table doesn't change.
+  - **scrypt parameters:** N = 2^15, r = 8, p = 3 (OWASP's 32 MiB option), stored with each hash, so they can be raised later and old hashes upgraded at sign-in.
+  - **Throttle:** counted from the audit log's `admin.sign_in_failed` entries since the last success, inside a per-email advisory lock. A refused (429) attempt is not counted.
+  - **Same-site check:** `Sec-Fetch-Site: cross-site`, or an `Origin` that isn't this site, is refused on every change. nginx forwards `Host $http_host`, so the port is kept.
+  - **Session activity:** last seen is written at most once a minute.
+  - **Tests:** `ANTONIO` and `MARIA` become two seeded admins' session cookies, so the existing API tests keep their shape.
+- **Alternatives:**
+  - Overriding `require_actor` with `app.dependency_overrides` (rejected: that mechanism is meant for tests, and a port is explicit).
+  - A separate failure table for the throttle (rejected: the audit log already records every failure, so a second copy could disagree with it).
+  - Comparing `Origin` with a configured list only (rejected for now: one more setting to get wrong; comparing with the forwarded Host works in all three environments).
+
+### D-114: One login for admins and buyers, with a role on each account
+- **Date:** 2026-11-22
+- **Status:** Accepted with the three recommendations (prompt #047); built and validated by the owner (D-118). The third recommendation (an admin's purchase is a guest order) was later replaced by D-119: admins can't buy.
+- **Context:**
+  - D-107 and D-108 planned two separate sign-ins (admin and buyer), each with its own cookie, pages and endpoints.
+  - The owner wants one **Log in** button in the header and one login page. The app decides from the account where to go next.
+  - Public sign-up creates buyers only. The first admin comes from a seed, and admins create further admins.
+- **Decision (proposed):**
+  - **One `Account`** in a new `identity` context: id, name, email (unique and case-insensitive across all accounts), scrypt password hash, `role` (`ADMIN` or `BUYER`), active flag and creation time. One email has one account and one role.
+  - **The role is fixed at creation.** No endpoint changes a role: not public sign-up, not the admin screens, not the seed.
+    - Sign-up always creates `BUYER`, and refuses any extra field such as `role` (422).
+    - Creating an admin with an email that already has an account is refused (409). A buyer can't be "promoted", and an admin can't be taken over by signing up.
+  - **One session and one cookie:**
+    - The cookie is `session`, with `HttpOnly; SameSite=Strict; Path=/api`, and `Secure` when `SESSION_COOKIE_SECURE=true`.
+    - It holds only a random 256-bit token. The server stores the token's SHA-256 hash and reads the account's role from the database on every request, so nothing the browser sends can change the role.
+    - Sessions end after 30 idle minutes or 8 hours, or at **Log out**.
+    - `Strict` works for the shop too: the app's API calls always come from its own pages.
+  - **Endpoints:**
+    - `POST /api/v1/session` logs in and answers `{id, name, email, role}`;
+    - `GET /api/v1/session` answers who is logged in;
+    - `DELETE /api/v1/session` logs out.
+  - **Authorisation, checked on the server for every request:**
+    - admin endpoints answer 401 `authentication-required` without a session, and 403 `admin-required` for a buyer;
+    - buyer-only endpoints answer 403 `buyer-required` for an admin.
+    - The shop's public pages and guest checkout need no session.
+  - **The "who" of an admin change:** `require_actor` (the existing seam) now returns the logged-in admin's name. `X-Actor-Name` is ignored.
+  - **Passwords and sign-in:**
+    - scrypt (N = 2^15, r = 8, p = 3) with a 16-byte salt, stored with its parameters;
+    - 12 to 128 characters;
+    - 5 failures per email in 15 minutes give 429 with `Retry-After`;
+    - one generic message, "The email or password is incorrect.", and the same timing for an unknown email.
+  - **Changes from another site** are refused: `Sec-Fetch-Site: cross-site`, or an `Origin` that isn't this site. nginx forwards `Host $http_host`.
+  - **Seed:** after the migrations, the backend's start command runs `python -m ecommerce.identity.seed`.
+    - When no admin exists and `ADMIN_SEED_EMAIL` and `ADMIN_SEED_PASSWORD` are set, it creates the first admin.
+    - Otherwise it does nothing (and warns when there is no admin at all).
+    - It never changes an existing account. Running it again is harmless.
+  - **Frontend:**
+    - The header shows **Log in**, or the logged-in person's name and **Log out**.
+    - The **Admin** link shows only to admins, and **My orders** only to buyers.
+    - `/login` logs in and then goes to the admin area (admins) or back to the shop (buyers). A `next` address is followed only when it fits the role.
+    - A buyer who opens `/admin` sees "This area is for administrators", and no admin API is called.
+  - **Out of scope (owner):** email confirmation, password reset, profile editing, removing or deactivating accounts.
+- **Alternatives:**
+  - Two account tables, `AdminAccount` and `BuyerAccount` (rejected: one email could exist in both, and one login page would have to guess which one is meant).
+  - A role inside a signed token, such as a JWT (rejected: a role change or log-out couldn't take effect at once, and the browser would carry the claim).
+  - `SameSite=Lax` for the shop (not needed: every authenticated call is a same-site request from the app itself).
+
+### D-115: ECOM-019 plan: single login, roles, admin area, admins creating admins
+- **Date:** 2026-11-22
+- **Status:** Accepted (prompt #047); built and validated by the owner (D-118)
+- **Decision (proposed):** ECOM-019 builds everything in D-114 except buyer sign-up and buyer orders:
+  - the `identity` context;
+  - migration 0010 (`accounts` and `sessions`);
+  - the seed;
+  - login and log-out;
+  - the role checks on every admin endpoint;
+  - `GET` and `POST /api/v1/admin/accounts` (list admins, create an admin; admins only);
+  - the header's **Log in** and **Log out**;
+  - `/login` (the log-in form);
+  - the admin guard, and an **Admins** tab with a "Create admin" form;
+  - removing the "Who is reviewing?" prompt and the `X-Actor-Name` header.
+- **The seam:** the shared kernel gets a `Principal` (account id, name, role) and an `Authenticator` port. `require_actor` becomes "an admin's name", with `require_principal` and `optional_principal` beside it. `identity` implements the port, and `main.py` wires it. The catalog and ordering never import `identity`.
+- **Tests proving a buyer can't act as an admin (ECOM-019 part):**
+  - a contract test sends every admin endpoint with no cookie (401), with only `X-Actor-Name` (401), with a buyer's cookie (403 `admin-required`) and with an admin's (allowed);
+  - a buyer's `POST /admin/accounts` creates nothing;
+  - a changed or made-up cookie value is 401;
+  - the role comes from the database on every request;
+  - on screen, a buyer opening `/admin` gets the "for administrators" page, the Admin link stays hidden, and no admin API call is made.
+- **Order of delivery:** ECOM-019 is built first, on `feature/ECOM-019-single-login`, then ECOM-020 on top of it. The owner validates both together.
+
+### D-116: ECOM-020 plan: buyer sign-up on the login page, and "My orders"
+- **Date:** 2026-11-22
+- **Status:** Accepted (prompt #047); built and validated by the owner (D-118)
+- **Decision (proposed):**
+  - **Sign-up:** `POST /api/v1/accounts` takes `{name, email, password}`. It always creates a `BUYER`, refuses unknown fields (422) and logs the buyer in at once (201 and the session cookie). An email that already has an account, buyer or admin, gets 409 "An account with this email already exists. Log in instead." That message reveals the email is registered; the owner accepted the same trade-off in D-108, since there is no email confirmation.
+  - **The same `/login` page** gets a second panel, "New here? Create an account", side by side on a computer and below on a phone.
+  - **Orders:** migration 0011 adds a nullable `orders.buyer_id` and an index on (`buyer_id`, `created_at`).
+    - A checkout with a buyer's session links the order and pre-fills the name and email.
+    - Without a session, guest checkout is unchanged.
+    - With an admin's session, the order is placed as a guest order (proposed: admins have no orders of their own).
+    - A session cookie that is present but expired gives 401 `authentication-required` before anything is charged, so a buyer never places a guest order by accident.
+    - The idempotency key's scope becomes (buyer, key) for buyers (§7.2).
+  - **"My orders":** `GET /api/v1/me/orders?page=` lists the buyer's own orders only, newest first, 10 per page, and answers 403 `buyer-required` for an admin. The page `/account/orders` shows the date, the order number, the items, the total and a link to each order's existing page. The header shows **My orders** to buyers.
+- **Tests proving a buyer can't become an admin (ECOM-020 part):**
+  - sign-up with `role: "ADMIN"` (and other extra fields) gives 422 and creates nothing;
+  - a normal sign-up is `BUYER`;
+  - sign-up with the seed admin's email gives 409, and the admin is unchanged;
+  - an admin creating an admin with a buyer's email gets 409, and the buyer stays a buyer;
+  - a contract test checks the API description: only `POST /admin/accounts` can create an admin, and no request body anywhere accepts a `role`;
+  - a freshly signed-up buyer gets 403 on every admin endpoint;
+  - in the browser: sign up, then try `/admin`, and see it blocked.
+
+### D-117: ECOM-019 and ECOM-020 as built: the owner's three choices and the decisions made while building
+- **Date:** 2026-11-22
+- **Status:** Built and validated by the owner (D-118). Its third choice was replaced by D-119.
+- **The owner's choices (the three recommendations):**
+  - the local seed admin is `admin@example.com` / `local-admin-password-change-me`, set in `docker-compose.yml`, like the local database password;
+  - one login lifetime for everyone: 30 idle minutes, 8 hours at most;
+  - an admin's purchase is a guest order; "My orders" is for customer accounts.
+- **Decisions made while building:**
+  - **A separate session clock.** Some existing tests move the shop's clock forward by 24 hours (import expiry, idempotency-key expiry). If sessions shared that clock, test logins would end in the middle of those tests. Sessions get their own `session_clock` (the system clock in production), and dedicated tests move it to prove the 30-minute and 8-hour limits.
+  - **A 401 clears the cookie.** Every `authentication-required` answer also sends `session=; Max-Age=0`. Without it, an expired cookie would stay in the browser for up to 8 hours and make every checkout answer 401, even for someone happy to pay as a guest.
+  - **Buyer-scoped idempotency without a schema change.** A customer's `Idempotency-Key` is stored as `uuid5(namespace, "buyer-id:key")`, so two customers who send the same key get two orders, while one customer's retry still replays. Guest keys are unchanged.
+  - **The login throttle reads the audit log** (`session.login_failed` since the last `session.logged_in`) under a per-email advisory lock. A 429 is not recorded as a failure. Failed log-ins are stored against the SHA-256 of the email, with the typed email in the entry's context; a password is never stored.
+  - **Unknown fields in sign-up are refused (422)**, so a `role` can't even be sent. A contract test checks that no request body anywhere has a `role` property, and that only `POST /admin/accounts` makes an administrator.
+  - **The seed never promotes a customer.** If `ADMIN_SEED_EMAIL` already belongs to a customer, it logs a warning and creates nothing.
+  - **The old `X-Actor-Name` header is gone.** The audit actor is the logged-in admin's display name. The "Who is reviewing?" prompt and its browser storage are removed.
+  - **Defect found by a component test before review (DEF-01 in the ECOM-019 evidence):** logging out from an admin page briefly sent the person to the login page. The session cleared before the move to the shop, and the admin guard reacted first. The header now goes to the shop first, then logs out.
+- **Known limitation, reported to the owner:** accounts can't be removed (out of scope), so each full browser-test run leaves one test admin and two test customers in the local database.
+- **Process slip:** `python -` was typed at the start of a shell command twice more in this ticket. Each time it hung, was stopped at once, and changed nothing. The no-stray-python memory now says to never type `python` in a shell command except `python testing/run.py`.
+
+### D-118: ECOM-019 and ECOM-020 validated by the owner; admins not shopping and an all-orders screen go to ECOM-021; MVP closed
+- **Date:** 2026-11-22
+- **Status:** Accepted (owner, prompt #048)
+- **Context:** the owner tested both tickets in the portal (evidence 03 to 05 in [ECOM-020-evidence](../tasks/ECOM-020-evidence/README.md)): creating an account, buying, the order in My orders, and logging in to the admin view all worked. The owner also noticed that an admin could buy, and asked whether an admin block existed. It doesn't: the third recommendation (D-117) makes an admin's purchase a guest order.
+- **Decision:**
+  - **ECOM-019 and ECOM-020 are accepted** as built.
+  - **The owner's new direction is recorded as [ECOM-021](../tasks/ECOM-021.md)**, in Backlog after the MVP: admins don't get Add to cart, cart or checkout (also refused by the server), and get an admin Orders screen that covers every order.
+  - **Until then the MVP behaviour stays as D-117 describes:** an admin who buys places a guest order.
+  - **The MVP is closed:** "We already created too many new functionalities, I think it is enough for now. I think we have a full MVP cycle." What remains for delivery is ECOM-017 (README and delivery), and the pull requests on the owner's word.
+- **Privacy:** the owner's screenshots showed the owner's name and email. Before the commit (prompt #049) they were pixelated with `testing/scripts/redact_images.py` (D-103) and checked by eye.
+
+### D-119: ECOM-021 plan: admins don't shop, and a read-only admin Orders screen
+- **Date:** 2026-11-22
+- **Status:** Accepted with the three recommendations (prompt #050: "go with your answer and build it"); built and accepted by the owner (prompt #051). As built: the checkout check runs before the use case, so no idempotency key is stored; the admin list is searched with LIKE on lower-cased name and email (wildcards escaped) and the order id's text prefix; the admin detail page reuses the confirmation page's order table and details; on a phone the table becomes one labelled card per order; two browser specs that shopped after logging in as the admin now log out first.
+- **Context:** the owner's direction in prompt #048 (D-118): admins should not have Add to cart, and should have an orders screen like a customer's, covering every order.
+- **Decision (proposed):**
+  - **Admins can't buy:** the server refuses an admin's checkout with 403 `admin-cannot-buy` before anything starts. The screens hide Add to cart and the Cart for admins, and block `/cart` and `/checkout`. Guests and customers are unchanged. This supersedes D-117's third choice (an admin's purchase as a guest order).
+  - **Admin orders:** `GET /api/v1/admin/orders` (search, status filter, 20 per page, newest first) and `GET /api/v1/admin/orders/{id}`, admins only. They read only the `orders` table: "Guest" or "Customer account" comes from `buyer_id`, so ordering never imports identity. Migration 0012 adds an index on `orders.created_at`. A new **Orders** tab and a detail page, read-only.
+  - **Proposed defaults for the owner's three decisions:** a visitor's cart is hidden while an admin is logged in and comes back after log-out; cards show no button for admins; no refunds or status changes.
+- **Alternatives:**
+  - Hiding the buttons only, without a server check (rejected: the rule would depend on the screen, as the buyer block doesn't).
+  - Showing admin orders through the existing public `GET /orders/{id}` (rejected: it can't list or filter, and listing every order must be admin-only).
+  - Joining the identity tables to show the account's name (rejected: it would couple ordering to identity; the order already stores the customer's name and email).
+
+### D-120: Delivery (ECOM-017): the README for reviewers, a journal completeness check and a fresh-clone test
+- **Date:** 2026-11-22
+- **Status:** Done; accepted by the owner (prompt #053: "commit and push, go with option b"), and `main` fast-forwarded to the final branch
+- **The README** is rewritten for the reviewers. It covers:
+  - what the shop does, and the sample CSV's download date (2026-11-20);
+  - running it with Docker (with the seeded admin login) or natively;
+  - a five-minute tour, and the tests and checks with their numbers at delivery;
+  - the architecture on one page, and the key decisions with their alternatives and journal links;
+  - every challenge rule CC-01 to CC-13 and where it is met;
+  - the questions for the business (CQ-01 to CQ-10) with their defaults;
+  - known gaps, what to change before a real deployment, and how AI was used.
+- **Journal completeness check:**
+  - Decisions written as "Proposed" in the planning phase (D-002 to D-051) were approved through the architecture revisions and built in the tickets. Each now ends with "At delivery: built and in force (D-120)".
+  - D-042 and D-050 stay tied to the open business questions CQ-09 and CQ-10.
+  - D-021 (no authentication) and D-040 (a self-declared name) are marked superseded by D-114.
+  - D-081 is marked verified by the owner.
+  - D-114 to D-117 are marked validated (D-118), with the third choice replaced by D-119.
+  - In the architecture document, Q-07 ("no authentication") now says it was superseded.
+- **Fresh-clone test (the ticket's test plan):**
+  - the repository was cloned into an empty folder, with the new README;
+  - it was started as its own compose project (`-p ecommerce-fresh`), so it had an empty database and never touched the owner's data;
+  - `docker compose up --build` brought up the stack, and the backend logged "created the first administrator";
+  - `docker compose run --rm ci` **exited 0**: all static checks, 60 tooling tests, 1,099 backend tests, 204 frontend tests and 14 smoke checks passed;
+  - afterwards the fresh project, its volume and its images were removed, and the owner's stack was restarted with its data intact.
+- **No-comments sweep:** `run.py nocomments` passes on the whole tree (it runs inside `ci`).
+- **Alternatives:**
+  - A separate `docs/DELIVERY.md` linked from a short README (rejected: the challenge asks for the decisions, the approach and the instructions in the README itself);
+  - testing the fresh clone against the owner's running stack (rejected: it would reuse the owner's database and prove nothing about a clean machine).

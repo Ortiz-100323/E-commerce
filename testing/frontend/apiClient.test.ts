@@ -153,10 +153,10 @@ describe('the API client', () => {
     expect(error.status).toBe(200)
   })
 
-  it('sends the reviewer name percent-encoded on every change', async () => {
-    const seen: (string | null)[] = []
+  it('sends every change with the login cookie and never a typed name', async () => {
+    const seen: [string | null, RequestCredentials][] = []
     const record = ({ request }: { request: Request }) => {
-      seen.push(request.headers.get('X-Actor-Name'))
+      seen.push([request.headers.get('X-Actor-Name'), request.credentials])
       return HttpResponse.json(product)
     }
     server.use(
@@ -166,12 +166,12 @@ describe('the API client', () => {
       http.post(`${API}/products/:id/restore`, record),
     )
 
-    await productsApi.create({ ...product, sku: 'GC-001' }, 'Łukasz')
-    await productsApi.update(PRODUCT_ID, { ...product, version: 1 }, 'Maria Silva')
-    await productsApi.archive(PRODUCT_ID, '李')
-    await productsApi.restore(PRODUCT_ID, 'Antonio')
+    await productsApi.create({ ...product, sku: 'GC-001' })
+    await productsApi.update(PRODUCT_ID, { ...product, version: 1 })
+    await productsApi.archive(PRODUCT_ID)
+    await productsApi.restore(PRODUCT_ID)
 
-    expect(seen).toEqual(['%C5%81ukasz', 'Maria%20Silva', '%E6%9D%8E', 'Antonio'])
+    expect(seen).toEqual(Array(4).fill([null, 'same-origin']))
   })
 
   it('sends no reviewer name on reads', async () => {

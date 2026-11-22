@@ -168,3 +168,95 @@ def test_the_orders_migration_downgrades_and_upgrades_cleanly(test_database_url:
         upgrade_to_head(test_database_url)
 
     assert tables <= table_names(test_database_url)
+
+
+def column_names(url: str, table: str) -> set[str]:
+    engine = create_engine(url, poolclass=NullPool)
+    try:
+        with engine.connect() as connection:
+            return {column["name"] for column in inspect(connection).get_columns(table)}
+    finally:
+        engine.dispose()
+
+
+def test_the_product_image_migration_downgrades_and_upgrades_cleanly(
+    test_database_url: str,
+) -> None:
+    config = alembic_config(test_database_url)
+    try:
+        command.downgrade(config, "0008")
+        assert "image_url" not in column_names(test_database_url, "products")
+    finally:
+        upgrade_to_head(test_database_url)
+
+    assert "image_url" in column_names(test_database_url, "products")
+
+
+def test_the_database_refuses_an_image_url_that_is_not_https(test_database_url: str) -> None:
+    engine = create_engine(test_database_url, poolclass=NullPool)
+    try:
+        with engine.connect() as connection:
+            constraints = {
+                check["name"] for check in inspect(connection).get_check_constraints("products")
+            }
+    finally:
+        engine.dispose()
+
+    assert "ck_products_image_url_https" in constraints
+
+
+def test_the_accounts_migration_downgrades_and_upgrades_cleanly(test_database_url: str) -> None:
+    config = alembic_config(test_database_url)
+    try:
+        command.downgrade(config, "0009")
+        assert "accounts" not in table_names(test_database_url)
+        assert "account_sessions" not in table_names(test_database_url)
+    finally:
+        upgrade_to_head(test_database_url)
+
+    assert {"accounts", "account_sessions"} <= table_names(test_database_url)
+
+
+def test_the_order_buyer_migration_downgrades_and_upgrades_cleanly(test_database_url: str) -> None:
+    config = alembic_config(test_database_url)
+    try:
+        command.downgrade(config, "0010")
+        assert "buyer_id" not in column_names(test_database_url, "orders")
+    finally:
+        upgrade_to_head(test_database_url)
+
+    assert "buyer_id" in column_names(test_database_url, "orders")
+
+
+def test_the_database_refuses_an_unknown_role_or_a_mixed_case_email(test_database_url: str) -> None:
+    engine = create_engine(test_database_url, poolclass=NullPool)
+    try:
+        with engine.connect() as connection:
+            constraints = {
+                check["name"] for check in inspect(connection).get_check_constraints("accounts")
+            }
+    finally:
+        engine.dispose()
+
+    assert {"ck_accounts_known_role", "ck_accounts_email_lower_case"} <= constraints
+
+
+def test_the_order_date_index_migration_downgrades_and_upgrades_cleanly(
+    test_database_url: str,
+) -> None:
+    def indexes() -> set[str]:
+        engine = create_engine(test_database_url, poolclass=NullPool)
+        try:
+            with engine.connect() as connection:
+                return {index["name"] or "" for index in inspect(connection).get_indexes("orders")}
+        finally:
+            engine.dispose()
+
+    config = alembic_config(test_database_url)
+    try:
+        command.downgrade(config, "0011")
+        assert "ix_orders_created" not in indexes()
+    finally:
+        upgrade_to_head(test_database_url)
+
+    assert "ix_orders_created" in indexes()

@@ -7,11 +7,14 @@ import { Link, useNavigate } from 'react-router'
 import { ApiError, type FieldProblem } from '../../../api/apiError'
 import { newIdempotencyKey } from '../../../api/idempotencyKey'
 import type { Quote, ShortItem, UnsellableItem } from '../../../api/orders'
+import type { Account } from '../../../api/session'
 import { useCart } from '../../../cart/CartContext'
 import { withoutLine, withQuantity, type CartLine } from '../../../cart/cart'
 import { FormProblems } from '../../../forms/FormProblems'
 import formStyles from '../../../forms/Forms.module.css'
 import { TextField } from '../../../forms/TextField'
+import { useSession } from '../../../session/session'
+import { AdminCannotBuy } from '../../account/AdminCannotBuy'
 import { formatPrice } from '../../admin/products/format'
 import styles from './Checkout.module.css'
 import {
@@ -31,6 +34,7 @@ type Outcome =
   | { kind: 'unsellable'; items: UnsellableItem[] }
   | { kind: 'unreachable' }
   | { kind: 'busy' }
+  | { kind: 'loggedOut' }
   | { kind: 'other'; message: string }
 
 type Attempt = { key: string; request: string }
@@ -58,6 +62,8 @@ function outcomeOf(error: unknown): Outcome {
       return { kind: 'short', items: itemsOf<ShortItem>(error) }
     case 'product-not-sellable':
       return { kind: 'unsellable', items: itemsOf<UnsellableItem>(error) }
+    case 'authentication-required':
+      return { kind: 'loggedOut' }
     case 'network-error':
       return { kind: 'unreachable' }
     default:
@@ -143,6 +149,18 @@ function OutcomeAlert({
           The shop could not be reached. Press Pay again: you won&apos;t be charged twice.
         </p>
       )
+    case 'loggedOut':
+      return (
+        <div role="alert" className={styles.alert}>
+          <p>
+            <strong>Your login ended, so nothing was charged.</strong>
+          </p>
+          <p>
+            <Link to="/login?next=%2Fcheckout">Log in again</Link> to keep this order in My orders,
+            or press Pay to buy as a guest.
+          </p>
+        </div>
+      )
     case 'busy':
       return (
         <p role="alert" className={styles.alert}>
@@ -176,7 +194,15 @@ function Summary({ quote }: { quote: Quote }) {
   )
 }
 
-function CheckoutForm({ quote, lines }: { quote: Quote; lines: CartLine[] }) {
+function CheckoutForm({
+  quote,
+  lines,
+  account,
+}: {
+  quote: Quote
+  lines: CartLine[]
+  account: Account | null
+}) {
   const cart = useCart()
   const navigate = useNavigate()
   const client = useQueryClient()
@@ -194,7 +220,10 @@ function CheckoutForm({ quote, lines }: { quote: Quote; lines: CartLine[] }) {
     formState: { errors },
   } = useForm<CheckoutValues>({
     resolver: zodResolver(paid ? paidCheckoutSchema : freeCheckoutSchema),
-    defaultValues: emptyCheckout,
+    defaultValues:
+      account?.role === 'BUYER'
+        ? { ...emptyCheckout, customer: { name: account.name, email: account.email } }
+        : emptyCheckout,
   })
   const names = new Map(lines.map((line) => [line.sku.toUpperCase(), line.name]))
 
@@ -302,7 +331,7 @@ function CheckoutForm({ quote, lines }: { quote: Quote; lines: CartLine[] }) {
             <TextField
               label="Expiry (MM/YY)"
               autoComplete="cc-exp"
-              placeholder="12/30"
+              placeholder="MM/YY"
               error={errors.payment?.expiry}
               {...register('payment.expiry')}
             />
@@ -326,9 +355,30 @@ function CheckoutForm({ quote, lines }: { quote: Quote; lines: CartLine[] }) {
   )
 }
 
+function AccountHint({ account }: { account: Account | null }) {
+  if (account?.role === 'BUYER') {
+    return <p className={styles.hint}>This order will be kept in My orders.</p>
+  }
+  if (account !== null) {
+    return null
+  }
+  return (
+    <p className={styles.hint}>
+      Have an account? <Link to="/login?next=%2Fcheckout">Log in</Link> to keep this order in My
+      orders, or simply pay as a guest.
+    </p>
+  )
+}
+
 export function CheckoutPage() {
   const cart = useCart()
   const quote = useQuote(cart.lines)
+  const session = useSession()
+  const account = session.data ?? null
+
+  if (account?.role === 'ADMIN') {
+    return <AdminCannotBuy />
+  }
 
   if (cart.lines.length === 0) {
     return (
@@ -351,7 +401,7 @@ export function CheckoutPage() {
       </section>
     )
   }
-  if (quote.data === undefined || quote.isPlaceholderData) {
+  if (quote.data === undefined || quote.isPlaceholderData || session.isPending) {
     return <p>Loading…</p>
   }
   return (
@@ -359,7 +409,10 @@ export function CheckoutPage() {
       <h2 id="checkout-title">Checkout</h2>
       <Summary quote={quote.data} />
       {quote.data.ready ? (
-        <CheckoutForm quote={quote.data} lines={cart.lines} />
+        <>
+          <AccountHint account={account} />
+          <CheckoutForm quote={quote.data} lines={cart.lines} account={account} />
+        </>
       ) : (
         <div className={styles.alert}>
           <p>Some items in your cart need attention.</p>

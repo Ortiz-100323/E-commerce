@@ -21,6 +21,8 @@ A ticket moves to **Done** only after the owner accepts it at its review gate.
 
 ## Board
 
+**Priority order (owner, prompt #037):** after ECOM-016 comes **ECOM-018 → ECOM-019 → ECOM-020 → ECOM-017**, so README and delivery come last. The IDs are unchanged, and the rows below follow that order.
+
 | Key | Title | Phase | Depends on | Status |
 |---|---|---|---|---|
 | [ECOM-000](ECOM-000.md) | Walking skeleton: four containers, weather test feature, local CI | 0 | — | Done |
@@ -39,6 +41,9 @@ A ticket moves to **Done** only after the owner accepts it at its review gate.
 | [ECOM-013](ECOM-013.md) | Ordering: Order aggregate, fake payment and checkout | 4 | ECOM-005 | Done |
 | [ECOM-014](ECOM-014.md) | Checkout safety: idempotency key and stock locking | 4 | ECOM-013 | Done |
 | [ECOM-015](ECOM-015.md) | Purchase UI: cart, checkout and confirmation | 4 | ECOM-014, ECOM-006 | Done |
-| [ECOM-016](ECOM-016.md) | Hardening, Playwright E2E and GitHub Actions | 5 | ECOM-012, ECOM-015 | In Review (GitHub Actions pending) |
-| [ECOM-017](ECOM-017.md) | README and delivery | 6 | ECOM-016 | Backlog |
-| [ECOM-018](ECOM-018.md) | UI polish and user experience (from the owner's ECOM-007 test) | 5 | ECOM-007, ECOM-008 | Backlog |
+| [ECOM-016](ECOM-016.md) | Hardening, Playwright E2E and GitHub Actions | 5 | ECOM-012, ECOM-015 | In Review (PR #1, CI green) |
+| [ECOM-018](ECOM-018.md) | UI polish and user experience, starting with the shop's product card | 5 | ECOM-007, ECOM-008, ECOM-012, ECOM-015 | Done (parts A and B accepted) |
+| [ECOM-019](ECOM-019.md) | Single login with roles, and the admin area for admins only (including creating admins) | 5 | ECOM-016, ECOM-018 | Done (validated by the owner, prompt #048) |
+| [ECOM-020](ECOM-020.md) | Buyer sign-up on the login page, and "My orders" | 5 | ECOM-019, ECOM-015 | Done (validated by the owner, prompt #048) |
+| [ECOM-017](ECOM-017.md) | README and delivery | 6 | ECOM-016, ECOM-018, ECOM-019, ECOM-020 | Done (prompt #053) |
+| [ECOM-021](ECOM-021.md) | Admins don't shop, and an admin orders screen with every order | After the MVP | ECOM-019, ECOM-020 | Done (accepted, prompt #051) |

@@ -71,4 +71,28 @@ export const ordersApi = {
   place: (body: CheckoutBody, idempotencyKey: string) =>
     request<Order>('POST', '/orders', { body, idempotencyKey }),
   get: (id: string) => request<Order>('GET', `/orders/${encodeURIComponent(id)}`),
+  mine: (page: number) => request<MyOrders>('GET', '/me/orders', { query: { page } }),
+}
+
+export type MyOrders = {
+  items: Order[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export type AdminOrder = Order & { customer_account: boolean }
+
+export type AdminOrders = {
+  items: AdminOrder[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export type AdminOrderQuery = { q?: string; status?: OrderStatus; page?: number }
+
+export const adminOrdersApi = {
+  list: (query: AdminOrderQuery) => request<AdminOrders>('GET', '/admin/orders', { query }),
+  get: (id: string) => request<AdminOrder>('GET', `/admin/orders/${encodeURIComponent(id)}`),
 }

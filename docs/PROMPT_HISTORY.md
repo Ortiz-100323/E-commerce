@@ -2197,3 +2197,1029 @@ gh auth refresh --hostname github.com --scopes workflow
 **Status:**
 - ECOM-016 is In Review. It's committed on its branch but not pushed yet, waiting for the permission.
 - Next on the board: ECOM-017 (README and delivery).
+
+## #036 — 2026-11-22 — Git reviewed; ECOM-016 pushed; pull request #1 green on GitHub Actions
+
+### User
+
+> Review our git and make sure it is update to date.
+
+### Assistant
+
+**Your git is up to date with GitHub, and the first GitHub Actions run is green.**
+
+**What I checked**
+- **Branches:** `main` (`42336a7`, everything through ECOM-015) and the 15 earlier ticket branches were already identical to GitHub.
+- **ECOM-016 was the only thing missing.** You had granted the `workflow` permission, so I pushed it and opened **pull request #1** into `main`: https://github.com/Ortiz-100323/E-commerce/pull/1
+- **Nothing left behind:** no unpushed commits, no put-aside work, no uncommitted project files.
+- **Left untracked on purpose:** `.claude/skills/frontend-design/` and `skills-lock.json`, a Claude Code skill installed on your side. It isn't part of the shop. Tell me if you'd like it committed or ignored.
+
+**GitHub Actions: passed in 2 min 20 s** ([run](https://github.com/Ortiz-100323/E-commerce/actions/runs/45022442937)). It gave the same results as your local run:
+- 8 architecture rules kept;
+- 60 tooling, 869 backend (99.62% coverage) and 136 frontend tests;
+- every live smoke check;
+- no container running as the administrator (users 999, 70, 101);
+- both images within budget;
+- the 3 browser tests.
+
+ECOM-016's criterion 5 is now ✅ **Pass**, and all five of its criteria pass. The browser cache was empty on this first run and has been saved, so the next runs reuse it.
+
+One difference: the images measure smaller on GitHub's Linux machines (frontend 62 MB, backend 341 MB) than on Docker Desktop for Windows (93 MB and 487 MB). The budgets are set against the larger, local figures, so both pass. This is noted in the journal (D-104).
+
+These notes were pushed to the same pull request, which runs the checks once more.
+
+**Status:** ECOM-016 is In Review. When you're happy, merge pull request #1 on GitHub, or tell me "merge" and I'll do it. Next on the board is ECOM-017 (README and delivery).
+
+## #037 — 2026-11-22 — New priority order; ECOM-019 and ECOM-020 created; ECOM-018 plan (product card)
+
+### User
+
+> New priority order: ECOM-018 next, then two new tasks, and ECOM-017 last. Keep the existing IDs, only change the order.
+>
+> *(Pasted text:)*
+>
+> Let's refine the product card in the catalog. Today it only shows name, category and price, and to buy anything I have to open the product. I want it to feel like a real store card.
+>
+> Put an image area on top, with a 4:3 ratio. We don't have photos yet, so use a clean placeholder with the category color and icon, and when the product has an image URL, show the image instead.
+>
+> Below the image, the name in at most two lines, the category in a smaller, softer text, and the price highlighted. If stock is low, show a small "Only N left" badge; if it's sold out, show "Out of stock" and disable the button.
+>
+> Add an "Add to cart" button right on the card, so I can buy without opening the product. Clicking anywhere else on the card opens the product page.
+>
+> On hover, lift the card a little with a soft shadow, and make sure every card has the same height so the grid stays aligned. It also needs to work with the keyboard and look good on mobile.
+>
+> One more thing: we have two "Bluetooth Speaker" cards with different prices, so show something that tells them apart.
+>
+> Show me the plan first, then check the card with Playwright on desktop and mobile before you show me.
+>
+> *(End of pasted text.)*
+>
+> Create ECOM-019: login screen for admins. Product management and CSV import are only reachable after an admin logs in. Reuse the backend admin auth if it already exists, otherwise add the minimum needed.
+>
+> Create ECOM-020: a very simple buyer account. Register with name, email and password, log in, and a "My orders" page listing their purchases. Orders made while logged in are linked to the buyer; guest checkout keeps working. Keep it minimal: no email confirmation, no password reset, no profile editing.
+>
+> Both tasks with acceptance criteria in the task files, tests first, and decisions in JOURNAL.md. Start with ECOM-018 and show me the plan before you build. Add what you believe will be best standard for those tasks.
+
+### Assistant
+
+**The board has the new order, ECOM-019 and ECOM-020 are created, and the ECOM-018 plan is ready for your review.** Nothing is built yet.
+
+## The new order (journal D-105)
+
+**ECOM-016** (pull request #1, waiting for your merge) → **ECOM-018** → **ECOM-019** → **ECOM-020** → **ECOM-017** last. The IDs are unchanged. I'm on a new branch, `feature/ECOM-018-ui-polish`, started from ECOM-016.
+
+## ECOM-018: the product card first (plan, journal D-106)
+
+The full plan is in [tasks/ECOM-018.md](tasks/ECOM-018.md). I split the ticket in two parts:
+- **Part A:** your card. It's built first, checked with Playwright on desktop and on a phone, and only then shown to you.
+- **Part B:** the UX remarks we collected since ECOM-007. It's planned in detail after you accept the card.
+
+**The card**
+- **Image area, 4:3.** It shows the product's photo when it has an image URL. Otherwise it shows a clean placeholder: a soft tint of the category's colour and a simple icon (Electronics, Sports, Home & Office, Kitchen, Gifts, Books, and so on). The colour stays the same for a category every time.
+  - A broken image falls back to the placeholder, and the space is reserved, so nothing jumps while it loads.
+- **Below the image:** the name in at most two lines (full name on hover), the category smaller and softer, and the price highlighted ("Free" for gifts).
+- **Stock:** "Only N left" when 1 to 5 are left, and "Out of stock" with a disabled button.
+- **Add to cart on the card**, with the same rules as the product page (never more than the stock). It briefly confirms "Added", and screen readers hear it too.
+- **Anywhere else on the card** opens the product page.
+- **Hover:** a small lift with a soft shadow. It stays still for people who ask their computer to reduce motion.
+- **Same height** for every card, with the button aligned at the bottom.
+- **Keyboard:** Tab reaches the card (with a visible frame), then its button.
+- **Mobile:** two columns, big touch targets.
+- **The two Bluetooth Speakers:** every card shows its SKU in small text, "SKU BS-021" and "SKU BS-099", the way real shops show a model number.
+
+**Checked with Playwright before you see it,** on desktop (1280 × 800) and a phone (Pixel 7):
+- the 4:3 ratio, the two-line limit, equal heights, the badges, adding from the card, clicking the card, and the keyboard;
+- screenshots go into the evidence folder for you;
+- nothing is bought, so your stock doesn't change.
+
+**Acceptance criteria (part A):**
+1. The image or the placeholder appears in a 4:3 area.
+2. Two lines of name, softer category, highlighted price.
+3. The stock badges and a disabled button when sold out.
+4. Add to cart from the card, never past the stock.
+5. Clicking the card opens the product.
+6. Equal heights on desktop and mobile.
+7. Keyboard only works.
+8. Look-alikes can be told apart.
+9. Playwright checks all of it on desktop and mobile.
+10. An admin can set an image URL (HTTPS only), and the change shows in the product's history.
+
+**Decisions for you**
+
+1. **Product images need a small backend change.** Products have no image field today.
+   - I'd add an optional **Image URL** to the product: HTTPS only, settable in the admin form with a preview, and recorded in the product's history.
+   - The security policy from ECOM-016 then has to allow images from other HTTPS sites. OK?
+   - The alternative is uploading photos to the shop itself. That's a bigger feature, which I'd leave for later.
+2. **"Only N left" from 5 units down.** OK, or another number?
+3. **An accessibility checker (optional).** I could add `@axe-core/playwright` (a new package, so it needs your approval) to check the card and pages for accessibility problems automatically on every run. Without it, I check the keyboard and labels myself in the tests.
+
+## ECOM-019 and ECOM-020: created
+
+Both have acceptance criteria, failure cases and a test plan in their files ([ECOM-019](tasks/ECOM-019.md), [ECOM-020](tasks/ECOM-020.md)), with the choices in journal D-107 and D-108. I'll show you a detailed plan before building each one.
+
+**The standards I chose** (no admin login exists yet, so this is the minimum needed):
+- **Passwords:**
+  - hashed with scrypt from Python's standard library, so no new package;
+  - at least 12 characters, with no "must contain a symbol" rules (the current NIST guidance).
+- **Sessions:**
+  - stored on the server, behind a secure cookie that scripts can't read, so signing out ends them at once;
+  - admins are signed out after 30 idle minutes or 8 hours;
+  - buyers and admins have separate sessions, and neither grants the other's rights.
+- **Brute force:**
+  - after 5 wrong attempts in 15 minutes, that email is blocked for a while;
+  - the error never says whether the email or the password was wrong.
+- **Who did what:**
+  - the audit log records the signed-in admin;
+  - the "Who is reviewing?" box and its header go away, so nobody can type someone else's name.
+- **The first admin:** a command for a real server, and a development admin for local Docker (public local values, like the database login).
+- **Buyers:**
+  - orders placed while signed in are linked to the buyer, and guest checkout is unchanged;
+  - "My orders" shows only your own orders;
+  - past guest orders aren't linked automatically, because the email isn't verified.
+- **One trade-off to know about:** registering an email that's already used says so clearly. It reveals that the email has an account, which is acceptable for a minimal shop without email confirmation.
+
+**Status:** ECOM-018 is In Progress (plan). Answer the three decisions (or just "go" for my recommendations: yes to image URLs, 5 units, no extra package), and I'll build part A and show it to you with the Playwright screenshots.
+
+## #038 — 2026-11-22 — ECOM-018 plan accepted, registered and committed; not started
+
+### User
+
+> I agree with three questions. But register everything and commit. Dont start it yet.
+
+### Assistant
+
+**Registered and committed. Nothing is started.**
+
+I read your answer as accepting my three recommendations:
+1. **Product images:** an optional, HTTPS-only image URL for each product, set in the admin form and recorded in its history. The security policy will allow images from HTTPS sites.
+2. **"Only N left"** from 5 units down.
+3. **No accessibility package:** the keyboard and label checks are written in our own tests.
+
+If you meant "yes" to adding the accessibility checker, tell me and I'll change decision 3.
+
+**Where it's recorded**
+- **Journal D-106:** the plan is marked accepted, with your three answers.
+- **[tasks/ECOM-018.md](tasks/ECOM-018.md):** status **To Do** (plan accepted, not started), with your decisions above the plan.
+- **The board:** the new order (ECOM-018 → ECOM-019 → ECOM-020 → ECOM-017), and ECOM-018 as "To Do (plan accepted)".
+- **New tickets:** ECOM-019 and ECOM-020, with their acceptance criteria and failure cases (journal D-107 and D-108, still proposed until you review each detailed plan).
+- **The prompt history:** this exchange and the previous one.
+
+**The commit** is on `feature/ECOM-018-ui-polish`, which starts from ECOM-016. It's local only, because you asked to commit, not to push. Your `.claude/` skill files and `skills-lock.json` are left out.
+
+**Status:** ECOM-016 is waiting for your merge of pull request #1. ECOM-018 is ready to start when you say so.
+
+## #039 — 2026-11-22 — ECOM-018 branch pushed; work not started
+
+### User
+
+> You can commit and push it. Just dont start next task
+
+### Assistant
+
+**Committed and pushed. Nothing is started.**
+
+- `feature/ECOM-018-ui-polish` is now on GitHub. It holds:
+  - the new priority order;
+  - the accepted ECOM-018 plan, with your three decisions;
+  - the ECOM-019 and ECOM-020 tickets;
+  - the journal and prompt-history entries.
+- **No pull request yet:** the branch has only planning documents, so I'll open one when ECOM-018 is built. Tell me if you want it now.
+- **Left out on purpose:** your `.claude/` skill files and `skills-lock.json`.
+- **Still waiting for you:** pull request #1 (ECOM-016), to merge on GitHub.
+
+ECOM-018 is To Do and won't be started until you say so.
+
+## #040 — 2026-11-22 — ECOM-018 part A built: the product card, checked with Playwright on desktop and mobile
+
+### User
+
+> Now you can start it
+
+### Assistant
+
+**Your product card is built and checked with Playwright on a desktop and a phone. Here it is, for your review.**
+
+Screenshots, taken by the browser tests on your running shop: [tasks/ECOM-018-evidence/](tasks/ECOM-018-evidence/README.md).
+- **01 and 03:** your real catalog, on desktop and on a phone.
+- **02 and 04:** every card state side by side: a photo, a broken photo, "Only 2 left", "Out of stock", a gift, a very long name, and two products with the same name.
+
+In those pictures the text looks lighter than it will for you, because the test browser has basic fonts. In your browser, names and prices show in bold.
+
+## What you'll see in the shop
+
+- **An image area on top, 4:3.** Your products have no photos yet, so each card shows its category's colour and a simple line icon: Home & Office in sand with a house, Electronics in blue with a speaker, Accessories in green with a bag, Beauty in rose with a bottle, and so on. When a product gets an image link, the photo shows instead. If the photo can't load, the placeholder comes back.
+- **Below:** the name in at most two lines (the full name on hover), the category in softer text, the SKU, and the price in large type ("Free" for gifts).
+- **Badges:** "Only 3 left" from 5 units down, and "Out of stock" with the button greyed out.
+- **Add to cart right on the card.** It briefly turns green and says "Added", and screen readers announce it. Once you've added all the stock there is, it says "All 3 in your cart" and stops.
+- **Anywhere else on the card** opens the product page.
+- **Hover:** the card lifts a little with a soft shadow, on computers only and not for people who ask their system to reduce motion.
+- **Same height** for every card, with the buttons lined up.
+- **Keyboard:** Tab reaches the card (a blue frame appears around it) and then its button. Enter opens the product; Enter or Space adds it to the cart.
+- **Phone:** two columns, with large buttons.
+- **The two Bluetooth Speakers** now read "SKU BS-021" and "SKU BS-099".
+
+**Product photos:** the admin product form has a new **Image URL (optional)** field, with a preview. Only `https://` addresses are accepted, and changes appear in the product's history.
+
+## Acceptance criteria (part A)
+
+| # | Criterion | Result | How it was proven |
+|---|---|---|---|
+| 1 | 4:3 image area: the photo, or the category placeholder; a broken photo shows the placeholder | ✅ Pass | Measured on every card on desktop and phone |
+| 2 | Two lines of name, softer category, highlighted price | ✅ Pass | A very long name is cut at two lines |
+| 3 | "Only N left" and "Out of stock" with a disabled button | ✅ Pass | Both badges and the disabled button |
+| 4 | Add to cart on the card, never past the stock | ✅ Pass | Stops at "All 2 in your cart" |
+| 5 | Clicking the card opens the product | ✅ Pass | A click on the image opens the product page |
+| 6 | Same height on desktop and mobile | ✅ Pass | All cards within 1 pixel, on both |
+| 7 | Keyboard only | ✅ Pass | Tab, Enter, Space, Shift+Tab, with a visible frame |
+| 8 | Look-alikes told apart | ✅ Pass | The SKU on every card |
+| 9 | Playwright on desktop and mobile, with screenshots | ✅ Pass | 19 browser tests passed |
+| 10 | An admin can set and clear an HTTPS image URL, shown in the history | ✅ Pass | Form and server tests; `http:`, `javascript:` and `data:` addresses are refused |
+
+**Found by Playwright before you saw it:**
+- **A real bug:** a photo that isn't 4:3 stretched its card and broke the grid's alignment. Fixed; the photo now always fills the 4:3 area.
+- **A design problem:** the first screenshots showed three categories in the same grey. Each kind of category now has its own colour.
+
+**Failure cases and retries:** all pass.
+- A bad image address is refused with a clear message.
+- A broken or slow photo never moves the layout.
+- Clicking Add to cart repeatedly stops at the stock.
+
+**Tests:** written first. 24 new backend tests, 13 new frontend tests and 9 browser tests (run on 2 devices). In the CI container:
+- all static checks;
+- 60 tooling tests;
+- 893 backend tests, with 99.6% of the business rules covered;
+- 149 frontend tests;
+- the live smoke checks.
+
+Your containers are rebuilt, and your database is on migration 0009.
+
+One slip on my side: a command of mine hung because I broke my own rule against `python -` in a shell command. I stopped it; nothing was changed.
+
+### What to test (http://localhost:3000; press **Ctrl+F5** first)
+
+1. **Shop:** the new cards with colours and icons.
+   → Every row lines up, and the buttons sit at the same height.
+2. Hover a card.
+   → It lifts a little.
+3. Press **Add to cart** on a card.
+   → "Added" in green, and the header's cart count goes up.
+4. Search **Bluetooth Speaker**.
+   → Two cards: SKU BS-021 at $59.99 and SKU BS-099 at $24.99.
+5. Click a card's picture or category.
+   → The product page opens.
+6. **Admin → Products → Edit** a product, and paste a photo address starting with `https://` into **Image URL (optional)**.
+   → A preview appears. Save, and the shop shows the photo on its card.
+7. Make your browser narrow (or open the shop on your phone, on the same network).
+   → Two columns.
+
+**Status:** ECOM-018 part A is In Review, not committed yet. Tell me what you'd like changed, or "commit". Part B (the polish collected since ECOM-007) is planned in detail after you accept the card.
+
+## #041 — 2026-11-22 — ECOM-018 part A, round 2: one look for every screen
+
+### User
+
+> I dont think you did good enough in the interface, It's a little odd, looks half of it has styles and half of it do not.
+>
+> 1. Style every button, input, dropdown and link the same way. This is a small amount of work and gives the biggest improvement.
+> 2. Reorganise the filter bar and move Sort next to the product count.
+> 3. Redesign the product page with a picture and two columns.
+> 4. Make the cards lighter: smaller buttons, stock labels, no SKU.
+> 5. Header, colour and empty-state improvements.
+
+### Assistant
+
+**You were right. Only the card had a design; every other button, field and dropdown still used the browser's default look. All five points are done, in your order, and checked with Playwright on a desktop and a phone.**
+
+Screenshots of every screen: [tasks/ECOM-018-evidence/](tasks/ECOM-018-evidence/README.md), numbers 05 to 18. Numbers 01 to 04 are the previous version, kept for comparison.
+
+## What changed
+
+1. **One look everywhere.**
+   - Every button, field, dropdown, checkbox, link, table and message box now uses the same colours, sizes and corners. That covers the shop, the product page, the cart, checkout, the admin pages, the CSV import and the pop-ups.
+   - It's defined once and reused everywhere, so a new screen gets the same look automatically.
+2. **The filter bar.**
+   - One white panel: the search box and **Search** on top, then Category, **In stock only** and **Gifts only** (as tick-chips), and a Min–Max price range.
+   - **Sort by** now sits on the right of "101 products", just above the grid.
+   - **On a phone** the filters fold behind a **Filters** button that shows how many are active, e.g. "Filters (2)", so the products show on the first screen. If you type a wrong price, the filters open by themselves so you see the message.
+3. **The product page.** The picture is on the left. The name, a large price, the stock label, a big **Add to cart**, the description and the details (category, SKU, weight, stock) are on the right. On a phone they stack.
+4. **Lighter cards.**
+   - The stock is a small label with a coloured dot: "In stock", "Only 3 left" or "Out of stock".
+   - The price and a smaller rounded button share one row.
+   - The SKU is gone, **except** when two products on the same page have the same name. That way the two Bluetooth Speakers can still be told apart, which was in your first brief.
+5. **Header, colour and empty states.**
+   - A white header that stays on top while you scroll, with the active page underlined, and the cart as a button with a number badge.
+   - One deep green as the brand colour.
+   - A clear "No products match your search" panel with **Clear filters**, an empty cart that invites you back to the shop, and a "Product not found" page with a way back.
+
+**Found while checking the screenshots, and fixed before showing you:**
+- the Price label sat a few pixels higher than Category;
+- on the phone the open filters filled the whole first screen;
+- the checkout and cart titles were smaller than the other titles;
+- the cart button's name for screen readers came out with extra spaces.
+
+No new packages were added.
+
+## Acceptance criteria (round 2)
+
+| # | Criterion | Result | How it was proven |
+|---|---|---|---|
+| 1 | Every button, field, dropdown and link looks the same on every screen | ✅ Pass | Playwright screenshots of all main screens (05 to 18) |
+| 2 | Sort next to the product count; the filters together in one panel | ✅ Pass | Component test |
+| 3 | On a phone, the filters fold behind "Filters (N)" and open by themselves on a price error | ✅ Pass | Component tests; Playwright on the phone and the desktop |
+| 4 | Product page: the picture beside the details, or above them on a phone | ✅ Pass | Playwright measures both layouts |
+| 5 | Lighter cards: a stock label, a compact button, no SKU unless names repeat | ✅ Pass | Component tests; Playwright (the tent has no SKU, the two speakers do) |
+| 6 | Empty states say what to do next | ✅ Pass | Component and Playwright tests |
+| 7 | Everything from round 1 still works: 4:3 pictures, equal heights, the keyboard, the stock limit, large buttons on phones | ✅ Pass | All earlier browser tests, on both devices |
+
+**Failure cases and retries:** all pass.
+- A wrong price shows its message, and the filters open to show it.
+- If the products can't load, a **Try again** button appears.
+- A missing product shows "Product not found" with a way back.
+- Pressing Add to cart repeatedly still stops at the stock.
+- The checkout still re-checks the stock, so nothing is oversold.
+
+**Tests:** 7 new component tests and 4 new browser tests. In the CI container:
+- all static checks;
+- 60 tooling tests;
+- 893 backend tests (99% coverage);
+- 156 frontend tests;
+- the live smoke checks;
+- 26 browser tests on desktop and phone.
+
+Your shop container is rebuilt.
+
+One slip on my side: a text-processing command removed a block of the shop page because of a Windows path. I put it back right away with the editor, and the tests confirm it.
+
+### What to test (http://localhost:3000; press **Ctrl+F5** first)
+
+1. **Shop:** look at the header, the search panel and the cards.
+   → Every button and field has the same style; **Sort by** sits next to the product count.
+2. Search **Bluetooth Speaker**.
+   → Only these two cards show a SKU (BS-021 and BS-099); the other cards don't.
+3. Open any product.
+   → The picture is on the left and the details are on the right; **Add to cart** is large and green.
+4. Search for something that doesn't exist, like **zzz**.
+   → "No products match your search", with **Clear filters**.
+5. Open **Admin**, the **Cart** and **Checkout**.
+   → They share the same buttons, fields and colours as the shop.
+6. Make the window narrow, or use your phone.
+   → The filters fold behind **Filters**; tick one and the button shows "Filters (1)".
+
+**Status:** ECOM-018 part A (round 2) is waiting for your review and isn't committed. Tell me what you'd like changed, or say "commit". Part B will then be planned in detail.
+
+## #042 — 2026-11-22 — ECOM-018 part A accepted, committed and pushed
+
+### User
+
+> now it is good enought. Wrap it up, commit and push it
+
+### Assistant
+
+**ECOM-018 part A is accepted, committed and pushed to GitHub.**
+
+- **What's saved:** the product card, product photos (HTTPS image links), one look for every screen, the new filter bar, the two-column product page, the header and the empty states. It also includes all tests and the screenshots in `tasks/ECOM-018-evidence/`.
+- **Commit:** `ab530f0` on `feature/ECOM-018-ui-polish`, pushed to `origin`. A second, docs-only commit records this prompt.
+- **Left out on purpose:** your private `.claude/` folder and `skills-lock.json`.
+- **Records updated:**
+  - the ticket now reads "In Progress: part A accepted, part B next";
+  - the task board shows the same;
+  - journal D-106 and D-109 are marked accepted;
+  - this prompt is logged.
+
+**Security check before pushing:**
+
+| Check | Result |
+|---|---|
+| `.env`, key, certificate or credential files tracked now | None |
+| Such files anywhere in the Git history | None |
+| Secret patterns (cloud keys, GitHub tokens, private keys, hard-coded passwords) in the new changes | None |
+| Personal data in the new screenshots | None: only the catalog, test products and "E2E reviewer" |
+
+**Tests:** all pass in the CI container, and all 26 browser tests pass on desktop and phone. GitHub Actions runs only for pull requests and `main`, so this branch push starts no run there. It will run when the ticket's pull request is opened.
+
+**No pull request yet:** ECOM-018 still has part B. I'll open the single pull request for ECOM-018 into `main` when part B is done, unless you want it now.
+
+**Next:** part B (the polish collected since ECOM-007). I'll show you a detailed plan before building anything.
+
+## #043 — 2026-11-22 — Code review through ECOM-018
+
+### User
+
+> Do a code review into the new ones, including 18. Check the output from it
+
+### Assistant
+
+Code review through ECOM-018 is complete. I fixed and logged five findings:
+
+- Malformed IPv6 image URLs could escape validation and cause a 500; they now return a 422 `invalid_image_url`.
+- Invalid and out-of-range image URL ports were accepted; both are now rejected.
+- The admin image field did not enforce the domain’s 2,048-character limit; client and domain rules now match.
+- A storefront component test could time out under full-suite worker load; its asynchronous wait is now explicit and stable.
+- The architecture revision table had duplicate revision 25 entries; numbering is corrected through revision 28.
+
+ECOM-016’s workflow, containers, nginx, security checks, image budgets, and GitHub output had no new defects. ECOM-017 remains Backlog, so there was no implementation to review.
+
+I inspected all 18 ECOM-018 screenshots and ran fresh browser output. The bright green image is the intentional one-pixel test fixture, not a rendering bug. The muted cart button is enabled; an additional assertion now checks its state after the screenshot.
+
+Verification is green: 60 tooling tests, 898 backend tests at 99.62% coverage, 157 frontend tests at 96.18% line coverage, 11 smoke checks, and 26 Playwright tests with 3 intentional skips. All containers are non-root and both images remain within budget.
+
+Journal D-110, both tickets, the architecture, and prompt history are updated. The review changes are not committed; `.claude/` and `skills-lock.json` remain untouched.
+
+## #044 — 2026-11-22 — ECOM-018 part B built: the polish collected since ECOM-007
+
+### User
+
+> Do part B
+
+### Assistant
+
+**Part B is built: every remark you collected since ECOM-007 is fixed, tested, and checked with Playwright on a desktop and a phone.** Screenshots 19 to 28 are in [tasks/ECOM-018-evidence/](tasks/ECOM-018-evidence/README.md). Nothing is committed yet.
+
+## What changed
+
+**Admin products**
+- **Duplicate SKU:** the message now says "SKU RS-001 is already taken by **Running Shoes**", with **View** and **Edit** links to that product.
+- **The table:** SKUs never wrap. On a narrow screen or a phone, each row's Edit, History and Archive move into an **Actions** button that opens a panel from the bottom of the screen. Nothing is cut off any more.
+- **Messages:** "Product created", "Product archived" and other success messages close by themselves after 5 seconds. Error messages stay until you dismiss them. Messages now appear bottom-left, away from the buttons on the right.
+- **Browser autofill** no longer paints fields light blue.
+
+**"A new version is available"**
+- When the site is updated while a tab is open, the tab notices within 5 minutes, or as soon as you return to it. A banner then offers **Reload**.
+- This prevents a repeat of DEF-02 from ECOM-007, where a tab kept running old code after a fix was deployed.
+
+**CSV import review**
+- Disabled buttons clearly look disabled.
+- Description has a bigger text box.
+- Spaces in the raw CSV line show as `·`, with the note "· marks a space". A name made only of spaces now explains itself.
+- A finished import shows a short read-only table instead of locked editors.
+- "line(s) 2" now reads "line 2", or "lines 2 and 5".
+- The Commit / Discard bar stays visible while you scroll. After you decide a row, the next one is brought into view and focused.
+
+**Cart and checkout**
+- **− and +** buttons around the quantity. **+** stops at the stock that is available.
+- A line that can't be bought as asked is greyed out, with its total struck through. The total reads "Subtotal of available items" until you fix it.
+- The card expiry field shows **MM/YY** instead of a date that looked filled in.
+- Card autofill over plain HTTP (OBS-08) is a browser rule. It goes into the README in ECOM-017, as planned.
+
+**One extra fix:** the "Import CSV" tab now stays underlined while you review an import.
+
+## Acceptance criteria (part B)
+
+| # | Criterion | Result | How it was proven |
+|---|---|---|---|
+| B1 | A duplicate SKU names the product that has it, with links | ✅ Pass | Server tests on PostgreSQL, form tests, Playwright on both devices |
+| B2 | SKUs on one line; the row actions always reachable | ✅ Pass | Component tests; Playwright: inline on desktop, bottom panel on the phone |
+| B3 | Success messages close by themselves and don't cover the actions | ✅ Pass | Component test; Playwright measures the message and sees it close |
+| B4 | A new version offers a reload | ✅ Pass | Component tests; a live check that the version file is published and never cached; Playwright |
+| B5 | The six import remarks | ✅ Pass | Server and component tests; Playwright on both devices |
+| B6 | The three cart and checkout remarks | ✅ Pass | Component tests; Playwright on both devices |
+| B7 | No screen is wider than a phone | ✅ Pass | New Playwright guard on six screens |
+
+**Found by Playwright before you saw it (DEF-02):**
+- On a phone, the admin products page was 566 pixels wide on a 412-pixel screen, so the new actions panel opened below the visible screen.
+- The cause was the table's invisible "Actions" heading for screen readers, which was positioned against the whole page. It was there since ECOM-007, as a page you could drag sideways.
+- Fixed, and a phone test now checks that no main screen is wider than the screen.
+
+**Failure cases and retries:** all pass.
+- If the product holding the SKU can't be found, the plain "already taken" message shows, without links.
+- If the version file is missing or broken, nothing is shown, and the check simply tries again later.
+- Pressing **+** repeatedly stops at the stock.
+- Typing too many units flags the line, and **Use N** fixes it. Checkout still re-checks the stock, so nothing is oversold.
+
+**Tests:** 7 new server tests, 19 new screen tests and 7 new browser tests, written first. In the CI container:
+- all static checks;
+- 60 tooling tests;
+- 900 backend tests (99% coverage);
+- 175 frontend tests;
+- 12 live smoke checks;
+- 39 browser tests on desktop and phone.
+
+Your containers are rebuilt.
+
+**Two notes:**
+- **Codex was working at the same time.** While I built part B, Codex ran a "code review round 4" in the same folder. It fixed image-address checks and a slow test, and took journal number D-110 and prompt #043. I kept its work as it is and numbered mine D-111, D-112 and #044. All tests above ran with both sets of changes together.
+- **My slip:** I again started a shell command with `python -`, and it hung. I stopped it at once, and nothing was changed.
+
+### What to test (http://localhost:3000; press **Ctrl+F5** first)
+
+1. **Admin → Products → New product**, with SKU **RS-001**.
+   → "SKU RS-001 is already taken by Running Shoes", with **View** and **Edit** links.
+2. Archive a product.
+   → "Product archived" appears bottom-left and closes by itself.
+3. Make the window narrow, or open Admin on your phone.
+   → Each row has **Actions**, which opens Edit, History and Archive from the bottom.
+4. **Import CSV** with your sample file.
+   → Line 41 shows `······` and "· marks a space". Description is a text box. Scroll down: Commit stays visible. Skip a row: the next row is focused.
+5. Add an item to the cart.
+   → Use − and +. Type more than the stock: the line greys out and "Subtotal of available items" appears.
+6. On checkout, the expiry field.
+   → It shows MM/YY.
+7. Leave the shop open in a tab. I rebuild the site, and you come back to the tab.
+   → "A new version of this site is available", with **Reload**.
+
+**Status:** ECOM-018 part B is waiting for your review and isn't committed. Tell me what you'd like changed, or say "commit". Once it's accepted, ECOM-018 is complete, and I'll open its pull request into `main` when you ask.
+
+## #045 — 2026-11-22 — ECOM-018 committed; ECOM-019 detailed plan proposed
+
+### User
+
+> Commit and let's go for 19
+
+### Assistant
+
+**ECOM-018 is committed and marked Done.** The detailed plan for ECOM-019 is below. Nothing is built yet: tell me "go" (and answer the three questions) and I'll start, tests first.
+
+**ECOM-018**
+- **Commit:** `f4d1b53` on `feature/ECOM-018-ui-polish`. It contains part B and Codex's code-review fixes (image-address checks, the form's length limit, a steadier test).
+- **Not pushed;** just say if you want that.
+- **Left out on purpose:** your private `.claude/` folder and `skills-lock.json`.
+- **Records:** the ticket, the board and journal D-111 now say accepted.
+
+**ECOM-019 (admin login): the plan**
+
+ECOM-019 continues on a new branch, `feature/ECOM-019-admin-login`, started from ECOM-018, because ECOM-016 and ECOM-018 aren't in `main` yet.
+
+**What you'll get**
+- `/admin` shows a sign-in screen. Product management, history and CSV import work only after an admin signs in. The shop stays open to everyone.
+- The admin bar shows "Signed in as Ana · **Sign out**". The "Who is reviewing?" box disappears.
+- Every change in the history is recorded under the signed-in admin's name. Nobody can type someone else's name any more.
+- After 5 wrong attempts in 15 minutes, that email is locked for the rest of the window, even with the right password.
+- A wrong email and a wrong password get the same message, in the same time, so emails can't be guessed.
+- A session ends after 30 minutes without activity, after 8 hours in any case, or at **Sign out**. If it ends while you work, you're taken back to sign in with "Your session ended".
+
+**How it's built** (full detail in [tasks/ECOM-019.md](tasks/ECOM-019.md), decision D-113)
+- **The "who" check:** the existing admin endpoints already ask one shared check for "who is doing this". I change what that check reads, from a typed name to the signed-in session. The product and order code doesn't change, and doesn't even know about logins.
+- **Passwords** are stored only as scrypt hashes, from Python's standard library. No new packages.
+- **Sign-in cookie:** a random token, stored only as a fingerprint, in a cookie scripts can't read and other sites can't send.
+- **Requests from other sites:** any change coming from another site's page is refused. This needs one small nginx change: it must pass on the full address, including the port.
+- **The first admin:** a command creates the first admin on a real server. Locally, Docker creates a development admin automatically.
+
+**Tests first:** about 60 backend tests, 20 screen tests and 6 browser tests. That includes a test proving every admin endpoint refuses requests without a session, and one that searches responses, logs and tables for the password.
+
+**Failure cases planned:**
+
+| Situation | Planned result |
+|---|---|
+| Wrong password or unknown email | "The email or password is incorrect.", in the same time |
+| Sixth attempt within 15 minutes | Refused (429) with the wait time; the refusal itself doesn't extend the lock |
+| Session expired or signed out | Back to sign-in with "Your session ended" |
+| A change sent from another site | Refused |
+| Signing in twice | Two sessions, each signs out on its own |
+| Signing out twice | Fine both times |
+| An admin made inactive | Their sessions stop at the next request |
+
+**Three decisions for you:**
+1. **Local admin login:** `admin@example.com` / `local-admin-password-change-me` (recommended; public development values, like the database password), or your own values.
+2. **"Signed in as … · Sign out":** in the admin bar only (recommended, so the shop header stays the shop's), or in the main header too.
+3. **The shop's "Admin" link:** keep it visible to everyone, leading to sign-in (recommended until buyer accounts arrive in ECOM-020), or hide it.
+
+**Status:** ECOM-019's plan is waiting for your approval. The plan, D-113 and this entry are written, but not committed.
+
+## #046 — 2026-11-22 — Logins rethought: one login with roles; ECOM-019 and ECOM-020 re-planned
+
+### User
+
+> Let's rethink the logins before ECOM-019 and ECOM-020. I don't want two separate login screens. I want a single "Log in" button in the header that takes me to one login page. When I log in, the app already knows if I'm an admin or a buyer: admins go to the admin area, buyers go back to the shop with their account available.
+>
+> On that same login page, a buyer who doesn't have an account can sign up with name, email and password. Public sign-up always creates a buyer, never an admin.
+>
+> The first admin is created by the seed, with email and password from the environment variables. Inside the admin area, an admin can create new admin logins. A buyer trying to reach the admin pages or the admin API gets blocked.
+>
+> Keep it simple: no email confirmation, no password reset. Split this into ECOM-019 (single login, roles and admin area, including creating admins) and  ECOM-020 (buyer sign-up and "My orders"), with tests first, including the ones proving a buyer can't become or act as an admin. Register the decisions in JOURNAL.md and show me the plan before you build.
+>
+> You can deliver both of them together in sequence so I can validate them together.
+
+### Assistant
+
+**Done: logins are redesigned, both tickets rewritten, and the decisions recorded.** Here's the plan. Nothing is built yet.
+
+The new decisions are D-114 (the login model), D-115 (ECOM-019) and D-116 (ECOM-020) in the journal. The old plans, D-107, D-108 and D-113, are marked "superseded", not deleted. Tickets: [ECOM-019](tasks/ECOM-019.md) and [ECOM-020](tasks/ECOM-020.md).
+
+## How it will work
+
+- **One account type with a role.** Each person has one account: name, email, password and a role, **admin** or **buyer**. One email belongs to one account. The role is set when the account is created, and **no screen or API can ever change it**.
+- **One Log in button, one page.** The header shows **Log in** and leads to `/login`. After logging in:
+  - an admin goes to the admin area, and sees an **Admin** link in the header;
+  - a buyer goes back to the shop page they came from, with **My orders** and **Log out** in the header.
+- **Sign-up on the same page** (ECOM-020): "New here? Create an account" with name, email and password. It always creates a buyer and logs them in at once.
+- **The first admin** comes from the seed, using `ADMIN_SEED_EMAIL` and `ADMIN_SEED_PASSWORD`. It runs every time the backend starts, but only creates the admin when there's none, and never changes an existing account.
+- **More admins:** a new **Admins** tab in the admin area lists the admins and has a **Create admin** form.
+- **Buyers are blocked from the admin side**, on the server for every request:
+  - the admin API answers "admin required" to a buyer;
+  - the admin pages show "This area is for administrators";
+  - the Admin link isn't shown to buyers.
+- **Security, kept from the earlier plan:**
+  - passwords stored only in a scrambled, one-way form (scrypt, built into Python; no new packages);
+  - 5 wrong attempts in 15 minutes lock that email for the rest of the window;
+  - the same message, in the same time, for a wrong email or a wrong password;
+  - a sign-in cookie that page scripts can't read and other sites can't send;
+  - changes coming from other sites are refused;
+  - every admin change recorded under the logged-in admin's name.
+- **Out of scope, as you asked:** email confirmation, password reset, profile editing, removing accounts.
+
+## Tests proving a buyer can't become or act as an admin (written first)
+
+| # | Test | Ticket |
+|---|---|---|
+| 1 | Every admin API endpoint, sent by a buyer, is refused ("admin required"); with no login, "authentication required"; with the old typed-name header only, also refused | 019 |
+| 2 | A buyer trying to create an admin is refused, and nothing is created | 019 |
+| 3 | A changed or invented cookie is refused; the role always comes from the database, never from the browser | 019 |
+| 4 | A buyer opening `/admin` sees "This area is for administrators", the Admin link stays hidden, and no admin data is requested | 019 |
+| 5 | Sign-up carrying `role: "ADMIN"` (or any extra field) is refused, and no account is created | 020 |
+| 6 | Every account created by sign-up is a buyer in the database | 020 |
+| 7 | Signing up with the admin's email is refused, and the admin's password and role are unchanged | 020 |
+| 8 | An admin creating an admin with a buyer's email is refused, and the buyer stays a buyer (no promotion) | 019 + 020 |
+| 9 | A check of the whole API description: only "create admin" can make an admin, and no request anywhere accepts a role | 020 |
+| 10 | In the browser: sign up, then try the admin area, and see it blocked | 020 |
+
+## The two tickets
+
+**ECOM-019, single login, roles and admin area:**
+- the account model and the database tables;
+- the seed;
+- log in and log out;
+- the role checks on every admin endpoint;
+- the Admins tab with **Create admin**;
+- the header's **Log in** / **Log out**;
+- the `/login` page;
+- the admin guard;
+- removing the "Who is reviewing?" box.
+
+**ECOM-020, buyer sign-up and My orders:**
+- sign-up on the login page;
+- orders linked to the buyer who places them; guest checkout is unchanged;
+- the checkout pre-filled with the buyer's name and email;
+- a **My orders** page: the buyer's own orders only, newest first, with pages.
+
+**Delivery:** ECOM-019 first, then ECOM-020 on top of it. You get both together, with screenshots from Playwright on desktop and phone, to validate in one go. The branch is renamed `feature/ECOM-019-single-login`.
+
+**Failure cases planned:**
+- wrong details, the lockout, an expired session (back to login with "Your session ended");
+- a buyer calling the admin API;
+- a change sent from another site;
+- a taken email at sign-up or when creating an admin;
+- an expired login at checkout: refused before paying, so nothing is placed as a guest order by accident;
+- retries: logging in twice, logging out twice, signing up twice at once, paying twice with the same key.
+
+## Three decisions for you
+
+1. **Local admin from the seed:** `admin@example.com` / `local-admin-password-change-me` (recommended; public development values, like the local database password), or your own.
+2. **How long a login lasts:** the same for everyone, 30 minutes without activity and 8 hours at most (recommended, simplest), or longer for buyers (for example, 7 days).
+3. **An admin buying in the shop:** the order is a guest order (recommended, so admins and buyers stay separate), or admins also get "My orders".
+
+**Status:** ECOM-019 and ECOM-020 are planned and waiting for your approval. Say "go" with your answers and I'll build both, tests first. The plan documents are written but not committed.
+
+## #047 — 2026-11-22 — ECOM-019 and ECOM-020 built: one login with roles, admins creating admins, buyer sign-up and My orders
+
+### User
+
+> Yes, go with each recommendation
+
+### Assistant
+
+**Both tickets are built and checked with Playwright on a desktop and a phone, ready for you to validate together.** Nothing is committed yet.
+
+I used your three choices:
+- the local admin from the seed is **admin@example.com** / **local-admin-password-change-me**;
+- a login lasts 30 minutes without activity and 8 hours at most, for everyone;
+- an admin who buys in the shop places a guest order.
+
+Screenshots: [tasks/ECOM-019-evidence/](tasks/ECOM-019-evidence/README.md) and [tasks/ECOM-020-evidence/](tasks/ECOM-020-evidence/README.md).
+
+## What you'll see
+
+**For everyone**
+- The header shows one **Log in** button. It opens a single page with **I have an account** on one side and **New here? Create an account** on the other; on a phone they stack.
+- After logging in, the header shows your name and **Log out**.
+
+**Admins (ECOM-019)**
+- An admin who logs in lands in the admin area, and the header shows an **Admin** link.
+- The "Who is reviewing?" box is gone: every change in the history is recorded under the logged-in admin's name.
+- A new **Admins** tab lists the administrators and has **Create admin**. That is the only way to make an admin.
+- The first admin is created by the seed when the backend starts. It does this only once, and never changes an existing account.
+
+**Customers (ECOM-020)**
+- Sign-up always creates a customer, who is logged in at once and goes back to the shop page they came from.
+- At checkout, a customer's name and email are already filled in, with "This order will be kept in My orders." Visitors can still pay as guests.
+- **My orders** lists the customer's own orders, newest first: number, date, total, status and items, each linking to its order page.
+
+**Customers can't reach the admin side**
+- A customer who opens the admin pages sees "This area is for administrators", and the Admin link is never shown to them.
+- The server refuses every admin request from a customer, not just the screen.
+
+## Acceptance criteria
+
+| # | Criterion | Ticket | Result | How it was proven |
+|---|---|---|---|---|
+| 1 | One **Log in** button and one login page | 019 | ✅ Pass | Screen tests; Playwright on both devices |
+| 2 | Admins go to the admin area, customers back to the shop | 019 | ✅ Pass | Screen tests; Playwright |
+| 3 | Same message for a wrong email or password; locked after 5 tries in 15 minutes | 019 | ✅ Pass | Unit and database tests |
+| 4 | Every admin endpoint refuses visitors (401) and customers (403) | 019 | ✅ Pass | All 15 admin endpoints tested 5 ways each |
+| 5 | A customer sees "This area is for administrators" | 019 | ✅ Pass | Screen tests; Playwright |
+| 6 | The seed creates the first admin once | 019 | ✅ Pass | Database tests; your stack logged "created the first administrator" |
+| 7 | Admins create admins; customers can't; a taken email is refused | 019 | ✅ Pass | All test levels; Playwright (the new admin logs in from another browser) |
+| 8 | Log out ends the login at once; 30 minutes / 8 hours | 019 | ✅ Pass | Unit and database tests |
+| 9 | Changes recorded under the logged-in admin; the old typed name is refused | 019 | ✅ Pass | API and contract tests |
+| 10 | Passwords only scrambled; safe cookie; changes from other sites refused | 019 | ✅ Pass | A test searches responses and tables for the password; cookie and same-site tests |
+| 11 | Sign-up on the login page creates a customer, logged in at once | 020 | ✅ Pass | All test levels; Playwright |
+| 12 | Sign-up never creates an admin, even if asked | 020 | ✅ Pass | `role: "ADMIN"` and similar are refused, nothing is created; a contract test finds no "role" in any request |
+| 13 | A taken email (customer or admin) is refused and unchanged | 020 | ✅ Pass | Database tests compare the account before and after |
+| 14 | Customer orders appear in My orders; guest orders don't | 020 | ✅ Pass | API tests; Playwright (sign up → buy → My orders) |
+| 15 | My orders shows only your own orders; admins and visitors get none | 020 | ✅ Pass | API and screen tests |
+
+**Found and fixed before you saw it:** logging out from an admin page briefly bounced to the login page. **Log out** now goes to the shop first, then ends the login.
+
+**Failure cases and retries:** all pass.
+- A wrong password, the 15-minute lock, a login ending during admin work (back to the login page with "Your session ended"), and changes from other sites.
+- A taken email, including two sign-ups at the same moment: exactly one account is created.
+- A login ending at checkout: nothing is charged, and you can log in again or pay as a guest.
+- Logging in or out twice.
+- Paying twice with the same order: one order. Two customers can never share an order.
+- A customer's checkout takes stock exactly like a guest's.
+
+**Tests:** written first.
+- About 135 new backend tests, including the 10 checks proving a customer can't become or act as an admin.
+- 21 new screen tests.
+- 3 new browser tests, run on 2 devices.
+- In the CI container everything passes: all static checks, 11 architecture rules, 60 tooling tests, 1,076 backend tests (99% coverage), 192 frontend tests and 14 live smoke checks.
+- 44 browser tests pass on desktop and phone.
+
+Your containers are rebuilt; your database is on migration 0011 and has the seeded admin.
+
+**Two things to know:**
+- **Test accounts stay in your local database.** Accounts can't be removed (out of scope), so each full browser-test run leaves one test admin and two test customers there. You'll see the `e2e-admin-…` entries in the Admins tab. If that bothers you, I can add "deactivate account" later, or make the browser tests reuse fixed test accounts.
+- **My slip:** I again started a shell command with `python -` twice. Each time it hung, I stopped it at once, and nothing was changed.
+
+### What to test (http://localhost:3000; press **Ctrl+F5** first)
+
+1. Look at the header.
+   → **Log in**, and no Admin link.
+2. **Log in** with admin@example.com / local-admin-password-change-me.
+   → The admin area opens, with your name and **Log out**.
+3. **Admin → Admins → Create admin** for a colleague, then log out and log in as them.
+   → They land in the admin area.
+4. Log out, then **Log in → Create an account** with your own name and email.
+   → Back in the shop, with **My orders** in the header.
+5. Buy something.
+   → Your name and email are already filled in. After paying, **See My orders** lists the order.
+6. As that customer, type `/admin` in the address bar.
+   → "This area is for administrators".
+7. Log out, then try to log in 6 times with a wrong password.
+   → "Too many attempts. Try again in 15 minutes." Your real admin email keeps working, because the lock is per email; use a test email for this one.
+
+**Status:** ECOM-019 and ECOM-020 are both waiting for your validation and aren't committed. Tell me what to change, or say "commit".
+
+## #048 — 2026-11-22 — Owner validates ECOM-019 and ECOM-020; admin shopping goes to ECOM-021; MVP closed
+
+### User
+
+> Create a new account worked, able to buy, Saw in my orders , got inside of the admin view but I was able to buy as an admin. Have we already created the block for admin?
+
+(Three screenshots: the shop logged in as a new customer, the paid order, and My orders.)
+
+**Question asked:** "Right now an admin who buys in the shop is allowed, and the order is saved as a guest order (it doesn't appear in any "My orders"). That was recommendation 3 you accepted. How do you want admin purchases to work?"
+
+**Owner's answer:**
+
+> I think admin should not have add to the cart, but should have an orders screen same as the user, but with full perspective from what was order. Let's close here. We already created too many new functionalities, I think it is enough for now. I think we have a full MVP cycle riight now.
+
+### Assistant
+
+**No, there's no admin block yet. As you asked, I didn't build one now: it's recorded for after the MVP.** ECOM-019 and ECOM-020 are closed as validated by you.
+
+**Why an admin could buy:** that was recommendation 3, which you accepted. An admin's purchase is saved as a guest order, so it isn't linked to the admin's account and shows in no "My orders". So what you saw is the intended MVP behaviour, not a fault.
+
+**Your new direction is recorded as ECOM-021** ([tasks/ECOM-021.md](tasks/ECOM-021.md)), in Backlog after the MVP:
+- **Admins don't shop:** no Add to cart, cart or checkout for admins, and the server refuses an admin's checkout too.
+- **An admin Orders screen:** like My orders, but covering every order. It shows the customer, whether it was a guest or an account, the items, total, status and payment reference, with filters and pages.
+- The detailed plan will come before any building, as usual.
+
+**What I recorded:**
+- ECOM-019 and ECOM-020: **Done**, validated by you in the portal.
+- Your test is in the ECOM-020 evidence (screenshots 03 to 05), with this as OBS-01.
+- Journal **D-118**: your validation, the follow-up in ECOM-021, and the MVP closed.
+- The task board: ECOM-021 added after ECOM-017.
+
+**Your screenshots show your name and email.** They stay on your computer and will be blurred before anything is pushed, as with the earlier ones.
+
+**Where the MVP stands:** everything through ECOM-020 is built and validated. What's left for delivery:
+- **ECOM-017:** the README and the delivery itself.
+- **The pull requests:** PR #1 (ECOM-016) still waits for your merge.
+- **Commits:** ECOM-019 and ECOM-020 are on `feature/ECOM-019-single-login` but **not committed yet**.
+
+**Status:** say "commit" (and "push" if you want them on GitHub) whenever you're ready, and tell me when to start ECOM-017.
+
+## #049 — 2026-11-22 — ECOM-019 and ECOM-020 committed; ECOM-021 plan proposed
+
+### User
+
+> commit then and lets go for 21
+
+### Assistant
+
+**ECOM-019 and ECOM-020 are committed. The ECOM-021 plan is ready for your approval; nothing is built yet.**
+
+**The commit**
+- `35fccd2` on `feature/ECOM-019-single-login`, one commit for both tickets, since they share the login code. Not pushed.
+- Before committing, I pixelated your name and email in your three screenshots with the project's redaction script, and checked each one by eye.
+- Your private `.claude/` folder and `skills-lock.json` stay out, as always.
+
+**ECOM-021: the plan** (full detail in [tasks/ECOM-021.md](tasks/ECOM-021.md), decision D-119), on a new branch, `feature/ECOM-021-admin-orders`.
+
+*Part 1: admins don't shop*
+- For an admin: no **Add to cart** on cards or product pages, no **Cart** in the header, and `/cart` and `/checkout` show "Administrator accounts can't place orders".
+- The server refuses an admin's checkout too, before anything is charged or taken from stock. The rule doesn't depend on the screen, like the customer block.
+- Guests and customers buy exactly as today.
+
+*Part 2: an admin Orders screen*
+- A new **Orders** tab lists every order, newest first: date, order number, customer name and email, Guest or Customer account, items, total and status.
+- Search by name, email or order number, filter by status, and pages. An empty state shows when nothing matches.
+- Each order opens a detail page with its lines, payment and customer. On a phone, each order becomes a card.
+- Only admins can open it: the server answers 401 to visitors and 403 to customers.
+
+*Tests first:* about 30 backend tests, 15 screen tests and 2 browser tests on desktop and phone. They include the access checks for the new endpoints and proof that an admin's checkout creates nothing.
+
+**Three decisions for you:**
+1. **An admin with items already in the cart** (added before logging in): keep the cart hidden and bring it back after log-out (recommended), or empty it when an admin logs in.
+2. **Product cards for an admin:** the price and stock with no button (recommended), or a greyed-out "Admins can't buy" button.
+3. **Read-only orders** for now (recommended), or should admins also be able to mark an order, for example refunded? That adds a status change and its history.
+
+**Status:** say "go" with your answers and I'll build it, tests first. The plan is written but not committed.
+
+## #050 — 2026-11-22 — ECOM-021 built: admins don't shop, and an admin Orders screen
+
+### User
+
+> go with your answer and build it
+
+### Assistant
+
+**ECOM-021 is built and checked with Playwright on a desktop and a phone, ready for your review.** Nothing is committed yet.
+
+I used my three recommendations:
+- a cart from before logging in stays hidden for an admin, and comes back after log-out;
+- admins see product cards without a button;
+- orders are read-only.
+
+Screenshots: [tasks/ECOM-021-evidence/](tasks/ECOM-021-evidence/README.md).
+
+## What you'll see
+
+**As an admin, you can't shop:**
+- product cards show the price and stock, but no **Add to cart**;
+- the product page says "You're logged in as an administrator, so you can't buy here.";
+- the header has no **Cart**;
+- the cart and checkout pages show "Administrator accounts can't place orders", with **See all orders** and **Log out**;
+- the server refuses an admin's checkout too, before anything is charged or taken from stock, so the rule doesn't depend on the screen.
+
+Guests and customers buy exactly as before.
+
+**A new Orders tab in the admin area:**
+- every order, newest first: order number, date, customer name and email, **Guest** or **Customer account**, items, total and status;
+- search by name, email or order number, filter by status, and 20 orders per page;
+- "No orders match." with **Clear filters** when nothing fits;
+- click a row to see the order in full: lines, total, the card and payment reference, the customer;
+- on a phone, each order shows as a card;
+- customers and visitors can't open it, neither the page nor the server.
+
+## Acceptance criteria
+
+| # | Criterion | Result | How it was proven |
+|---|---|---|---|
+| 1 | Admins see no Add to cart, cart or checkout; their checkout is refused and creates nothing | ✅ Pass | API test: 3 attempts, no order, no stock taken; screen tests; Playwright on both devices |
+| 2 | Guests and customers buy exactly as before | ✅ Pass | All earlier purchase tests still pass |
+| 3 | Orders lists every order, newest first, with search, status filter and pages | ✅ Pass | API and screen tests; Playwright (a customer's order found by email and opened) |
+| 4 | Customers and visitors can't open it | ✅ Pass | API tests; the access check now covers all 17 admin endpoints |
+| 5 | Tests first, on desktop and phone | ✅ Pass | As above |
+
+**Failure cases and retries:** all pass.
+- An admin's checkout sent straight to the server is refused, and nothing is created.
+- A cart added before logging in is kept and comes back after log-out.
+- A login that ends on the Orders screen goes back to the login page.
+- A search with no results shows "No orders match."
+- An unknown order shows "Order not found".
+- Customers and visitors are refused.
+- An admin pressing Pay many times is refused every time.
+
+**Tests:**
+- 23 new backend tests, 12 screen tests, and the browser test extended (run on 2 devices).
+- Everything passes in the CI container: all static checks, 11 architecture rules, 60 tooling tests, 1,099 backend tests (99% coverage), 204 frontend tests and 14 live smoke checks.
+- 44 browser tests pass on desktop and phone.
+
+Your containers are rebuilt, and your database is on migration 0012.
+
+**Two browser tests changed:** they used to shop after logging in as the admin, so they now log out first.
+
+### What to test (http://localhost:3000; press **Ctrl+F5** first)
+
+1. Log in as admin@example.com.
+   → The cards have no **Add to cart**, and the header has no Cart.
+2. Open a product.
+   → "You're logged in as an administrator, so you can't buy here."
+3. Type `/checkout` in the address bar.
+   → "Administrator accounts can't place orders".
+4. Go to **Admin → Orders**.
+   → Your earlier orders (including the Air Purifiers), each marked Guest or Customer account.
+5. Search for your email, or set Status to "Payment declined".
+   → The list narrows; **Clear filters** brings everything back.
+6. Click an order.
+   → The full order.
+7. Log out, then shop as a customer or a guest.
+   → Everything works as before.
+
+**Status:** ECOM-021 is waiting for your review and isn't committed. Tell me what to change, or say "commit".
+
+## #051 — 2026-11-22 — ECOM-021 accepted, committed and pushed
+
+### User
+
+> great, you can commit and push
+
+(Screenshot: Admin → Orders with 83 orders, Guest and Customer account badges.)
+
+### Assistant
+
+**ECOM-021 is accepted, committed and pushed to GitHub, together with the earlier work that wasn't pushed yet.**
+
+**What's now on GitHub:**
+
+| Branch | Commit | What it holds |
+|---|---|---|
+| `feature/ECOM-018-ui-polish` | `f4d1b53` | ECOM-018 part B: the collected polish, plus code review round 4 |
+| `feature/ECOM-019-single-login` (new) | `35fccd2` | ECOM-019 and ECOM-020: one login with roles, admins creating admins, sign-up and My orders |
+| `feature/ECOM-021-admin-orders` (new) | `d3ee79d` | ECOM-021: admins don't shop, and the admin Orders screen |
+
+Each branch builds on the previous one. A small docs commit on top of ECOM-021 records this prompt.
+
+**Security check before pushing:**
+
+| Check | Result |
+|---|---|
+| `.env`, key, certificate or credential files tracked now | None |
+| Such files anywhere in the Git history, all branches | None |
+| Secret patterns (cloud keys, GitHub tokens, private keys) in the new commits | None |
+| Your personal email in the new commits | None; your name and email were pixelated in the ECOM-020 screenshots before committing |
+| The Orders screenshot you just sent | Only test data; saved as ECOM-021 evidence 07 |
+
+The local admin login (`admin@example.com` / `local-admin-password-change-me`) is in `docker-compose.yml` on purpose. It's a public development value, like the local database password, and the README in ECOM-017 will say to change it.
+
+**Left out on purpose:** your private `.claude/` folder and `skills-lock.json`.
+
+**Records:** ECOM-021 is Done on the board, D-119 is marked accepted, and your screenshot is in its evidence.
+
+**What remains:**
+- **ECOM-017**, the README and the delivery.
+- **Pull requests:** only PR #1 (ECOM-016) exists so far, and it waits for your merge. The ECOM-018 to ECOM-021 branches have no pull requests yet. Tell me if you want one per ticket opened, so GitHub Actions also runs the tests there.
+
+## #052 — 2026-11-22 — ECOM-017: README for reviewers, journal check and fresh-clone test
+
+### User
+
+> lets go for the last task
+
+### Assistant
+
+**ECOM-017 is done and ready for your review: the README is rewritten for the reviewers, and a fresh clone runs cleanly.** Nothing is committed yet; the work is on a new branch, `feature/ECOM-017-readme`.
+
+Written for: the code-challenge reviewers.
+
+**The README** ([README.md](README.md)) now has:
+- what the shop does, in a few lines, and the sample CSV's download date (2026-11-20);
+- **Run it with Docker:** three commands, the four containers, and the admin login (`admin@example.com` / `local-admin-password-change-me`, public development values);
+- **a five-minute tour:** import the CSV, edit a product and see its history, shop, sign up, pay with the test card, see the order in My orders and in Admin → Orders;
+- running it natively, with the environment variables it needs;
+- **tests and checks,** with the numbers at delivery;
+- the architecture on one page, with a small diagram;
+- **the key decisions and the alternatives considered,** each linked to the journal (challenge rule CC-09);
+- a table of **every challenge rule CC-01 to CC-13 and where it is met**;
+- the 10 **questions for the business**, with the default used until they're answered;
+- **known gaps**, and what to change before a real deployment (secrets, HTTPS, the secure cookie);
+- **how AI was used:** you directed, decided and accepted; Claude Code built; Codex reviewed; every prompt is in the prompt history, and the guardrails are listed.
+
+**The ticket's test: a fresh clone on a "clean machine"**
+- I cloned the repository into an empty folder and ran it as a separate project, so it had its own empty database and never touched yours.
+- `docker compose up --build` brought it up, and the first admin was created automatically.
+- `docker compose run --rm ci` **exited 0**: every static check, 60 tooling tests, 1,099 backend tests, 204 frontend tests and 14 live smoke checks.
+- Then I removed that copy and restarted your stack. Your data is intact.
+
+**Journal completeness check:**
+- Early decisions still marked "Proposed" (D-002 to D-051) are now marked as built and in force.
+- "No authentication" (D-021) and "a self-declared name" (D-040) are marked superseded by the logins.
+- The statuses of the login decisions are brought up to date.
+- Everything is summarised in **D-120**.
+
+**No-comments sweep:** passes.
+
+**Acceptance criteria:**
+
+| # | Criterion | Result |
+|---|---|---|
+| 1 | A reviewer can run the project from the README alone on a clean machine | ✅ Pass (fresh clone; `ci` exit 0) |
+| 2 | Every challenge rule CC-01 to CC-13 is traceable | ✅ Pass (the table in the README) |
+| 3 | Pushed under the `Ortiz-100323` account | ⏳ When you say so |
+
+**One important point for the delivery:** GitHub's `main` branch still shows the project as it was at ECOM-015, and reviewers usually look at `main`. The tickets since then sit on branches that build on each other (ECOM-016 → 018 → 019/020 → 021 → 017).
+
+**Status:** ECOM-017 is waiting for your review. Say "commit and push", and tell me how you want `main` updated:
+- **(a)** I open one pull request per ticket and you merge them in order; or
+- **(b)** I bring `main` up to date with the final branch in one step and push it (a fast-forward, nothing rewritten). My recommendation is (b), because every branch is already tested and accepted, and the CI workflow will run on `main` after the push.

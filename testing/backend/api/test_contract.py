@@ -4,15 +4,18 @@ from typing import Any
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from identity_fakes import ANTONIO_TOKEN, BEA_TOKEN
 
 from ecommerce.main import API_PREFIX, create_app
 from ecommerce.ordering.api.router import IDEMPOTENCY_HEADER
-from ecommerce.shared_kernel.api.actor import ACTOR_HEADER
+from ecommerce.shared_kernel.api.access import SESSION_COOKIE
 from fakes import dependencies_factory
 
 PROBLEM_FIELDS = {"type", "title", "status", "instance", "request_id"}
 VALID_ID = "00000000-0000-4000-8000-000000000001"
-ACTOR = {ACTOR_HEADER: "Contract Test", IDEMPOTENCY_HEADER: VALID_ID}
+ACTOR = {"Cookie": f"{SESSION_COOKIE}={ANTONIO_TOKEN}", IDEMPOTENCY_HEADER: VALID_ID}
+BUYER = {"Cookie": f"{SESSION_COOKIE}={BEA_TOKEN}"}
+OLD_ACTOR_HEADER = "X-Actor-Name"
 CHANGE_METHODS = {"post", "put", "patch", "delete"}
 BAD_VALUES = {"integer": "abc", "number": "abc", "boolean": "maybe"}
 
@@ -69,6 +72,10 @@ def parameters(operation: dict[str, Any], location: str) -> list[dict[str, Any]]
     return [item for item in operation.get("parameters", []) if item["in"] == location]
 
 
+def headers_for(path: str) -> dict[str, str]:
+    return BUYER if path.startswith(f"{API_PREFIX}/me/") else ACTOR
+
+
 def bad_requests() -> Iterator[Any]:
     for path, method, operation in operations():
         for parameter in parameters(operation, "path"):
@@ -85,7 +92,7 @@ def bad_requests() -> Iterator[Any]:
                 yield pytest.param(
                     method,
                     with_path(path, operation),
-                    {"params": {parameter["name"]: value}, "headers": ACTOR},
+                    {"params": {parameter["name"]: value}, "headers": headers_for(path)},
                     422,
                     id=f"{method} {path} bad query {parameter['name']}",
                 )
@@ -171,40 +178,29 @@ def test_bad_input_to_every_endpoint_returns_problem_details(
     assert_problem_details(response, status)
 
 
-def test_every_product_change_requires_the_actor_header() -> None:
-    changes = [
-        (method, path)
-        for path, method, operation in operations()
-        if path.startswith(f"{API_PREFIX}/products") and method in CHANGE_METHODS
-    ]
+def is_admin_operation(path: str, method: str) -> bool:
+    return (
+        (path.startswith(f"{API_PREFIX}/products") and method in CHANGE_METHODS)
+        or path.endswith("/history")
+        or path.startswith(f"{API_PREFIX}/imports")
+        or path.startswith(f"{API_PREFIX}/admin/")
+    )
 
-    assert len(changes) == 4
+
+def test_every_admin_endpoint_declares_the_session_and_its_401_and_403() -> None:
+    admin = [(method, path) for path, method, _ in operations() if is_admin_operation(path, method)]
+
+    assert len(admin) == 15
     for path, method, operation in operations():
-        if (method, path) in changes:
-            headers = [
-                (parameter["name"], parameter["required"])
-                for parameter in parameters(operation, "header")
-            ]
-            assert headers == [(ACTOR_HEADER, True)], (method, path)
+        if (method, path) in admin:
+            assert {"session": []} in operation.get("security", []), (method, path)
+            assert {"401", "403"} <= set(operation["responses"]), (method, path)
 
 
-def test_every_import_change_requires_the_actor_header() -> None:
-    changes = [
-        (method, path)
-        for path, method, operation in operations()
-        if path.startswith(f"{API_PREFIX}/imports")
-        and method in CHANGE_METHODS
-        and not path.endswith("/preview")
-    ]
-
-    assert len(changes) == 4
+def test_no_endpoint_accepts_the_old_typed_name_header() -> None:
     for path, method, operation in operations():
-        if (method, path) in changes:
-            headers = [
-                (parameter["name"], parameter["required"])
-                for parameter in parameters(operation, "header")
-            ]
-            assert headers == [(ACTOR_HEADER, True)], (method, path)
+        names = [parameter["name"] for parameter in parameters(operation, "header")]
+        assert OLD_ACTOR_HEADER not in names, (method, path)
 
 
 def test_the_contract_covers_every_endpoint_that_takes_input() -> None:
@@ -215,7 +211,7 @@ def test_the_contract_covers_every_endpoint_that_takes_input() -> None:
         if operation.get("parameters") or "requestBody" in operation
     }
 
-    assert len(taking_input) == 16
+    assert len(taking_input) == 22
     assert taking_input <= covered
 
 
@@ -227,3 +223,34 @@ def test_checkout_takes_an_idempotency_key_and_no_actor() -> None:
     ]
 
     assert headers == [(IDEMPOTENCY_HEADER, False)]
+
+
+def schema_properties(schema: dict[str, Any]) -> set[str]:
+    found = resolved(schema)
+    names = set(found.get("properties", {}))
+    for nested in found.get("properties", {}).values():
+        names |= schema_properties(non_null(nested))
+    for option in found.get("anyOf", []) + found.get("allOf", []):
+        names |= schema_properties(option)
+    return names
+
+
+def test_no_request_anywhere_accepts_a_role() -> None:
+    for path, method, operation in operations():
+        content = operation.get("requestBody", {}).get("content", {})
+        for media in content.values():
+            names = schema_properties(media.get("schema", {}))
+            assert not {"role", "roles", "is_admin"} & names, (method, path)
+
+
+def test_only_create_admin_can_make_an_administrator() -> None:
+    makers = [
+        (method, path)
+        for path, method, operation in operations()
+        if operation.get("summary", "").startswith("Create")
+        and "administrator" in operation["summary"]
+    ]
+
+    assert makers == [("post", f"{API_PREFIX}/admin/accounts")]
+    sign_up = OPENAPI["paths"][f"{API_PREFIX}/accounts"]["post"]
+    assert "never creates an administrator" in sign_up["summary"]

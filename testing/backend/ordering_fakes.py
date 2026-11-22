@@ -10,6 +10,7 @@ from ecommerce.ordering.application.idempotency import KeyRecord
 from ecommerce.ordering.application.ports import PaymentResult, SaleProduct
 from ecommerce.ordering.domain.order import Order, OrderId
 from ecommerce.ordering.domain.payment import PaymentCard
+from ecommerce.ordering.domain.value_objects import OrderStatus
 from ecommerce.shared_kernel.domain.money import Money
 
 DECLINED_CARD = "4000000000000002"
@@ -78,6 +79,37 @@ class InMemoryOrders:
 
     async def get(self, order_id: OrderId) -> Order | None:
         return self._work.staged_orders.get(order_id) or self._work.state.orders.get(order_id)
+
+    async def for_buyer(
+        self, buyer_id: UUID, *, offset: int, limit: int
+    ) -> tuple[list[Order], int]:
+        mine = sorted(
+            (order for order in self._work.state.orders.values() if order.buyer_id == buyer_id),
+            key=lambda order: (order.created_at, str(order.id)),
+            reverse=True,
+        )
+        return mine[offset : offset + limit], len(mine)
+
+    async def search(
+        self, text: str | None, status: OrderStatus | None, *, offset: int, limit: int
+    ) -> tuple[list[Order], int]:
+        needle = (text or "").lower()
+        found = sorted(
+            (
+                order
+                for order in self._work.state.orders.values()
+                if (status is None or order.status is status)
+                and (
+                    not needle
+                    or needle in order.customer.name.lower()
+                    or needle in order.customer.email.lower()
+                    or str(order.id).startswith(needle)
+                )
+            ),
+            key=lambda order: (order.created_at, str(order.id)),
+            reverse=True,
+        )
+        return found[offset : offset + limit], len(found)
 
 
 class InMemoryCatalogGateway:

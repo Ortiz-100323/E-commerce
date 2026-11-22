@@ -39,6 +39,20 @@ export function ProductsTablePage() {
   const notify = useNotify()
   const [search, setSearch] = useState(q)
   const [archiving, setArchiving] = useState<Product | null>(null)
+  const [menuFor, setMenuFor] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (menuFor === null) {
+      return undefined
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMenuFor(null)
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [menuFor])
   const busy = archive.isPending || restore.isPending
 
   const update = (changes: Record<string, string>) => {
@@ -145,58 +159,100 @@ export function ProductsTablePage() {
       {data && data.items.length === 0 ? <p>No products match.</p> : null}
 
       {data && data.items.length > 0 ? (
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th scope="col">SKU</th>
-              <th scope="col">Name</th>
-              <th scope="col">Category</th>
-              <th scope="col" className={styles.number}>
-                Price
-              </th>
-              <th scope="col" className={styles.number}>
-                Stock
-              </th>
-              <th scope="col">Status</th>
-              <th scope="col">
-                <span className={styles.hidden}>Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.items.map((product) => (
-              <tr key={product.id} aria-label={product.sku}>
-                <td>{product.sku}</td>
-                <td>
-                  {product.name}
-                  {product.gift ? <span className={styles.badge}>Gift</span> : null}
-                </td>
-                <td>{product.category}</td>
-                <td className={styles.number}>{formatPrice(product.price, product.currency)}</td>
-                <td className={styles.number}>
-                  {product.stock}
-                  {product.stock === 0 ? (
-                    <span className={styles.warning}>Out of stock</span>
-                  ) : null}
-                </td>
-                <td>{product.status === 'ACTIVE' ? 'Active' : 'Archived'}</td>
-                <td className={styles.rowActions}>
-                  <Link to={`/admin/products/${product.id}/edit`}>Edit</Link>
-                  <Link to={`/admin/products/${product.id}/history`}>History</Link>
-                  {product.status === 'ACTIVE' ? (
-                    <button type="button" onClick={() => setArchiving(product)} disabled={busy}>
-                      Archive
-                    </button>
-                  ) : (
-                    <button type="button" onClick={() => onRestore(product)} disabled={busy}>
-                      Restore
-                    </button>
-                  )}
-                </td>
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th scope="col">SKU</th>
+                <th scope="col">Name</th>
+                <th scope="col">Category</th>
+                <th scope="col" className={styles.number}>
+                  Price
+                </th>
+                <th scope="col" className={styles.number}>
+                  Stock
+                </th>
+                <th scope="col">Status</th>
+                <th scope="col">
+                  <span className={styles.hidden}>Actions</span>
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.items.map((product) => (
+                <tr key={product.id} aria-label={product.sku}>
+                  <td>{product.sku}</td>
+                  <td>
+                    {product.name}
+                    {product.gift ? <span className={styles.badge}>Gift</span> : null}
+                  </td>
+                  <td>{product.category}</td>
+                  <td className={styles.number}>{formatPrice(product.price, product.currency)}</td>
+                  <td className={styles.number}>
+                    {product.stock}
+                    {product.stock === 0 ? (
+                      <span className={styles.warning}>Out of stock</span>
+                    ) : null}
+                  </td>
+                  <td>{product.status === 'ACTIVE' ? 'Active' : 'Archived'}</td>
+                  <td className={styles.actionsCell}>
+                    <button
+                      type="button"
+                      className={styles.actionsToggle}
+                      aria-label={`Actions for ${product.sku}`}
+                      aria-expanded={menuFor === product.id}
+                      aria-controls={`actions-${product.id}`}
+                      onClick={() => setMenuFor(menuFor === product.id ? null : product.id)}
+                    >
+                      Actions
+                    </button>
+                    <div
+                      id={`actions-${product.id}`}
+                      role="group"
+                      aria-label={`Actions for ${product.sku}`}
+                      className={styles.rowActions}
+                      data-open={menuFor === product.id || undefined}
+                    >
+                      <Link to={`/admin/products/${product.id}/edit`}>Edit</Link>
+                      <Link to={`/admin/products/${product.id}/history`}>History</Link>
+                      {product.status === 'ACTIVE' ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMenuFor(null)
+                            setArchiving(product)
+                          }}
+                          disabled={busy}
+                        >
+                          Archive
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMenuFor(null)
+                            onRestore(product)
+                          }}
+                          disabled={busy}
+                        >
+                          Restore
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {menuFor !== null ? (
+            <button
+              type="button"
+              className={styles.sheetBackdrop}
+              aria-label="Close the actions"
+              onClick={() => setMenuFor(null)}
+            />
+          ) : null}
+        </div>
       ) : null}
 
       {data && data.total > 0 ? (

@@ -104,9 +104,38 @@ type = "independence"
 modules = ["ecommerce.ordering", "ecommerce.catalog"]
 
 [[tool.importlinter.contracts]]
+name = "Identity layers: api and infrastructure depend on application, which depends on domain"
+type = "layers"
+layers = [
+    "ecommerce.identity.api | ecommerce.identity.infrastructure",
+    "ecommerce.identity.application",
+    "ecommerce.identity.domain",
+]
+
+[[tool.importlinter.contracts]]
+name = "Identity domain depends only on the shared kernel domain"
+type = "forbidden"
+source_modules = ["ecommerce.identity.domain"]
+forbidden_modules = [
+    "ecommerce.shared_kernel.application",
+    "ecommerce.shared_kernel.infrastructure",
+    "ecommerce.shared_kernel.api",
+]
+
+[[tool.importlinter.contracts]]
+name = "Identity, catalog and ordering never import one another; logins reach them only through the shared kernel"
+type = "independence"
+modules = ["ecommerce.identity", "ecommerce.ordering", "ecommerce.catalog"]
+
+[[tool.importlinter.contracts]]
 name = "Contexts never import the integration adapters or the composition root"
 type = "forbidden"
-source_modules = ["ecommerce.ordering", "ecommerce.catalog", "ecommerce.shared_kernel"]
+source_modules = [
+    "ecommerce.ordering",
+    "ecommerce.catalog",
+    "ecommerce.identity",
+    "ecommerce.shared_kernel",
+]
 forbidden_modules = ["ecommerce.integration", "ecommerce.main"]
 
 [[tool.importlinter.contracts]]
@@ -117,6 +146,8 @@ source_modules = [
     "ecommerce.catalog.application",
     "ecommerce.ordering.domain",
     "ecommerce.ordering.application",
+    "ecommerce.identity.domain",
+    "ecommerce.identity.application",
     "ecommerce.shared_kernel.domain",
     "ecommerce.shared_kernel.application",
 ]

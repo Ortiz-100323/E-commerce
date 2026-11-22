@@ -4,6 +4,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     PrimaryKeyConstraint,
@@ -30,6 +31,9 @@ orders = Table(
     Column("decline_reason", String(64), nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("settled_at", DateTime(timezone=True), nullable=True),
+    Column("buyer_id", Uuid, nullable=True),
+    Index("ix_orders_buyer_created", "buyer_id", "created_at"),
+    Index("ix_orders_created", "created_at"),
     CheckConstraint(f"status IN {STATUSES}", name="ck_orders_known_status"),
     CheckConstraint("total >= 0", name="ck_orders_total_not_negative"),
     CheckConstraint(

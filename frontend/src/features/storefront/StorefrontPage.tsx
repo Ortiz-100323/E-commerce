@@ -1,7 +1,9 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router'
 
 import { useCategories, useProductList } from '../../api/productQueries'
+import type { Product } from '../../api/products'
+import controls from '../../styles/controls.module.css'
 import { ProductCard } from './ProductCard'
 import {
   hasFilters,
@@ -39,12 +41,75 @@ function priceErrors(
   return errors
 }
 
-function SearchBox({
+function SearchIcon({ className }: { className: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m16 16 4 4" />
+    </svg>
+  )
+}
+
+function PriceInput({
+  id,
+  label,
+  placeholder,
+  value,
+  error,
+  onChange,
+}: {
+  id: string
+  label: string
+  placeholder: string
+  value: string
+  error: string | undefined
+  onChange: (value: string) => void
+}) {
+  return (
+    <div className={styles.priceField}>
+      <label htmlFor={id} className={controls.visuallyHidden}>
+        {label}
+      </label>
+      <input
+        id={id}
+        inputMode="decimal"
+        placeholder={placeholder}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `${id}-error` : undefined}
+      />
+      {error ? (
+        <span id={`${id}-error`} className={styles.fieldError}>
+          {error}
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
+function SearchPanel({
   search,
   onApply,
+  open,
+  onOpenChange,
+  active,
+  children,
 }: {
   search: ShopSearch
   onApply: (filters: TextFilters) => void
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  active: number
+  children: ReactNode
 }) {
   const [q, setQ] = useState(search.q)
   const [minPrice, setMinPrice] = useState(search.minPrice)
@@ -57,54 +122,91 @@ function SearchBox({
     setErrors(found)
     if (Object.keys(found).length === 0) {
       onApply({ q: q.trim(), minPrice: minPrice.trim(), maxPrice: maxPrice.trim() })
+    } else {
+      onOpenChange(true)
     }
   }
 
   return (
-    <form role="search" onSubmit={submit} className={styles.searchBox} noValidate>
-      <label className={styles.grow}>
-        Search
-        <input
-          type="search"
-          value={q}
-          onChange={(event) => setQ(event.target.value)}
-          placeholder="What are you looking for?"
-        />
-      </label>
-      <div className={styles.priceField}>
-        <label htmlFor="min-price">Min price</label>
-        <input
-          id="min-price"
-          inputMode="decimal"
-          value={minPrice}
-          onChange={(event) => setMinPrice(event.target.value)}
-          aria-invalid={errors.minPrice ? true : undefined}
-          aria-describedby={errors.minPrice ? 'min-price-error' : undefined}
-        />
-        {errors.minPrice ? (
-          <span id="min-price-error" className={styles.fieldError}>
-            {errors.minPrice}
-          </span>
-        ) : null}
+    <form role="search" onSubmit={submit} className={styles.panel} noValidate>
+      <div className={styles.searchRow}>
+        <label className={styles.searchField}>
+          <span className={controls.visuallyHidden}>Search</span>
+          <SearchIcon className={styles.searchIcon} />
+          <input
+            type="search"
+            value={q}
+            onChange={(event) => setQ(event.target.value)}
+            placeholder="What are you looking for?"
+          />
+        </label>
+        <button type="submit" className={controls.primary}>
+          Search
+        </button>
       </div>
-      <div className={styles.priceField}>
-        <label htmlFor="max-price">Max price</label>
-        <input
-          id="max-price"
-          inputMode="decimal"
-          value={maxPrice}
-          onChange={(event) => setMaxPrice(event.target.value)}
-          aria-invalid={errors.maxPrice ? true : undefined}
-          aria-describedby={errors.maxPrice ? 'max-price-error' : undefined}
-        />
-        {errors.maxPrice ? (
-          <span id="max-price-error" className={styles.fieldError}>
-            {errors.maxPrice}
+      <button
+        type="button"
+        className={styles.filtersToggle}
+        aria-expanded={open}
+        aria-controls="shop-filters"
+        onClick={() => onOpenChange(!open)}
+      >
+        {active > 0 ? `Filters (${active})` : 'Filters'}
+      </button>
+      <div id="shop-filters" className={styles.filterRow} data-open={open || undefined}>
+        {children}
+        <div role="group" aria-labelledby="price-label" className={styles.control}>
+          <span id="price-label" className={styles.label}>
+            Price
           </span>
-        ) : null}
+          <div className={styles.priceRange}>
+            <PriceInput
+              id="min-price"
+              label="Min price"
+              placeholder="Min"
+              value={minPrice}
+              error={errors.minPrice}
+              onChange={setMinPrice}
+            />
+            <span className={styles.dash} aria-hidden="true">
+              –
+            </span>
+            <PriceInput
+              id="max-price"
+              label="Max price"
+              placeholder="Max"
+              value={maxPrice}
+              error={errors.maxPrice}
+              onChange={setMaxPrice}
+            />
+          </div>
+        </div>
       </div>
-      <button type="submit">Search</button>
     </form>
+  )
+}
+
+function lookAlikes(products: Product[]): Set<string> {
+  const seen = new Map<string, number>()
+  for (const product of products) {
+    const key = product.name.trim().toLowerCase()
+    seen.set(key, (seen.get(key) ?? 0) + 1)
+  }
+  return new Set([...seen].filter(([, total]) => total > 1).map(([name]) => name))
+}
+
+function EmptyResults({ filtered }: { filtered: boolean }) {
+  return (
+    <div className={styles.empty}>
+      <SearchIcon className={styles.emptyIcon} />
+      <h2 className={styles.emptyTitle}>No products match your search</h2>
+      <p className={styles.emptyText}>Try another word, a wider price range, or fewer filters.</p>
+      {filtered ? (
+        <Link to="/" className={controls.secondary}>
+          Clear filters
+        </Link>
+      ) : null}
+    </div>
   )
 }
 
@@ -113,12 +215,20 @@ export function StorefrontPage() {
   const search = parseShopSearch(params)
   const list = useProductList(toProductQuery(search))
   const categories = useCategories()
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const activeFilters = [
+    search.category !== '',
+    search.inStock,
+    search.giftsOnly,
+    search.minPrice !== '' || search.maxPrice !== '',
+  ].filter(Boolean).length
 
   const apply = (changes: Partial<ShopSearch>) =>
     setParams(toSearchParams({ ...search, page: 1, ...changes }))
 
   const data = list.data
   const pages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1
+  const twins = lookAlikes(data?.items ?? [])
 
   useEffect(() => {
     if (data && !list.isPlaceholderData && search.page > pages) {
@@ -129,10 +239,16 @@ export function StorefrontPage() {
   return (
     <section aria-labelledby="shop-title">
       <h1 id="shop-title">Shop</h1>
-      <SearchBox key={params.toString()} search={search} onApply={apply} />
-      <div className={styles.filters}>
-        <label>
-          Category
+      <SearchPanel
+        key={params.toString()}
+        search={search}
+        onApply={apply}
+        open={filtersOpen}
+        onOpenChange={setFiltersOpen}
+        active={activeFilters}
+      >
+        <label className={styles.control}>
+          <span className={styles.label}>Category</span>
           <select
             value={search.category}
             onChange={(event) => apply({ category: event.target.value })}
@@ -145,24 +261,33 @@ export function StorefrontPage() {
             ))}
           </select>
         </label>
-        <label className={styles.check}>
-          <input
-            type="checkbox"
-            checked={search.inStock}
-            onChange={(event) => apply({ inStock: event.target.checked })}
-          />
-          In stock only
-        </label>
-        <label className={styles.check}>
-          <input
-            type="checkbox"
-            checked={search.giftsOnly}
-            onChange={(event) => apply({ giftsOnly: event.target.checked })}
-          />
-          Gifts only
-        </label>
-        <label>
-          Sort by
+        <div className={styles.toggles}>
+          <label className={styles.toggle}>
+            <input
+              type="checkbox"
+              checked={search.inStock}
+              onChange={(event) => apply({ inStock: event.target.checked })}
+            />
+            In stock only
+          </label>
+          <label className={styles.toggle}>
+            <input
+              type="checkbox"
+              checked={search.giftsOnly}
+              onChange={(event) => apply({ giftsOnly: event.target.checked })}
+            />
+            Gifts only
+          </label>
+        </div>
+      </SearchPanel>
+
+      <div className={styles.resultsBar}>
+        <p className={styles.summary} aria-live="polite">
+          {list.isPending ? 'Loading products…' : null}
+          {data ? `${data.total} ${data.total === 1 ? 'product' : 'products'}` : null}
+        </p>
+        <label className={styles.sort}>
+          <span className={styles.sortLabel}>Sort by</span>
           <select
             value={search.sort}
             onChange={(event) =>
@@ -180,34 +305,27 @@ export function StorefrontPage() {
         </label>
       </div>
 
-      {list.isPending ? <p>Loading products…</p> : null}
       {list.isError && !data ? (
-        <p>
-          We couldn't load the products.{' '}
-          <button type="button" onClick={() => void list.refetch()}>
+        <div className={`${controls.alert} ${styles.loadError}`}>
+          <p>We couldn't load the products.</p>
+          <button type="button" className={controls.secondary} onClick={() => void list.refetch()}>
             Try again
           </button>
-        </p>
+        </div>
       ) : null}
 
-      {data && data.total === 0 ? (
-        <p>
-          No products match your search.{' '}
-          {hasFilters(search) ? <Link to="/">Clear filters</Link> : null}
-        </p>
-      ) : null}
+      {data && data.total === 0 ? <EmptyResults filtered={hasFilters(search)} /> : null}
 
       {data && data.items.length > 0 ? (
-        <>
-          <p className={styles.summary}>
-            {data.total} {data.total === 1 ? 'product' : 'products'}
-          </p>
-          <ul className={styles.grid} aria-label="Products">
-            {data.items.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </ul>
-        </>
+        <ul className={styles.grid} aria-label="Products">
+          {data.items.map((product) => (
+            <ProductCard
+              key={product.id}
+              product={product}
+              showSku={twins.has(product.name.trim().toLowerCase())}
+            />
+          ))}
+        </ul>
       ) : null}
 
       {data && data.total > data.page_size ? (
@@ -219,7 +337,7 @@ export function StorefrontPage() {
           >
             Previous
           </button>
-          <span>
+          <span className={styles.pageOf}>
             Page {search.page} of {pages}
           </span>
           <button

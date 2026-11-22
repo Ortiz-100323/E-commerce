@@ -5,10 +5,15 @@ import { delay } from 'msw'
 import { http, HttpResponse } from 'msw/http'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { ACTOR_STORAGE_KEY } from '../../frontend/src/actor/actorStorage'
+import { logInAs } from './support/fakeSession'
 import { AppShell } from '../../frontend/src/app/AppShell'
 import { AdminLayout } from '../../frontend/src/features/admin/AdminLayout'
 import { EditProductPage } from '../../frontend/src/features/admin/products/ProductFormPages'
+import {
+  IMAGE_URL_TOO_LONG,
+  imageUrlProblem,
+  MAX_IMAGE_URL_LENGTH,
+} from '../../frontend/src/features/admin/products/productFormSchema'
 import { API, serverError, validationProblem } from './support/api'
 import { fakeCatalog } from './support/fakeCatalog'
 import { expectErrorNotifications } from './support/pageGuard'
@@ -22,7 +27,7 @@ beforeEach(() => {
 })
 
 function asReviewer(name = 'Maria') {
-  window.localStorage.setItem(ACTOR_STORAGE_KEY, name)
+  logInAs('ADMIN', name)
 }
 
 async function table() {
@@ -167,8 +172,41 @@ describe('the products table', () => {
   })
 })
 
+describe('the row actions on a narrow screen', () => {
+  it('opens the actions for one row, and closes them with Escape or a tap outside', async () => {
+    asReviewer()
+    fakeCatalog([{ sku: 'RS-001', name: 'Running Shoes' }])
+    renderApp('/admin/products')
+    const toggle = await screen.findByRole('button', { name: 'Actions for RS-001' })
+    const group = screen.getByRole('group', { name: 'Actions for RS-001' })
+
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(group).toHaveAttribute('data-open', 'true')
+    await user.keyboard('{Escape}')
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+
+    await user.click(toggle)
+    await user.click(screen.getByRole('button', { name: 'Close the actions' }))
+    expect(group).not.toHaveAttribute('data-open')
+  })
+
+  it('closes the actions when Archive is chosen', async () => {
+    asReviewer()
+    fakeCatalog([{ sku: 'RS-001', name: 'Running Shoes' }])
+    renderApp('/admin/products')
+    const toggle = await screen.findByRole('button', { name: 'Actions for RS-001' })
+
+    await user.click(toggle)
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('alertdialog')).toBeVisible()
+  })
+})
+
 describe('creating, editing, archiving and restoring', () => {
-  it('creates a product and shows it in the table, with the reviewer recorded', async () => {
+  it('creates a product and shows it in the table, recorded under the logged-in admin', async () => {
     asReviewer('Łukasz')
     const catalog = fakeCatalog()
     const { router } = renderApp('/admin/products')
@@ -184,7 +222,7 @@ describe('creating, editing, archiving and restoring', () => {
       {
         method: 'POST',
         path: '/api/v1/products',
-        actor: '%C5%81ukasz',
+        actor: 'Łukasz',
         body: {
           sku: 'rs-001',
           name: 'Running Shoes',
@@ -194,6 +232,7 @@ describe('creating, editing, archiving and restoring', () => {
           stock: 10,
           weight_kg: '0.8',
           gift: false,
+          image_url: null,
         },
       },
     ])
@@ -453,9 +492,44 @@ describe('errors on the form', () => {
 
     await user.click(screen.getByRole('button', { name: 'Create product' }))
 
-    expect(await screen.findByText('SKU RS-001 is already taken.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('SKU RS-001 is already taken by Running Shoes.'),
+    ).toBeInTheDocument()
     expect(screen.getByLabelText('SKU')).toHaveAttribute('aria-invalid', 'true')
     expect(notifications().queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('links a duplicate SKU to the product that already has it', async () => {
+    asReviewer()
+    const catalog = fakeCatalog([{ sku: 'RS-001', name: 'Running Shoes' }])
+    renderApp('/admin/products/new')
+    await fillNewProduct(runningShoes)
+
+    await user.click(screen.getByRole('button', { name: 'Create product' }))
+
+    const id = catalog.bySku('RS-001')?.id
+    const view = await screen.findByRole('link', { name: 'View Running Shoes' })
+    expect(view).toHaveAttribute('href', `/products/${id}`)
+    expect(screen.getByRole('link', { name: 'Edit Running Shoes' })).toHaveAttribute(
+      'href',
+      `/admin/products/${id}/edit`,
+    )
+  })
+
+  it('removes the links once the SKU is changed and saved', async () => {
+    asReviewer()
+    fakeCatalog([{ sku: 'RS-001', name: 'Running Shoes' }])
+    const { router } = renderApp('/admin/products/new')
+    await fillNewProduct(runningShoes)
+    await user.click(screen.getByRole('button', { name: 'Create product' }))
+    await screen.findByRole('link', { name: 'View Running Shoes' })
+
+    await user.clear(screen.getByLabelText('SKU'))
+    await user.type(screen.getByLabelText('SKU'), 'RS-777')
+    await user.click(screen.getByRole('button', { name: 'Create product' }))
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/admin/products'))
+    expect(screen.queryByRole('link', { name: 'View Running Shoes' })).not.toBeInTheDocument()
   })
 
   it('never overwrites a change made by someone else, even after a background refresh', async () => {
@@ -668,5 +742,65 @@ describe('the history page', () => {
     renderApp('/admin/products/00000000-0000-4000-8000-999999999999/history')
 
     expect(await screen.findByRole('heading', { name: 'Product not found' })).toBeInTheDocument()
+  })
+})
+
+describe('the product image', () => {
+  const PHOTO = 'https://images.example.com/running-shoes.jpg'
+
+  it('saves an https image address and shows a preview', async () => {
+    asReviewer()
+    const catalog = fakeCatalog()
+    renderApp('/admin/products/new')
+
+    await fillNewProduct({ ...runningShoes, 'Image URL (optional)': PHOTO })
+
+    expect(screen.getByRole('img', { name: 'Image preview' })).toHaveAttribute('src', PHOTO)
+    await user.click(screen.getByRole('button', { name: 'Create product' }))
+    await screen.findByRole('row', { name: 'RS-001' })
+    expect(catalog.requests[0].body).toMatchObject({ image_url: PHOTO })
+  })
+
+  it('refuses an address that is not https before sending anything', async () => {
+    asReviewer()
+    const catalog = fakeCatalog()
+    renderApp('/admin/products/new')
+
+    await fillNewProduct({
+      ...runningShoes,
+      'Image URL (optional)': 'http://insecure.example.com/a.jpg',
+    })
+    await user.click(screen.getByRole('button', { name: 'Create product' }))
+
+    expect(await screen.findByText('Use an image address that starts with https://.')).toBeVisible()
+    expect(screen.queryByRole('img', { name: 'Image preview' })).toBeNull()
+    expect(catalog.requests).toEqual([])
+  })
+
+  it('keeps image addresses within the domain limit', async () => {
+    asReviewer()
+    fakeCatalog()
+    renderApp('/admin/products/new')
+    const address = `https://images.example.com/${'a'.repeat(MAX_IMAGE_URL_LENGTH)}`
+
+    expect(await screen.findByLabelText('Image URL (optional)')).toHaveAttribute(
+      'maxLength',
+      String(MAX_IMAGE_URL_LENGTH),
+    )
+    expect(imageUrlProblem(address)).toBe(IMAGE_URL_TOO_LONG)
+  })
+
+  it('keeps the image when editing other fields, and clears it when emptied', async () => {
+    asReviewer()
+    const catalog = fakeCatalog([{ sku: 'RS-001', name: 'Running Shoes', image_url: PHOTO }])
+    renderApp('/admin/products')
+
+    await user.click((await row('RS-001')).getByRole('link', { name: 'Edit' }))
+    expect(await screen.findByLabelText('Image URL (optional)')).toHaveValue(PHOTO)
+    await fill('Image URL (optional)', '')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => expect(catalog.requests).toHaveLength(1))
+    expect(catalog.requests[0].body).toMatchObject({ image_url: null })
   })
 })

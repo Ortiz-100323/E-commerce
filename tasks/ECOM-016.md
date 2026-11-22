@@ -4,10 +4,10 @@
 |---|---|
 | Type | Technical task |
 | Phase | 5 |
-| Status | **In Review**: built (prompt #035); waiting for the first GitHub Actions run (needs the `workflow` scope) |
+| Status | **In Review**: built (prompt #035); GitHub Actions green on pull request #1 (prompt #036); waiting for the owner to accept and merge |
 | Depends on | ECOM-012, ECOM-015 |
 | Architecture | §8.1 (E2E), §10, CC-08 |
-| Journal | D-100, D-101, D-102, D-103, D-104 |
+| Journal | D-100, D-101, D-102, D-103, D-104, D-110 |
 
 ## Context
 
@@ -158,7 +158,7 @@ The owner accepted the plan with changes (prompt #035). Where this section and t
 | 2 | Playwright passes: a declined card leaves stock unchanged | **Pass** | The declined message shows, the card field is cleared, and the stock stays at 5. A third test proves a double click buys once (5 → 4) |
 | 3 | Responses carry the security headers and CSP | **Pass** | Live smoke check on `/`, `/cart`, an API answer and an API error: all six headers with exact values |
 | 4 | Every container runs as a non-root user | **Pass** | `run.py containers`: backend uid 999, database uid 70, web server uid 101. The browser tests run as uid 1000 and the `ci` container as `runner` |
-| 5 | The GitHub Actions run gives the same result as the local `ci` container | **Waiting** | The workflow is written and committed. The push was refused because the `Ortiz-100323` token lacks the `workflow` scope (D-103); it runs once the owner grants it |
+| 5 | The GitHub Actions run gives the same result as the local `ci` container | **Pass** | [Run 45022442937](https://github.com/Ortiz-100323/E-commerce/actions/runs/45022442937) on pull request #1, 2 min 20 s: 8 contracts kept, 60 tooling, 869 backend (99.62%), 136 frontend tests, every smoke check, no root process (999, 70, 101), images within budget, 3 browser tests passed; the same numbers as the local run. The browser cache was empty on that first run and was saved for the next ones. |
 
 **Totals:** 3 browser tests, 3 new live smoke checks, 10 new tooling tests, 3 backend and 2 frontend tests. Locally, the `ci` container passes all static checks, 60 tooling tests, 869 backend tests (99.62% coverage), 136 frontend tests (95.85% lines) and 11 smoke checks. `run.py containers` and `run.py images` pass.
 
@@ -183,3 +183,10 @@ The owner accepted the plan with changes (prompt #035). Where this section and t
 - Acceptance criteria pass.
 - `run.py all` is green locally and in GitHub Actions.
 - Journal, prompt history and this ticket are updated; the owner has accepted it.
+
+## Code review round 4 (2026-11-22, D-110)
+
+- Reviewed the workflow, compose profiles, Dockerfiles, nginx security and upload handling, non-root and image-budget checks, browser-test isolation and the recorded GitHub Actions output.
+- Re-ran the production stack checks: backend uid 999, database uid 70 and frontend uid 101; frontend 93 MB and backend 486 MB, both inside their budgets.
+- Re-ran the complete 29-test browser suite that ECOM-016 introduced and ECOM-018 extended: 26 passed and 3 device-specific skips.
+- **Conclusion:** no new ECOM-016 defect was found. The acceptance evidence remains valid.

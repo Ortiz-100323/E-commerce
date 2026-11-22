@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from http import HTTPStatus
-from uuid import UUID
+from uuid import UUID, uuid5
 
 from ecommerce.ordering.application.errors import IdempotencyKeyReused
 from ecommerce.ordering.application.ports import (
@@ -69,6 +69,16 @@ class CheckoutCommand:
     customer_email: str
     lines: tuple[tuple[str, int], ...]
     card: CardDetails | None = field(default=None)
+    buyer_id: UUID | None = field(default=None)
+
+
+BUYER_KEY_NAMESPACE = UUID("6f1b3c2e-5a77-4c39-9a51-2d2f0c7b1e40")
+
+
+def scoped_key(key: UUID, buyer_id: UUID | None) -> UUID:
+    if buyer_id is None:
+        return key
+    return uuid5(BUYER_KEY_NAMESPACE, f"{buyer_id}:{key}")
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -82,6 +92,7 @@ class PreparedCheckout:
     customer: Customer
     lines: tuple[RequestedLine, ...]
     card: PaymentCard | None
+    buyer_id: UUID | None = None
 
 
 def response_status(order: Order) -> int:
@@ -142,7 +153,7 @@ def prepare(command: CheckoutCommand, today: date) -> PreparedCheckout:
     if collector.issues:
         raise DomainValidationError(collector.issues)
     assert customer is not None and lines is not None
-    return PreparedCheckout(customer=customer, lines=lines, card=card)
+    return PreparedCheckout(customer=customer, lines=lines, card=card, buyer_id=command.buyer_id)
 
 
 def line_problem(line: RequestedLine, product: SaleProduct | None) -> str | None:
@@ -206,6 +217,7 @@ async def place_order(
             for line in prepared.lines
         ],
         at=now,
+        buyer_id=prepared.buyer_id,
     )
     if order.total.is_zero:
         order.mark_paid(payment_reference=None, card_last4=None, at=now)
@@ -268,7 +280,7 @@ class Checkout:
         while True:
             try:
                 return await self._attempt(
-                    command.idempotency_key,
+                    scoped_key(command.idempotency_key, command.buyer_id),
                     key_fingerprint,
                     previous_fingerprint,
                     prepared,
@@ -390,4 +402,55 @@ class QuoteCart:
                 )
                 for line in requested
             )
+        )
+
+
+MY_ORDERS_PAGE_SIZE = 10
+
+
+@dataclass(frozen=True, kw_only=True)
+class BuyerOrders:
+    items: list[Order]
+    total: int
+    page: int
+    page_size: int
+
+
+class ListBuyerOrders:
+    def __init__(self, ordering: OrderingUnitOfWorkFactory) -> None:
+        self._ordering = ordering
+
+    async def execute(self, buyer_id: UUID, page: int) -> BuyerOrders:
+        offset = (page - 1) * MY_ORDERS_PAGE_SIZE
+        async with self._ordering() as work:
+            orders, total = await work.orders.for_buyer(
+                buyer_id, offset=offset, limit=MY_ORDERS_PAGE_SIZE
+            )
+        return BuyerOrders(items=orders, total=total, page=page, page_size=MY_ORDERS_PAGE_SIZE)
+
+
+ADMIN_ORDERS_PAGE_SIZE = 20
+MAX_ORDER_SEARCH = 200
+
+
+@dataclass(frozen=True, kw_only=True)
+class OrderSearch:
+    q: str | None
+    status: OrderStatus | None
+    page: int
+
+
+class SearchOrders:
+    def __init__(self, ordering: OrderingUnitOfWorkFactory) -> None:
+        self._ordering = ordering
+
+    async def execute(self, search: OrderSearch) -> BuyerOrders:
+        text = (search.q or "").strip()[:MAX_ORDER_SEARCH] or None
+        offset = (search.page - 1) * ADMIN_ORDERS_PAGE_SIZE
+        async with self._ordering() as work:
+            orders, total = await work.orders.search(
+                text, search.status, offset=offset, limit=ADMIN_ORDERS_PAGE_SIZE
+            )
+        return BuyerOrders(
+            items=orders, total=total, page=search.page, page_size=ADMIN_ORDERS_PAGE_SIZE
         )

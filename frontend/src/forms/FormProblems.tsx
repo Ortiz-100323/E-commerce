@@ -2,7 +2,6 @@ import type { FieldProblem } from '../api/apiError'
 import styles from './Forms.module.css'
 
 const LABELS: Record<string, string> = {
-  'X-Actor-Name': 'Reviewer name',
   file: 'File',
 }
 

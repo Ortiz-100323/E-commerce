@@ -1,19 +1,19 @@
 .backdrop {
   position: fixed;
   inset: 0;
-  background: rgb(17 24 39 / 45%);
+  z-index: 10;
   display: grid;
   place-items: center;
   padding: 1rem;
-  z-index: 10;
+  background: rgb(23 33 43 / 45%);
 }
 
 .dialog {
-  background: #fff;
-  border-radius: 0.5rem;
-  padding: 1.5rem;
   width: min(28rem, 100%);
-  box-shadow: 0 10px 30px rgb(0 0 0 / 20%);
+  padding: 1.5rem;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: 0 20px 40px -12px rgb(23 33 43 / 35%);
 }
 
 .dialog h2 {
@@ -25,16 +25,9 @@
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-.actions button {
-  padding: 0.5rem 1rem;
+  margin-top: 1.25rem;
 }
 
 .primary {
-  background: #111827;
-  color: #fff;
-  border: 1px solid #111827;
-  border-radius: 0.25rem;
+  composes: primary from '../styles/controls.module.css';
 }
