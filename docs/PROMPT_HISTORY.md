@@ -2566,3 +2566,37 @@ One slip on my side: a text-processing command removed a block of the shop page 
    → The filters fold behind **Filters**; tick one and the button shows "Filters (1)".
 
 **Status:** ECOM-018 part A (round 2) is waiting for your review and isn't committed. Tell me what you'd like changed, or say "commit". Part B will then be planned in detail.
+
+## #042 — 2026-11-22 — ECOM-018 part A accepted, committed and pushed
+
+### User
+
+> now it is good enought. Wrap it up, commit and push it
+
+### Assistant
+
+**ECOM-018 part A is accepted, committed and pushed to GitHub.**
+
+- **What's saved:** the product card, product photos (HTTPS image links), one look for every screen, the new filter bar, the two-column product page, the header and the empty states. It also includes all tests and the screenshots in `tasks/ECOM-018-evidence/`.
+- **Commit:** `ab530f0` on `feature/ECOM-018-ui-polish`, pushed to `origin`. A second, docs-only commit records this prompt.
+- **Left out on purpose:** your private `.claude/` folder and `skills-lock.json`.
+- **Records updated:**
+  - the ticket now reads "In Progress: part A accepted, part B next";
+  - the task board shows the same;
+  - journal D-106 and D-109 are marked accepted;
+  - this prompt is logged.
+
+**Security check before pushing:**
+
+| Check | Result |
+|---|---|
+| `.env`, key, certificate or credential files tracked now | None |
+| Such files anywhere in the Git history | None |
+| Secret patterns (cloud keys, GitHub tokens, private keys, hard-coded passwords) in the new changes | None |
+| Personal data in the new screenshots | None: only the catalog, test products and "E2E reviewer" |
+
+**Tests:** all pass in the CI container, and all 26 browser tests pass on desktop and phone. GitHub Actions runs only for pull requests and `main`, so this branch push starts no run there. It will run when the ticket's pull request is opened.
+
+**No pull request yet:** ECOM-018 still has part B. I'll open the single pull request for ECOM-018 into `main` when part B is done, unless you want it now.
+
+**Next:** part B (the polish collected since ECOM-007). I'll show you a detailed plan before building anything.
