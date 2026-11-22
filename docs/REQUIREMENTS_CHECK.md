@@ -23,7 +23,7 @@ The links are checked by `python testing/run.py docs`, which also runs in GitHub
 | R-13 | "The application must be runnable as a docker container." | See R-13 below. | Done |
 | R-14 | "On a readme.md document your decisions, approach, alternatives considered." | See R-14 below. | Done |
 | R-15 | "AI is allowed, if you use it, please remove comments from the code." | See R-15 below. | Done |
-| R-16 | "Please provide your solution in a Github repository." | See R-16 below. | **Partial** |
+| R-16 | "Please provide your solution in a Github repository." | See R-16 below. | Done |
 | R-17 | "Please add instructions on how to run the project locally." | See R-17 below. | Done |
 | R-18 | Note: "ask the right questions and guide AI to make use of your experience and foreseeing skills" | See R-18 below. | Done |
 
@@ -150,8 +150,9 @@ The links are checked by `python testing/run.py docs`, which also runs in GitHub
 
 ### R-16: A GitHub repository
 
-- The public repository is `github.com/Ortiz-100323/E-commerce`. Its `main` holds ECOM-000 to ECOM-021 and ECOM-017, and CI there is green.
-- **Gap:** the hand-in work (ECOM-022 to ECOM-024) is committed locally but **not pushed yet**. GitHub's `main` is at `4852c07`.
+- The public repository is `github.com/Ortiz-100323/E-commerce`.
+- Its `main` holds every ticket, ECOM-000 to ECOM-024. GitHub Actions runs every check and the browser tests there.
+- The hand-in work (ECOM-022 to ECOM-024) was pushed on the owner's word (prompt #062, D-128). The first check had found it committed locally but not yet pushed.
 
 ### R-17: Instructions to run locally
 

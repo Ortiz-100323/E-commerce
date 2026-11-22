@@ -1936,3 +1936,18 @@ Template:
   - `run.py docs` now requires that section. Its test was written first and seen failing (107 tooling tests).
   - R-14 is Done in `docs/REQUIREMENTS_CHECK.md`.
 - **Still open:** R-16. The hand-in branches are committed locally, and the push waits for the owner's final review.
+
+### D-128: Hand-in closed: ECOM-022 to ECOM-024 accepted, pushed, and `main` brought up to date
+- **Date:** 2026-11-22
+- **Status:** Done (owner, prompt #062: "commit and push everything. Let's close it.")
+- **Context:** the owner reviewed the hand-in work and asked to push it and close the project. The requirements check had one item left, R-16: the work was committed locally but not on GitHub.
+- **Before pushing,** the security check was clean:
+  - no secret-like files (`.env`, keys, certificates, credentials) are tracked now or anywhere in the history of any branch;
+  - there are no token or key patterns in the commits new to `main`;
+  - the owner's personal emails aren't in the new content, and the commit author is the pinned `Ortiz-100323` identity;
+  - `.claude/` and `skills-lock.json` stay untracked.
+- **Decision:**
+  - ECOM-022, ECOM-023 and ECOM-024 are marked Done, and R-16 in `docs/REQUIREMENTS_CHECK.md` is Done, so all 18 requirements are met.
+  - The three ticket branches were pushed.
+  - `main` was fast-forwarded to `feature/ECOM-024-requirements-check` and pushed. Each ticket branch had started from the previous one, so no merge commit was needed and nothing was rewritten.
+- **Result:** GitHub Actions on `main` is recorded in prompt #062.

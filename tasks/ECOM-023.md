@@ -4,7 +4,7 @@
 |---|---|
 | Type | Documentation |
 | Phase | Hand-in |
-| Status | **In review**: built and verified (prompt #059), committed on the owner's word (prompt #060); the owner reviews the README at the end |
+| Status | **Done**: built and verified (prompt #059), accepted and pushed (prompt #062) |
 | Depends on | ECOM-022 |
 | Journal | D-122, D-123, D-125 |
 

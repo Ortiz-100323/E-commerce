@@ -4,9 +4,9 @@
 |---|---|
 | Type | Verification |
 | Phase | Hand-in |
-| Status | **In review** (prompt #061): committed; R-14 closed (D-127); R-16, the push, waits for the owner's final review |
+| Status | **Done**: 18 of 18 requirements met; R-14 closed (D-127), R-16 closed by the push (prompt #062, D-128) |
 | Depends on | ECOM-022, ECOM-023 |
-| Journal | D-122, D-126, D-127 |
+| Journal | D-122, D-126, D-127, D-128 |
 
 ## Context
 
@@ -43,7 +43,7 @@ The owner wants proof that nothing in the challenge document was missed.
 |---|---|---|---|
 | 1 | Every requirement sentence in the challenge document has a row | **Pass** | R-01 to R-18: the 16 requirement lines, the "enterprise-grade" opening and the closing note |
 | 2 | Every "where it's met" reference exists | **Pass** | `python testing/run.py docs` checks every link, heading and named test (also in GitHub Actions) |
-| 3 | Every row is Done, or the owner has accepted the gap in writing | **17 of 18 Done** | R-14 closed with the README's Approach section (prompt #061, D-127); R-16 (the push) waits for the owner's final review, by the owner's plan |
+| 3 | Every row is Done, or the owner has accepted the gap in writing | **Pass: 18 of 18 Done** | R-14 closed with the README's Approach section (prompt #061, D-127); R-16 closed by the push (prompt #062, D-128) |
 
 **Also built:**
 - The no-comments check now covers every kind of code and config file.
