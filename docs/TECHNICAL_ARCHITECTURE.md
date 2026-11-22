@@ -1132,7 +1132,7 @@ GitHub Actions arrives in ECOM-016 and runs the same compose stack and `ci` cont
 | Q-10 | **PostgreSQL only.** | D-025 |
 | Q-14 | Rows flagged for a **zero or empty** value are editable. Rejected rows are only listed. **Every edit is audited** with its value before and after (§6.4). | D-037, D-039 |
 | Q-02 | Accepted the default: the `<script>` name is **rejected**, and the SQL-looking name is accepted as plain text. | D-038 |
-| Q-07 | Accepted the default: **no authentication** (a known gap). The actor is the name the reviewer enters. | D-038, D-040 |
+| Q-07 | Accepted the default: **no authentication** (a known gap), with the actor as the name the reviewer entered. *Superseded:* ECOM-019 added one login with roles, and the actor is now the logged-in admin. | D-038, D-040, D-114 |
 | Q-11 | Accepted the default: **guest checkout** with name and email. | D-038 |
 | Q-12 | Accepted the default: a **weight of 0 is flagged** for review. A stock of 0 is not. | D-038 |
 | Q-13 | Accepted the default: **one app image plus PostgreSQL**, started together with `docker compose up`. *Superseded:* the owner later chose four containers. | D-038, D-053 |

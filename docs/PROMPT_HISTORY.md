@@ -3170,3 +3170,56 @@ The local admin login (`admin@example.com` / `local-admin-password-change-me`) i
 **What remains:**
 - **ECOM-017**, the README and the delivery.
 - **Pull requests:** only PR #1 (ECOM-016) exists so far, and it waits for your merge. The ECOM-018 to ECOM-021 branches have no pull requests yet. Tell me if you want one per ticket opened, so GitHub Actions also runs the tests there.
+
+## #052 — 2026-11-22 — ECOM-017: README for reviewers, journal check and fresh-clone test
+
+### User
+
+> lets go for the last task
+
+### Assistant
+
+**ECOM-017 is done and ready for your review: the README is rewritten for the reviewers, and a fresh clone runs cleanly.** Nothing is committed yet; the work is on a new branch, `feature/ECOM-017-readme`.
+
+Written for: the code-challenge reviewers.
+
+**The README** ([README.md](README.md)) now has:
+- what the shop does, in a few lines, and the sample CSV's download date (2026-11-20);
+- **Run it with Docker:** three commands, the four containers, and the admin login (`admin@example.com` / `local-admin-password-change-me`, public development values);
+- **a five-minute tour:** import the CSV, edit a product and see its history, shop, sign up, pay with the test card, see the order in My orders and in Admin → Orders;
+- running it natively, with the environment variables it needs;
+- **tests and checks,** with the numbers at delivery;
+- the architecture on one page, with a small diagram;
+- **the key decisions and the alternatives considered,** each linked to the journal (challenge rule CC-09);
+- a table of **every challenge rule CC-01 to CC-13 and where it is met**;
+- the 10 **questions for the business**, with the default used until they're answered;
+- **known gaps**, and what to change before a real deployment (secrets, HTTPS, the secure cookie);
+- **how AI was used:** you directed, decided and accepted; Claude Code built; Codex reviewed; every prompt is in the prompt history, and the guardrails are listed.
+
+**The ticket's test: a fresh clone on a "clean machine"**
+- I cloned the repository into an empty folder and ran it as a separate project, so it had its own empty database and never touched yours.
+- `docker compose up --build` brought it up, and the first admin was created automatically.
+- `docker compose run --rm ci` **exited 0**: every static check, 60 tooling tests, 1,099 backend tests, 204 frontend tests and 14 live smoke checks.
+- Then I removed that copy and restarted your stack. Your data is intact.
+
+**Journal completeness check:**
+- Early decisions still marked "Proposed" (D-002 to D-051) are now marked as built and in force.
+- "No authentication" (D-021) and "a self-declared name" (D-040) are marked superseded by the logins.
+- The statuses of the login decisions are brought up to date.
+- Everything is summarised in **D-120**.
+
+**No-comments sweep:** passes.
+
+**Acceptance criteria:**
+
+| # | Criterion | Result |
+|---|---|---|
+| 1 | A reviewer can run the project from the README alone on a clean machine | ✅ Pass (fresh clone; `ci` exit 0) |
+| 2 | Every challenge rule CC-01 to CC-13 is traceable | ✅ Pass (the table in the README) |
+| 3 | Pushed under the `Ortiz-100323` account | ⏳ When you say so |
+
+**One important point for the delivery:** GitHub's `main` branch still shows the project as it was at ECOM-015, and reviewers usually look at `main`. The tickets since then sit on branches that build on each other (ECOM-016 → 018 → 019/020 → 021 → 017).
+
+**Status:** ECOM-017 is waiting for your review. Say "commit and push", and tell me how you want `main` updated:
+- **(a)** I open one pull request per ticket and you merge them in order; or
+- **(b)** I bring `main` up to date with the final branch in one step and push it (a fast-forward, nothing rewritten). My recommendation is (b), because every branch is already tested and accepted, and the CI workflow will run on `main` after the push.

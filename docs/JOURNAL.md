@@ -32,7 +32,7 @@ Template:
 
 ### D-002: Domain-Driven Design with strict layering
 - **Date:** 2026-11-21
-- **Status:** Accepted (user). The layering details are Proposed.
+- **Status:** Accepted (user). The layering details are Proposed. At delivery: built and in force (D-120).
 - **Context:** The challenge asks for "enterprise-grade". The user chose DDD.
 - **Decision:** A modular monolith with the bounded contexts `catalog` and `ordering` plus a `shared_kernel`. Each context has the layers `domain → application → infrastructure/api`. Layering is enforced by `import-linter` in CI.
 - **Alternatives considered:**
@@ -42,7 +42,7 @@ Template:
 
 ### D-003: Frontend framework: React
 - **Date:** 2026-11-21
-- **Status:** Accepted (user). The tooling details are Proposed.
+- **Status:** Accepted (user). The tooling details are Proposed. At delivery: built and in force (D-120).
 - **Decision:** React with TypeScript (strict), built with Vite. TanStack Query for server state, React Router, react-hook-form and zod, CSS Modules.
 - **Alternatives considered:**
   - Next.js: SSR is not needed, and a second runtime complicates the single container.
@@ -82,7 +82,7 @@ Template:
 
 ### D-007: Challenge rules are codified as non-negotiables CC-01…CC-13
 - **Date:** 2026-11-21
-- **Status:** Proposed
+- **Status:** Proposed At delivery: built and in force (D-120).
 - **Decision:** Every requirement in the PDF becomes a numbered rule in `TECHNICAL_ARCHITECTURE.md §1.1`, mapped to how it is satisfied. Every phase exit criterion references those IDs.
 
 ### D-008: Local DB is SQLite (via SQLAlchemy and Alembic)
@@ -109,7 +109,7 @@ Template:
 
 ### D-010: SKU is the natural key; product names are not unique
 - **Date:** 2026-11-21
-- **Status:** Proposed
+- **Status:** Proposed At delivery: built and in force (D-120).
 - **Context:** The sample has "Running Shoes" ×3 and "Bluetooth Speaker" ×4 under different SKUs.
 - **Decision:** `Sku` is unique (normalised by trimming and upper-casing). `ProductId` (UUID) is the internal identity.
 
@@ -160,7 +160,7 @@ Template:
 
 ### D-013: Product deletion is a soft delete (archive)
 - **Date:** 2026-11-21
-- **Status:** Proposed
+- **Status:** Proposed At delivery: built and in force (D-120).
 - **Context:** Orders must keep referencing what was bought.
 - **Decision:** `DELETE` archives the product. Archived products are hidden from the storefront and are not purchasable. Their SKU stays reserved, and they can be restored. Order lines snapshot the SKU, name and unit price.
 - **Alternatives considered:** A hard delete with `ON DELETE SET NULL` on order lines, which loses product context.
@@ -189,13 +189,13 @@ Template:
 
 ### D-016: Ordering talks to Catalog through an anti-corruption port
 - **Date:** 2026-11-21
-- **Status:** Proposed
+- **Status:** Proposed At delivery: built and in force (D-120).
 - **Decision:** `ordering` depends on a `CatalogGateway` port (`get_sellable`, `decrease_stock`), never on `catalog.domain`. Both contexts share one Unit of Work and transaction, as a pragmatic choice for a monolith.
 - **Alternatives considered:** Domain events with eventual consistency, which is overkill in a single process with one DB.
 
 ### D-017: API conventions
 - **Date:** 2026-11-21
-- **Status:** Proposed. Amended by D-028 (search engine), D-030 (import endpoints) and D-046 (error format).
+- **Status:** Proposed. Amended by D-028 (search engine), D-030 (import endpoints) and D-046 (error format). At delivery: built and in force (D-120).
 - **Decision:**
   - REST under `/api/v1`.
   - RFC 9457 Problem Details for errors.
@@ -215,14 +215,14 @@ Template:
 
 ### D-019: "No comments in code" is enforced automatically
 - **Date:** 2026-11-21
-- **Status:** Proposed
+- **Status:** Proposed At delivery: built and in force (D-120).
 - **Context:** CC-10: AI is used, so comments must be removed.
 - **Decision:** `testing/scripts/check_no_comments.py` tokenizes Python and TS/TSX. Docstrings count as comments. It fails CI and runs as a pre-commit hook. Explanations live in `docs/` and the README.
 - **Alternatives considered:** Manual review only, which is error-prone.
 
 ### D-020: Delivery in vertical-slice phases with a review gate after each
 - **Date:** 2026-11-21
-- **Status:** Proposed
+- **Status:** Proposed At delivery: built and in force (D-120).
 - **Decision:** The project is delivered in these phases:
   - Phase 0: walking skeleton.
   - Phase 1: catalog backend.
@@ -238,7 +238,7 @@ Template:
 
 ### D-021: No authentication (pending confirmation)
 - **Date:** 2026-11-21
-- **Status:** Accepted on its default (D-038). See also D-040 for who is recorded as making each change.
+- **Status:** Superseded by D-114 (ECOM-019: logins with roles). Earlier: accepted on its default (D-038); see also D-040.
 - **Decision:** The challenge does not ask for authentication. The admin area is open, and this is documented in the README as a known gap with the intended approach: OAuth2/JWT with an admin role.
 - **Alternatives considered:** Basic auth for `/admin`. It is cheap, but it adds credentials handling to the run instructions.
 
@@ -291,7 +291,7 @@ Template:
 
 ### D-026: Money and weight are stored as `NUMERIC`
 - **Date:** 2026-11-21
-- **Status:** Proposed. This supersedes the storage part of D-009.
+- **Status:** Proposed. This supersedes the storage part of D-009. At delivery: built and in force (D-120).
 - **Decision:**
   - Price is `NUMERIC(12,2)` and weight is `NUMERIC(10,3)`.
   - In the domain both remain `Decimal`, and the API serialises money as a string.
@@ -300,7 +300,7 @@ Template:
 
 ### D-027: Checkout locks rows with `SELECT … FOR UPDATE`, in SKU order
 - **Date:** 2026-11-21
-- **Status:** Proposed. This amends D-014 and D-015. It is detailed further in D-045.
+- **Status:** Proposed. This amends D-014 and D-015. It is detailed further in D-045. At delivery: built and in force (D-120).
 - **Decision:**
   - Checkout locks the products involved with `FOR UPDATE`, ordered by SKU to prevent deadlocks, then validates stock and decrements it.
   - Admin edits keep the optimistic `version` check.
@@ -310,7 +310,7 @@ Template:
 
 ### D-028: Search uses `ILIKE` with `pg_trgm` GIN indexes
 - **Date:** 2026-11-21
-- **Status:** Proposed. This amends D-017.
+- **Status:** Proposed. This amends D-017. At delivery: built and in force (D-120).
 - **Decision:**
   - Search matches name, SKU and description, using trigram indexes. It is case-insensitive and Unicode-aware.
   - LIKE wildcards in user input are escaped.
@@ -329,7 +329,7 @@ Template:
 
 ### D-030: The CSV import is a review workflow (the `ImportBatch` aggregate)
 - **Date:** 2026-11-21
-- **Status:** Proposed. This supersedes D-011 and follows from the owner's answers to Q-03 and Q-06. Its row outcomes and expected numbers are amended by D-048 to D-051.
+- **Status:** Proposed. This supersedes D-011 and follows from the owner's answers to Q-03 and Q-06. Its row outcomes and expected numbers are amended by D-048 to D-051. At delivery: built and in force (D-120).
 - **Context:** The owner wants zero and empty values, and updates to existing SKUs, to be confirmed or corrected by a person. They should not be decided silently.
 - **Decision:**
   - An import is a server-side `ImportBatch` aggregate with these states: `PENDING_REVIEW` → `COMMITTED`, `DISCARDED` or `EXPIRED` (after 24 hours).
@@ -354,7 +354,7 @@ Template:
 
 ### D-031: A zero price goes to review and can be confirmed as a GIFT
 - **Date:** 2026-11-21
-- **Status:** Accepted (user), with the mechanics Proposed. This amends D-012 and D-015.
+- **Status:** Accepted (user), with the mechanics Proposed. This amends D-012 and D-015. At delivery: built and in force (D-120).
 - **Context:** In the owner's words: "pop up a question to items as 0 … perhaps it is a gift to the user, we may tag it as that … a good question to ask the customer to have a different rule if necessary."
 - **Decision:**
   - **Domain:**
@@ -390,7 +390,7 @@ Template:
 
 ### D-034: Business rules are configurable policies
 - **Date:** 2026-11-21
-- **Status:** Proposed
+- **Status:** Proposed At delivery: built and in force (D-120).
 - **Context:** The owner expects the customer may want "a different rule if necessary".
 - **Decision:**
   - Import rules are domain strategy objects, selected from settings in the composition root:
@@ -408,7 +408,7 @@ Template:
 
 ### D-035: A register of questions for the customer
 - **Date:** 2026-11-21
-- **Status:** Proposed
+- **Status:** Proposed At delivery: built and in force (D-120).
 - **Context:** The challenge values "asking the right questions". Some open points belong to the business, not to engineering.
 - **Decision:**
   - `TECHNICAL_ARCHITECTURE.md` §11.3 tracks business questions as **CQ-xx**, each with the default we built in the meantime. Eight are open now, including stock semantics (absolute or delta), currency, taxonomy and gift rules.
@@ -449,7 +449,7 @@ Template:
 
 ### D-039: Append-only audit trail fed by domain events, written in the same transaction
 - **Date:** 2026-11-21
-- **Status:** Accepted (user requirement). The mechanism is Proposed.
+- **Status:** Accepted (user requirement). The mechanism is Proposed. At delivery: built and in force (D-120).
 - **Context:** The owner wants to "trace it back as how it was and how it became".
 - **Decision:**
   - `ImportRow` keeps the raw CSV line verbatim, and the raw values, unchanged forever. It also keeps a history of every resolution.
@@ -464,7 +464,7 @@ Template:
 
 ### D-040: Who made the change: a self-declared name until authentication exists
 - **Date:** 2026-11-21
-- **Status:** Proposed
+- **Status:** Superseded by D-114 (ECOM-019): the actor is now the logged-in admin, and the typed name and its `X-Actor-Name` header are gone. Earlier: proposed, and built in ECOM-004 to ECOM-018.
 - **Context:** An audit trail needs a "who", but there is no login (D-021).
 - **Decision:**
   - The admin area asks "Who is reviewing?" once, stores the answer in `localStorage`, and sends it as the `X-Actor-Name` header on every request that changes data. If the header is missing, the request fails with 422.
@@ -478,7 +478,7 @@ Template:
 
 ### D-041: The audit covers every product change, not only import corrections
 - **Date:** 2026-11-21
-- **Status:** Proposed
+- **Status:** Proposed At delivery: built and in force (D-120).
 - **Decision:** The audit trail records:
   - every import row resolution;
   - every product create, change, archive and restore, whether it comes from an import or from the admin;
@@ -488,7 +488,7 @@ Template:
 
 ### D-042: Import batches and audit entries are retained indefinitely
 - **Date:** 2026-11-21
-- **Status:** Proposed (CQ-09)
+- **Status:** Proposed (CQ-09) At delivery: built and in force (D-120).
 - **Decision:**
   - Committed, discarded and expired batches are all kept, together with their raw lines.
   - Nothing is purged.
@@ -503,7 +503,7 @@ Template:
 
 ### D-043: The idempotency key is a client-generated UUID v4, one per checkout attempt
 - **Date:** 2026-11-21
-- **Status:** Proposed. This details the idempotency part of D-015.
+- **Status:** Proposed. This details the idempotency part of D-015. At delivery: built and in force (D-120).
 - **Context:** The owner asked what the idempotency key is.
 - **Decision:**
   - **What it is:** the browser creates the key with `crypto.randomUUID()` and sends it in the `Idempotency-Key` header. This follows the IETF draft *The Idempotency-Key HTTP Header Field*.
@@ -524,7 +524,7 @@ Template:
 
 ### D-044: The same key with a different body returns 422 and processes nothing; only lasting outcomes are stored
 - **Date:** 2026-11-21
-- **Status:** Proposed
+- **Status:** Proposed At delivery: built and in force (D-120).
 - **Context:** The owner asked what happens when the same key comes with a different body.
 - **Decision:**
   - **How a body is fingerprinted:**
@@ -543,7 +543,7 @@ Template:
 
 ### D-045: Preventing oversold stock: lock with `FOR UPDATE` in SKU order, with timeouts, one retry and a database guard
 - **Date:** 2026-11-21
-- **Status:** Proposed. This details D-027.
+- **Status:** Proposed. This details D-027. At delivery: built and in force (D-120).
 - **Context:** The owner asked how we stop two purchases from reading the same stock at the same time.
 - **Decision:**
   - **Locking order.** Every writer that changes the same product rows (checkout and the import commit) locks them with `SELECT … FOR UPDATE ORDER BY sku`. A second checkout blocks, then re-reads the committed row under READ COMMITTED, then fails with 409 `insufficient-stock`, which lists each item's `{sku, requested, available}`.
@@ -567,7 +567,7 @@ Template:
 
 ### D-046: One error format: RFC 9457 Problem Details for every error
 - **Date:** 2026-11-21
-- **Status:** Proposed. This amends D-017.
+- **Status:** Proposed. This amends D-017. At delivery: built and in force (D-120).
 - **Context:** The owner asked how to return the right errors from Pydantic validation, in one consistent format.
 - **Decision:**
   - **Coverage.** Every error is `application/problem+json`, whatever produced it: Pydantic, the domain, the application layer, Starlette, or an unexpected failure. Each response carries `type` (`urn:ecommerce:problem:<name>`), `title`, `status`, `detail`, `instance` and `request_id`. Validation errors add `errors[] {location, field, code, message, params}`.
@@ -592,7 +592,7 @@ Template:
 
 ### D-047: One `ValidationIssue` vocabulary for API errors and import rows
 - **Date:** 2026-11-21
-- **Status:** Proposed
+- **Status:** Proposed At delivery: built and in force (D-120).
 - **Decision:**
   - The domain reports problems as `ValidationIssue {field, code, severity, message, params}`.
   - The API's `errors[]` and the import report's per-row issues use the same structure and the same codes.
@@ -601,7 +601,7 @@ Template:
 
 ### D-048: CSV issue taxonomy: warning (imported), review (held for a person) and error (rejected)
 - **Date:** 2026-11-21
-- **Status:** Proposed. This refines D-030 and D-032.
+- **Status:** Proposed. This refines D-030 and D-032. At delivery: built and in force (D-120).
 - **Context:** The owner asked what counts as a warning (row imported) and what counts as an error (row rejected).
 - **Decision:**
   - **Three severities.** The row's outcome follows its most severe issue, and all issues are collected rather than stopping at the first.
@@ -624,7 +624,7 @@ Template:
 
 ### D-049: Duplicate SKUs within one file: earlier rows are `superseded`, a failed winner brings nothing back, and differing names are a conflict
 - **Date:** 2026-11-21
-- **Status:** Proposed. This refines the in-file part of D-011 and D-030.
+- **Status:** Proposed. This refines the in-file part of D-011 and D-030. At delivery: built and in force (D-120).
 - **Decision:**
   - **Last row wins.** When rows share an SKU and describe the same product (the identity check in D-050), the last row is imported. It carries the warning `duplicate_sku_in_file`, and the earlier rows get the new outcome `superseded`.
   - **No fallback.** If the last row is rejected or needs review, the earlier rows are **not** used instead, because the file meant to replace them.
@@ -633,7 +633,7 @@ Template:
 
 ### D-050: SKU identity check: an existing SKU that names a different product is rejected
 - **Date:** 2026-11-21
-- **Status:** Proposed (CQ-10)
+- **Status:** Proposed (CQ-10) At delivery: built and in force (D-120).
 - **Context:** The owner asked us to check that an SKU in the file doesn't already belong to a different product in our database. A reused or mistyped SKU would otherwise overwrite another product, and that product's orders and audit history would no longer describe it.
 - **Decision:**
   - **Normalising names.** For each row whose SKU exists in the database, active or archived, both names are compared after normalisation: NFKC, case-folding and collapsed whitespace.
@@ -653,7 +653,7 @@ Template:
 
 ### D-051: Updated expected numbers for the golden test on the sample
 - **Date:** 2026-11-21
-- **Status:** Proposed. This supersedes the numbers in D-030.
+- **Status:** Proposed. This supersedes the numbers in D-030. At delivery: built and in force (D-120).
 - **Decision:** On an empty database, the 97 rows break down as follows:
   - 2 `blank`
   - 2 `rejected`
@@ -1041,7 +1041,7 @@ Template:
 
 ### D-081: Bug: "Something unexpected went wrong" after creating or editing a product (found by the owner, ECOM-007)
 - **Date:** 2026-11-21
-- **Status:** Fixed; waiting for the owner's re-test ([evidence](../tasks/ECOM-007-evidence/README.md), DEF-01)
+- **Status:** Fixed and verified by the owner in re-test 2 ([evidence](../tasks/ECOM-007-evidence/README.md), DEF-01)
 - **Symptom:**
   - In the browser, a red "Something unexpected went wrong" appeared next to "Product created".
   - Two appeared after a gift was created, and one more after an edit. The data itself was saved correctly.
@@ -1635,7 +1635,7 @@ Template:
 
 ### D-114: One login for admins and buyers, with a role on each account
 - **Date:** 2026-11-22
-- **Status:** Accepted with the three recommendations (prompt #047); built, waiting for the owner's validation
+- **Status:** Accepted with the three recommendations (prompt #047); built and validated by the owner (D-118). The third recommendation (an admin's purchase is a guest order) was later replaced by D-119: admins can't buy.
 - **Context:**
   - D-107 and D-108 planned two separate sign-ins (admin and buyer), each with its own cookie, pages and endpoints.
   - The owner wants one **Log in** button in the header and one login page. The app decides from the account where to go next.
@@ -1682,7 +1682,7 @@ Template:
 
 ### D-115: ECOM-019 plan: single login, roles, admin area, admins creating admins
 - **Date:** 2026-11-22
-- **Status:** Accepted (prompt #047); built, waiting for the owner's validation together with ECOM-020
+- **Status:** Accepted (prompt #047); built and validated by the owner (D-118)
 - **Decision (proposed):** ECOM-019 builds everything in D-114 except buyer sign-up and buyer orders:
   - the `identity` context;
   - migration 0010 (`accounts` and `sessions`);
@@ -1705,7 +1705,7 @@ Template:
 
 ### D-116: ECOM-020 plan: buyer sign-up on the login page, and "My orders"
 - **Date:** 2026-11-22
-- **Status:** Accepted (prompt #047); built, waiting for the owner's validation together with ECOM-019
+- **Status:** Accepted (prompt #047); built and validated by the owner (D-118)
 - **Decision (proposed):**
   - **Sign-up:** `POST /api/v1/accounts` takes `{name, email, password}`. It always creates a `BUYER`, refuses unknown fields (422) and logs the buyer in at once (201 and the session cookie). An email that already has an account, buyer or admin, gets 409 "An account with this email already exists. Log in instead." That message reveals the email is registered; the owner accepted the same trade-off in D-108, since there is no email confirmation.
   - **The same `/login` page** gets a second panel, "New here? Create an account", side by side on a computer and below on a phone.
@@ -1727,7 +1727,7 @@ Template:
 
 ### D-117: ECOM-019 and ECOM-020 as built: the owner's three choices and the decisions made while building
 - **Date:** 2026-11-22
-- **Status:** Built; waiting for the owner's validation (prompt #047: "Yes, go with each recommendation")
+- **Status:** Built and validated by the owner (D-118). Its third choice was replaced by D-119.
 - **The owner's choices (the three recommendations):**
   - the local seed admin is `admin@example.com` / `local-admin-password-change-me`, set in `docker-compose.yml`, like the local database password;
   - one login lifetime for everyone: 30 idle minutes, 8 hours at most;
@@ -1767,3 +1767,32 @@ Template:
   - Hiding the buttons only, without a server check (rejected: the rule would depend on the screen, as the buyer block doesn't).
   - Showing admin orders through the existing public `GET /orders/{id}` (rejected: it can't list or filter, and listing every order must be admin-only).
   - Joining the identity tables to show the account's name (rejected: it would couple ordering to identity; the order already stores the customer's name and email).
+
+### D-120: Delivery (ECOM-017): the README for reviewers, a journal completeness check and a fresh-clone test
+- **Date:** 2026-11-22
+- **Status:** Done; accepted by the owner (prompt #053: "commit and push, go with option b"), and `main` fast-forwarded to the final branch
+- **The README** is rewritten for the reviewers. It covers:
+  - what the shop does, and the sample CSV's download date (2026-11-20);
+  - running it with Docker (with the seeded admin login) or natively;
+  - a five-minute tour, and the tests and checks with their numbers at delivery;
+  - the architecture on one page, and the key decisions with their alternatives and journal links;
+  - every challenge rule CC-01 to CC-13 and where it is met;
+  - the questions for the business (CQ-01 to CQ-10) with their defaults;
+  - known gaps, what to change before a real deployment, and how AI was used.
+- **Journal completeness check:**
+  - Decisions written as "Proposed" in the planning phase (D-002 to D-051) were approved through the architecture revisions and built in the tickets. Each now ends with "At delivery: built and in force (D-120)".
+  - D-042 and D-050 stay tied to the open business questions CQ-09 and CQ-10.
+  - D-021 (no authentication) and D-040 (a self-declared name) are marked superseded by D-114.
+  - D-081 is marked verified by the owner.
+  - D-114 to D-117 are marked validated (D-118), with the third choice replaced by D-119.
+  - In the architecture document, Q-07 ("no authentication") now says it was superseded.
+- **Fresh-clone test (the ticket's test plan):**
+  - the repository was cloned into an empty folder, with the new README;
+  - it was started as its own compose project (`-p ecommerce-fresh`), so it had an empty database and never touched the owner's data;
+  - `docker compose up --build` brought up the stack, and the backend logged "created the first administrator";
+  - `docker compose run --rm ci` **exited 0**: all static checks, 60 tooling tests, 1,099 backend tests, 204 frontend tests and 14 smoke checks passed;
+  - afterwards the fresh project, its volume and its images were removed, and the owner's stack was restarted with its data intact.
+- **No-comments sweep:** `run.py nocomments` passes on the whole tree (it runs inside `ci`).
+- **Alternatives:**
+  - A separate `docs/DELIVERY.md` linked from a short README (rejected: the challenge asks for the decisions, the approach and the instructions in the README itself);
+  - testing the fresh clone against the owner's running stack (rejected: it would reuse the owner's database and prove nothing about a clean machine).
