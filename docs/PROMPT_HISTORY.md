@@ -3128,3 +3128,45 @@ Your containers are rebuilt, and your database is on migration 0012.
    → Everything works as before.
 
 **Status:** ECOM-021 is waiting for your review and isn't committed. Tell me what to change, or say "commit".
+
+## #051 — 2026-11-22 — ECOM-021 accepted, committed and pushed
+
+### User
+
+> great, you can commit and push
+
+(Screenshot: Admin → Orders with 83 orders, Guest and Customer account badges.)
+
+### Assistant
+
+**ECOM-021 is accepted, committed and pushed to GitHub, together with the earlier work that wasn't pushed yet.**
+
+**What's now on GitHub:**
+
+| Branch | Commit | What it holds |
+|---|---|---|
+| `feature/ECOM-018-ui-polish` | `f4d1b53` | ECOM-018 part B: the collected polish, plus code review round 4 |
+| `feature/ECOM-019-single-login` (new) | `35fccd2` | ECOM-019 and ECOM-020: one login with roles, admins creating admins, sign-up and My orders |
+| `feature/ECOM-021-admin-orders` (new) | `d3ee79d` | ECOM-021: admins don't shop, and the admin Orders screen |
+
+Each branch builds on the previous one. A small docs commit on top of ECOM-021 records this prompt.
+
+**Security check before pushing:**
+
+| Check | Result |
+|---|---|
+| `.env`, key, certificate or credential files tracked now | None |
+| Such files anywhere in the Git history, all branches | None |
+| Secret patterns (cloud keys, GitHub tokens, private keys) in the new commits | None |
+| Your personal email in the new commits | None; your name and email were pixelated in the ECOM-020 screenshots before committing |
+| The Orders screenshot you just sent | Only test data; saved as ECOM-021 evidence 07 |
+
+The local admin login (`admin@example.com` / `local-admin-password-change-me`) is in `docker-compose.yml` on purpose. It's a public development value, like the local database password, and the README in ECOM-017 will say to change it.
+
+**Left out on purpose:** your private `.claude/` folder and `skills-lock.json`.
+
+**Records:** ECOM-021 is Done on the board, D-119 is marked accepted, and your screenshot is in its evidence.
+
+**What remains:**
+- **ECOM-017**, the README and the delivery.
+- **Pull requests:** only PR #1 (ECOM-016) exists so far, and it waits for your merge. The ECOM-018 to ECOM-021 branches have no pull requests yet. Tell me if you want one per ticket opened, so GitHub Actions also runs the tests there.
