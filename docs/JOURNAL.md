@@ -1425,6 +1425,7 @@ Template:
   - The owner answered "merge all of them and push, the goal is to have all of them in our repo". `main` was fast-forwarded to ECOM-015 (`42336a7`) and pushed with the 15 ticket branches (ECOM-013 and ECOM-014 share one branch) to the public `github.com/Ortiz-100323/E-commerce`.
   - Pull requests: ECOM-000 to ECOM-015 are already in `main`, and GitHub cannot open a pull request for a branch that `main` already contains. ECOM-016, the only ticket not merged, gets its own pull request into `main`.
 - **Blocked:** pushing ECOM-016 was refused, because the `Ortiz-100323` token has the scopes `gist`, `read:org` and `repo`, and GitHub needs `workflow` to add `.github/workflows/ci.yml`. The owner must grant it in the browser: `gh auth refresh --hostname github.com --scopes workflow`.
+- **Unblocked (prompt #036):** the owner granted the `workflow` scope. ECOM-016 was pushed, pull request #1 was opened into `main`, and its first GitHub Actions run passed.
 
 ### D-104: Playwright in its own compose service; image sizes
 - **Date:** 2026-11-22
@@ -1449,3 +1450,4 @@ Template:
   - Playwright inside the `ci` container (rejected by the owner: it should stay out of the default run).
   - The official `mcr.microsoft.com/playwright` image (rejected: it carries every browser, about 2 GB, where only the headless shell is needed).
   - The browser baked into the image (rejected: a browser update would rebuild the image; a cache folder is simpler to keep in CI).
+- **Image sizes on GitHub Actions (addendum, prompt #036):** the same images measure smaller on the Linux runner: frontend 62 MB, backend 341 MB. Docker Desktop on Windows reports 93 MB and 487 MB. The budgets (120 MB and 500 MB) are set against the larger, local figures, so both pass.

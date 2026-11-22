@@ -2197,3 +2197,35 @@ gh auth refresh --hostname github.com --scopes workflow
 **Status:**
 - ECOM-016 is In Review. It's committed on its branch but not pushed yet, waiting for the permission.
 - Next on the board: ECOM-017 (README and delivery).
+
+## #036 — 2026-11-22 — Git reviewed; ECOM-016 pushed; pull request #1 green on GitHub Actions
+
+### User
+
+> Review our git and make sure it is update to date.
+
+### Assistant
+
+**Your git is up to date with GitHub, and the first GitHub Actions run is green.**
+
+**What I checked**
+- **Branches:** `main` (`42336a7`, everything through ECOM-015) and the 15 earlier ticket branches were already identical to GitHub.
+- **ECOM-016 was the only thing missing.** You had granted the `workflow` permission, so I pushed it and opened **pull request #1** into `main`: https://github.com/Ortiz-100323/E-commerce/pull/1
+- **Nothing left behind:** no unpushed commits, no put-aside work, no uncommitted project files.
+- **Left untracked on purpose:** `.claude/skills/frontend-design/` and `skills-lock.json`, a Claude Code skill installed on your side. It isn't part of the shop. Tell me if you'd like it committed or ignored.
+
+**GitHub Actions: passed in 2 min 20 s** ([run](https://github.com/Ortiz-100323/E-commerce/actions/runs/45022442937)). It gave the same results as your local run:
+- 8 architecture rules kept;
+- 60 tooling, 869 backend (99.62% coverage) and 136 frontend tests;
+- every live smoke check;
+- no container running as the administrator (users 999, 70, 101);
+- both images within budget;
+- the 3 browser tests.
+
+ECOM-016's criterion 5 is now ✅ **Pass**, and all five of its criteria pass. The browser cache was empty on this first run and has been saved, so the next runs reuse it.
+
+One difference: the images measure smaller on GitHub's Linux machines (frontend 62 MB, backend 341 MB) than on Docker Desktop for Windows (93 MB and 487 MB). The budgets are set against the larger, local figures, so both pass. This is noted in the journal (D-104).
+
+These notes were pushed to the same pull request, which runs the checks once more.
+
+**Status:** ECOM-016 is In Review. When you're happy, merge pull request #1 on GitHub, or tell me "merge" and I'll do it. Next on the board is ECOM-017 (README and delivery).
