@@ -18,6 +18,7 @@ export async function createProduct(
   name: string,
   price: string,
   stock: number,
+  extra: Record<string, string | null> = {},
 ): Promise<Product> {
   const response = await request.post(`${API}/products`, {
     headers: ACTOR,
@@ -30,6 +31,7 @@ export async function createProduct(
       stock,
       weight_kg: '0.5',
       gift: Number(price) === 0,
+      ...extra,
     },
   })
   expect(response.status(), await response.text()).toBe(201)

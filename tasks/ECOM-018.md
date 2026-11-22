@@ -4,11 +4,12 @@
 |---|---|
 | Type | Story (frontend, with a small backend change for product images) |
 | Phase | 5 |
-| Status | **To Do**: plan accepted by the owner (prompt #038); not started yet |
+| Status | **In Progress**: part A (the product card and one look for every screen) accepted by the owner (prompt #042) and committed. Part B (the collected polish) is next, planned in detail before building |
 | Priority | First after ECOM-016 (owner's order, prompt #037: ECOM-018 → ECOM-019 → ECOM-020 → ECOM-017) |
 | Depends on | ECOM-007, ECOM-008, ECOM-012, ECOM-015 |
 | Architecture | §4.2 (`Product`), §4.5, §5, §10 (CSP), CC-07 |
-| Journal | D-106 |
+| Journal | D-106, D-109 |
+| Evidence | [Playwright on desktop and mobile](ECOM-018-evidence/README.md) |
 | Source | Owner's tests of ECOM-007 (prompt #017), ECOM-012 (prompt #028) and ECOM-015 (prompt #034); the product card request (prompt #037) |
 
 ## Context
@@ -124,6 +125,85 @@ The screens work, but some parts feel rough. The owner collected UX remarks here
 | A very long name | Two lines and an ellipsis; the full name on hover and on the product page | — |
 | **Retry:** clicking **Add to cart** many times | Stops at the stock; the button says why | — |
 | **Stock:** the card shows the stock from the list and never decides a sale | Checkout re-checks everything with the stock locked (ECOM-014) | — |
+
+## Part A as built (2026-11-22)
+
+- **Backend:**
+  - `ImageUrl` value object: HTTPS only, a host, at most 2,048 characters, no spaces or control characters; the scheme is stored in lower case.
+  - `Product.image_url`: in `create`, and in `revise`, where an empty value clears it and no value keeps it. It is part of the audit snapshot.
+  - Migration 0009 adds the `image_url` column with the CHECK `ck_products_image_url_https`.
+  - The API returns `image_url` and accepts it on create and update. An update without it clears it, because a PUT replaces every field.
+- **CSP:** `img-src 'self' data: https:`, also checked by the smoke test.
+- **Frontend:**
+  - `ProductCard`;
+  - `ProductImage` (photo, or a placeholder that also replaces a photo that fails to load);
+  - `categoryLook` (a tint and an icon per kind of category);
+  - `CategoryIcon` (inline SVG);
+  - the card's colours come from 8 CSS classes, never from inline style attributes, so the CSP needs no exception;
+  - the admin form gains **Image URL (optional)** with a preview.
+- **Card behaviour:**
+  - the name link is stretched over the whole card, and the button sits above it;
+  - the grid uses `grid-auto-rows: 1fr`, with the button at the bottom of every card;
+  - the hover lift only happens on devices that can hover and don't ask for reduced motion;
+  - the card shows a focus frame when its link has keyboard focus;
+  - a phone gets two columns.
+- **Browser tests:** `testing/e2e/specs/product-card.spec.ts` runs in a **desktop** project (1280 × 800) and a **mobile** project (Pixel 7). The purchase tests run on desktop only.
+
+### Verification (part A)
+
+| # | Acceptance criterion | Result | How it was proven |
+|---|---|---|---|
+| 1 | The 4:3 image area shows the photo or the category placeholder; a broken photo shows the placeholder | **Pass** | Component tests; Playwright measures 4:3 on every card on both devices, and checks a loaded photo and a broken one |
+| 2 | Two lines of name, softer category, highlighted price ("Free" for gifts) | **Pass** | Component test; Playwright measures the long name at most two lines |
+| 3 | "Only N left" (1 to 5) and "Out of stock" with a disabled button | **Pass** | Component and Playwright tests |
+| 4 | **Add to cart** on the card, never past the stock | **Pass** | Component test ("All 1 in your cart"); Playwright ("All 2 in your cart") |
+| 5 | Clicking anywhere except the button opens the product | **Pass** | Playwright clicks the image area and lands on the product page |
+| 6 | Same height on desktop and mobile | **Pass** | Playwright: all six cards within 1 px, on both devices |
+| 7 | Keyboard only | **Pass** | Component test and Playwright: Tab, Enter, Space, Shift+Tab, and the focus frame |
+| 8 | Look-alikes told apart | **Pass** | SKU on every card, and in its accessible name ("Bluetooth Speaker SKU BS-099") |
+| 9 | Playwright checks 1 to 8 on desktop and mobile, with screenshots | **Pass** | 19 tests; screenshots in [ECOM-018-evidence](ECOM-018-evidence/README.md) |
+| 10 | An admin can set and clear an HTTPS image URL, and it appears in the history | **Pass** | Admin form tests; API tests on PostgreSQL (saved, shown in search, cleared, the history entry before and after); the domain refuses `http:`, `javascript:` and `data:` |
+
+**Defect found by Playwright and fixed before review:** a photo that isn't 4:3 stretched its card (DEF-01 in the evidence).
+
+### Failure cases and retries (results)
+
+| Situation | Result |
+|---|---|
+| An image URL that is not HTTPS, too long, or not a URL | Pass: 422 under **Image URL** from the API; the form refuses it before sending |
+| An image that fails to load | Pass: the placeholder, with no broken-image icon |
+| A slow image | Pass: the 4:3 box keeps its place (the photo is positioned inside it) |
+| A very long name | Pass: two lines and an ellipsis; the full name in `title` and on the product page |
+| **Retry:** clicking **Add to cart** many times | Pass: stops at the stock, and the button says why |
+| **Stock:** the card never decides a sale | Pass: checkout re-checks with the stock locked (ECOM-014) |
+
+**Totals for part A:** 24 new backend tests, 13 new frontend tests (10 for the card and 3 for the admin image field), and 9 browser tests run on 2 devices. The `ci` container passes `run.py all`: all static checks, 60 tooling, 893 backend (99.62% coverage), 149 frontend tests, and the smoke checks. `run.py containers` and `run.py images` pass.
+
+## Part A, round 2: one look for every screen (owner's review, prompt #041, D-109)
+
+The owner found the interface "half styled": the card was designed, but the rest of the controls used the browser's defaults. The owner's five fixes, in order:
+
+| # | Owner's request | As built |
+|---|---|---|
+| 1 | Style every button, input, dropdown and link the same way | Shared tokens and `:where()` base styles in `index.css`; one shared module `styles/controls.module.css` (`primary`, `secondary`, `quiet`, alerts), reused with `composes` by the shop, product page, cart, checkout, admin, imports, dialogs and the name prompt |
+| 2 | Reorganise the filter bar; Sort next to the product count | One search panel: the search box and button, then Category, toggle chips and a Min–Max price range. The product count and Sort share a results bar above the grid. On phones the filters fold behind **Filters (N)** |
+| 3 | Product page with a picture and two columns | The picture (photo or category placeholder) on the left; the name, price, stock label, Add to cart, description and details on the right. They stack on phones |
+| 4 | Lighter cards: smaller buttons, stock labels, no SKU | A compact pill button beside the price; "In stock", "Only N left" or "Out of stock" as a dot label. The SKU is shown only when two products on the page share a name, so AC 8 still holds |
+| 5 | Header, colour and empty states | A white sticky header with a wordmark, the active link underlined, and the cart as a pill with a count badge; a spruce brand colour; empty states for no results, an empty cart and a missing product |
+
+### Acceptance criteria (round 2)
+
+| # | Criterion | Result | How it was proven |
+|---|---|---|---|
+| R1 | Every button, field, dropdown and link uses the shared styles on every screen | **Pass** | Playwright screenshots of the shop, product page, cart, checkout, admin products, new product and import (evidence 05 to 18) |
+| R2 | Sort sits next to the product count, outside the search panel; Category and Price are inside it | **Pass** | Component test "puts the sort next to the product count" |
+| R3 | On a phone the filters fold behind a button that counts them, and open by themselves on a price error | **Pass** | Component tests; Playwright on the phone (hidden, then shown after a tap) and on the desktop (always shown) |
+| R4 | The product page shows the picture beside the details on a desktop and above them on a phone | **Pass** | Playwright measures both layouts; component test for the placeholder, stock label and SKU |
+| R5 | Cards show a stock label, a compact button on the price row, and no SKU unless names repeat | **Pass** | Component tests; Playwright (the tent has no SKU, the two speakers do) |
+| R6 | Empty states explain what to do next | **Pass** | Component and Playwright tests for "No products match your search" with **Clear filters** |
+| R7 | Everything from round 1 still holds (4:3, equal heights, keyboard, stock limit, 44 px touch targets) | **Pass** | All round 1 browser tests, on both devices |
+
+**Totals for round 2:** 7 new component tests (156 frontend tests in all) and 4 new browser tests (26 passed, 3 skipped by design). `run.py all` passes in the `ci` container: the static checks, 60 tooling, 893 backend (99%), 156 frontend tests and the smoke checks. `run.py containers` and `run.py images` pass.
 
 ## Definition of done
 

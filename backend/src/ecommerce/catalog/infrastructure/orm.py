@@ -26,6 +26,7 @@ products = Table(
     Column("stock", Integer, nullable=False),
     Column("weight_kg", Numeric(10, 3), nullable=False),
     Column("tags", ARRAY(String(16)), nullable=False, server_default=text("'{}'")),
+    Column("image_url", String(2048), nullable=True),
     Column("status", String(16), nullable=False),
     Column("version", Integer, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
@@ -39,6 +40,9 @@ products = Table(
     CheckConstraint("tags <@ ARRAY['GIFT']::varchar[]", name="ck_products_known_tags"),
     CheckConstraint("status IN ('ACTIVE', 'ARCHIVED')", name="ck_products_known_status"),
     CheckConstraint("version >= 1", name="ck_products_version_positive"),
+    CheckConstraint(
+        "image_url IS NULL OR image_url LIKE 'https://%'", name="ck_products_image_url_https"
+    ),
 )
 
 Index("uq_products_sku", products.c.sku, unique=True)

@@ -145,58 +145,60 @@ export function ProductsTablePage() {
       {data && data.items.length === 0 ? <p>No products match.</p> : null}
 
       {data && data.items.length > 0 ? (
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th scope="col">SKU</th>
-              <th scope="col">Name</th>
-              <th scope="col">Category</th>
-              <th scope="col" className={styles.number}>
-                Price
-              </th>
-              <th scope="col" className={styles.number}>
-                Stock
-              </th>
-              <th scope="col">Status</th>
-              <th scope="col">
-                <span className={styles.hidden}>Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.items.map((product) => (
-              <tr key={product.id} aria-label={product.sku}>
-                <td>{product.sku}</td>
-                <td>
-                  {product.name}
-                  {product.gift ? <span className={styles.badge}>Gift</span> : null}
-                </td>
-                <td>{product.category}</td>
-                <td className={styles.number}>{formatPrice(product.price, product.currency)}</td>
-                <td className={styles.number}>
-                  {product.stock}
-                  {product.stock === 0 ? (
-                    <span className={styles.warning}>Out of stock</span>
-                  ) : null}
-                </td>
-                <td>{product.status === 'ACTIVE' ? 'Active' : 'Archived'}</td>
-                <td className={styles.rowActions}>
-                  <Link to={`/admin/products/${product.id}/edit`}>Edit</Link>
-                  <Link to={`/admin/products/${product.id}/history`}>History</Link>
-                  {product.status === 'ACTIVE' ? (
-                    <button type="button" onClick={() => setArchiving(product)} disabled={busy}>
-                      Archive
-                    </button>
-                  ) : (
-                    <button type="button" onClick={() => onRestore(product)} disabled={busy}>
-                      Restore
-                    </button>
-                  )}
-                </td>
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th scope="col">SKU</th>
+                <th scope="col">Name</th>
+                <th scope="col">Category</th>
+                <th scope="col" className={styles.number}>
+                  Price
+                </th>
+                <th scope="col" className={styles.number}>
+                  Stock
+                </th>
+                <th scope="col">Status</th>
+                <th scope="col">
+                  <span className={styles.hidden}>Actions</span>
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.items.map((product) => (
+                <tr key={product.id} aria-label={product.sku}>
+                  <td>{product.sku}</td>
+                  <td>
+                    {product.name}
+                    {product.gift ? <span className={styles.badge}>Gift</span> : null}
+                  </td>
+                  <td>{product.category}</td>
+                  <td className={styles.number}>{formatPrice(product.price, product.currency)}</td>
+                  <td className={styles.number}>
+                    {product.stock}
+                    {product.stock === 0 ? (
+                      <span className={styles.warning}>Out of stock</span>
+                    ) : null}
+                  </td>
+                  <td>{product.status === 'ACTIVE' ? 'Active' : 'Archived'}</td>
+                  <td className={styles.rowActions}>
+                    <Link to={`/admin/products/${product.id}/edit`}>Edit</Link>
+                    <Link to={`/admin/products/${product.id}/history`}>History</Link>
+                    {product.status === 'ACTIVE' ? (
+                      <button type="button" onClick={() => setArchiving(product)} disabled={busy}>
+                        Archive
+                      </button>
+                    ) : (
+                      <button type="button" onClick={() => onRestore(product)} disabled={busy}>
+                        Restore
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : null}
 
       {data && data.total > 0 ? (

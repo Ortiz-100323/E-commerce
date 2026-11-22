@@ -30,6 +30,7 @@
 > | 24 | 2026-11-22 | ECOM-015: the purchase screens as built (cart, checkout, confirmation), and a read-only `POST /orders/quote` so the cart subtotal comes from the server (§4.5, §5, D-097). |
 > | 25 | 2026-11-22 | ECOM-016: browser tests in their own `e2e` compose service (profile `e2e`, Playwright 1.65.0, headless shell only), security headers and CSP, a 6 MB upload limit in nginx, no root process in any container, image budgets, and a GitHub Actions workflow (§8.1, §10, D-100 to D-104). |
 > | 25 | 2026-11-22 | Review fixes through ECOM-015: full checkout bodies use a secret-keyed idempotency fingerprint, migration 0008 widens the maximum order total, email controls are rejected, and invalid visible cart quantities cannot navigate to checkout (§4.2, §5, §7.2, D-099). |
+> | 26 | 2026-11-22 | ECOM-018 part A: the shop's product card (a 4:3 image area with a category placeholder, low-stock and sold-out badges, Add to cart on the card, equal heights, keyboard and phone layouts), an optional HTTPS-only product `image_url` (migration 0009), and the CSP allowing HTTPS images (§4.2, §4.5, §5, §10, D-106). |
 >
 > Every decision here also appears in [JOURNAL.md](JOURNAL.md) with its context and the alternatives considered.
 
@@ -232,6 +233,7 @@ Exact versions are pinned in Phase 0 and logged in the journal.
 **The `Product` aggregate** belongs to catalog.
 - **Identity:** `ProductId` (a UUID). The natural key is `Sku`, which is unique.
 - **State:** name, description, category, price, stock, weight, `tags`, `status` (`ACTIVE` or `ARCHIVED`), `version` (for optimistic locking) and timestamps.
+- **Optional image (ECOM-018, D-106):** `image_url`, an `ImageUrl` value object, HTTPS only and at most 2,048 characters. An empty value clears it, and it is audited like any other field. The database adds the CHECK `ck_products_image_url_https`.
 - **Invariant:** `price == 0 ⇔ GIFT ∈ tags`: a gift is always free, and a free product is always a gift (D-083, which replaced the earlier one-way rule). Removing the GIFT tag requires a price above 0, and adding it requires a price of 0.
 - **Behaviour:**
   - `rename`, `reprice`, `recategorize`, `restock`
@@ -496,6 +498,19 @@ Domain validation **collects every issue before raising**, rather than stopping 
 | | `/admin/imports/:id` | **Review screen**, with one tab per outcome. Needs-review rows get an inline editor plus confirm and skip actions. Update rows show an old → new diff per field with a confirm checkbox, plus "confirm all". Rejected rows show their reasons, and warnings are listed too. The commit button stays disabled until the batch can be committed. |
 
 **Import screens as built (ECOM-012, D-092).** The admin menu has **Import CSV**. The upload sends the file itself as a `text/csv` body. The review screen takes every row, allowed action and the commit state from the server, replaces a row from the server's answer after each decision, and explains each 409 (`import-stale-rows`, `import-not-committable`, `import-not-pending`) on the page. A skipped row leaves its outcome tab and is listed under **Skipped**, where it can still be corrected, confirmed or ticked again; tab counts are counted from the server's rows (D-094).
+**The product card as built (ECOM-018, D-106).** Each card in the shop grid has:
+- a 4:3 image area: the product photo, or a tint and line icon for its kind of category (the colours are CSS classes, never inline styles);
+- the name, at most two lines;
+- the category, a stock label ("In stock", "Only N left", "Out of stock"), and the price beside a compact **Add to cart**;
+- the SKU only when another product on the same page has the same name (D-109).
+
+The name link is stretched over the card, so a click anywhere except the button opens the product. The grid keeps every card the same height, and a phone gets two columns. Playwright checks the card on desktop and on a Pixel 7 (`testing/e2e/specs/product-card.spec.ts`).
+
+**Shared look (ECOM-018, D-109).**
+- `frontend/src/index.css` holds the design tokens (colours, radii, control height, page width) as CSS custom properties. It also styles the base controls inside `:where()`, so they carry no specificity.
+- `frontend/src/styles/controls.module.css` holds the shared variants (`primary`, `secondary`, `quiet`, `alert`, `notice`, `success`, `info`, `visuallyHidden`). Feature modules reuse them with `composes` instead of redefining them.
+- The shop's search panel folds its filters behind **Filters (N)** on phones. The product page has two columns (the picture, then the details), which stack on phones.
+
 **Purchase screens as built (ECOM-015, D-097, D-099).**
 - The header's **Cart: N items** links to `/cart`. The cart asks the server for a quote whenever it changes, shows the server's prices and subtotal, and offers a fix for each problem: **Use N** or **Remove**.
 - The cart is a form: `required`, minimum and maximum quantity constraints block checkout while the visible value is invalid. The stored previous quantity can never be bought behind a visibly invalid field.

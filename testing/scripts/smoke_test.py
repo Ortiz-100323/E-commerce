@@ -28,7 +28,7 @@ DECLINED_TEST_CARD = "4000 0000 0000 0002"
 
 SECURITY_HEADERS = {
     "content-security-policy": (
-        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
+        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; "
         "connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; "
         "form-action 'self'; frame-ancestors 'none'"
     ),

@@ -42,7 +42,7 @@ A ticket moves to **Done** only after the owner accepts it at its review gate.
 | [ECOM-014](ECOM-014.md) | Checkout safety: idempotency key and stock locking | 4 | ECOM-013 | Done |
 | [ECOM-015](ECOM-015.md) | Purchase UI: cart, checkout and confirmation | 4 | ECOM-014, ECOM-006 | Done |
 | [ECOM-016](ECOM-016.md) | Hardening, Playwright E2E and GitHub Actions | 5 | ECOM-012, ECOM-015 | In Review (PR #1, CI green) |
-| [ECOM-018](ECOM-018.md) | UI polish and user experience, starting with the shop's product card | 5 | ECOM-007, ECOM-008, ECOM-012, ECOM-015 | To Do (plan accepted) |
+| [ECOM-018](ECOM-018.md) | UI polish and user experience, starting with the shop's product card | 5 | ECOM-007, ECOM-008, ECOM-012, ECOM-015 | In Progress (part A accepted; part B next) |
 | [ECOM-019](ECOM-019.md) | Admin login: product management and CSV import only after an admin signs in | 5 | ECOM-016 | Backlog |
 | [ECOM-020](ECOM-020.md) | Buyer account: register, sign in and "My orders" | 5 | ECOM-019, ECOM-015 | Backlog |
 | [ECOM-017](ECOM-017.md) | README and delivery | 6 | ECOM-016, ECOM-018, ECOM-019, ECOM-020 | Backlog |

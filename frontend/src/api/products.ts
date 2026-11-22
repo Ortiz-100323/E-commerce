@@ -13,6 +13,7 @@ export type Product = {
   stock: number
   weight_kg: string
   gift: boolean
+  image_url: string | null
   tags: string[]
   status: ProductStatus
   is_sellable: boolean
@@ -29,6 +30,7 @@ export type ProductFields = {
   stock: number
   weight_kg: string
   gift: boolean
+  image_url: string | null
 }
 
 export type NewProduct = ProductFields & { sku: string }

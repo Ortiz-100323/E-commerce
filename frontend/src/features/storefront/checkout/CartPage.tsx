@@ -107,10 +107,13 @@ export function CartPage() {
     return (
       <section aria-labelledby="cart-title" className={styles.page}>
         <h2 id="cart-title">Your cart</h2>
-        <p>Your cart is empty.</p>
-        <p>
-          <Link to="/">Continue shopping</Link>
-        </p>
+        <div className={styles.empty}>
+          <p className={styles.emptyTitle}>Your cart is empty.</p>
+          <p className={styles.muted}>Add something from the shop and it will wait for you here.</p>
+          <Link to="/" className={styles.primaryLink}>
+            Continue shopping
+          </Link>
+        </div>
       </section>
     )
   }

@@ -14,6 +14,7 @@ import { TextField } from '../../../forms/TextField'
 import {
   emptyProductForm,
   fieldsOf,
+  imageUrlProblem,
   formValuesOf,
   isZeroPrice,
   PRODUCT_FORM_FIELDS,
@@ -56,6 +57,7 @@ export function ProductForm({ product: current, onSaved, onReload }: ProductForm
     defaultValues: product ? formValuesOf(product) : emptyProductForm,
   })
   const gift = watch('gift')
+  const imageUrl = watch('image_url')
   const priceBeforeGift = useRef('')
 
   const giftField = register('gift', {
@@ -179,6 +181,19 @@ export function ProductForm({ product: current, onSaved, onReload }: ProductForm
           {...register('weight_kg')}
         />
       </div>
+      <TextField
+        label="Image URL (optional)"
+        type="url"
+        inputMode="url"
+        autoComplete="off"
+        placeholder="https://"
+        hint="A photo address starting with https://. Without one, the shop shows the category's placeholder."
+        error={errors.image_url}
+        {...register('image_url')}
+      />
+      {imageUrl.trim() !== '' && imageUrlProblem(imageUrl) === null ? (
+        <img src={imageUrl.trim()} alt="Image preview" className={styles.imagePreview} />
+      ) : null}
       <div className={styles.actions}>
         <Link to="/admin/products">Cancel</Link>
         <button type="submit" disabled={saving} className={styles.primary}>

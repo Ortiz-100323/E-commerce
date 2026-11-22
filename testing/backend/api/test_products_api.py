@@ -379,3 +379,54 @@ async def test_created_at_comes_from_the_clock(engine: AsyncEngine) -> None:
         product = await create(client)
 
     assert product["created_at"] == "2026-11-21T14:02:11Z"
+
+
+PHOTO = "https://images.example.com/shoes/rs-001.jpg"
+
+
+async def test_an_image_url_is_saved_shown_changed_cleared_and_audited(
+    engine: AsyncEngine,
+) -> None:
+    async with live_api(engine) as client:
+        created = await create(client, image_url=PHOTO)
+        fetched = await client.get(url(created["id"]))
+        found = await client.get(PRODUCTS, params={"q": "RS-001"})
+        cleared = await client.put(
+            url(created["id"]),
+            json=update_body(created["version"], image_url=None),
+            headers=MARIA,
+        )
+        history = await client.get(url(created["id"], "/history"))
+
+    assert created["image_url"] == PHOTO
+    assert fetched.json()["image_url"] == PHOTO
+    assert found.json()["items"][0]["image_url"] == PHOTO
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["image_url"] is None
+    change = history.json()["entries"][-1]
+    assert change["event"] == "product.changed"
+    assert change["before"] == {"image_url": PHOTO}
+    assert change["after"] == {"image_url": None}
+
+
+async def test_a_product_without_an_image_has_none(engine: AsyncEngine) -> None:
+    async with live_api(engine) as client:
+        created = await create(client)
+
+    assert created["image_url"] is None
+
+
+@pytest.mark.parametrize(
+    ("value", "code"),
+    [
+        ("http://images.example.com/a.jpg", "image_url_not_https"),
+        ("javascript:alert(1)", "image_url_not_https"),
+        ("https://images.example.com/a b.jpg", "invalid_image_url"),
+    ],
+)
+async def test_an_unsafe_image_url_is_refused(engine: AsyncEngine, value: str, code: str) -> None:
+    async with live_api(engine) as client:
+        response = await client.post(PRODUCTS, json=product_body(image_url=value), headers=ANTONIO)
+
+    body = assert_problem(response, 422, "validation-error")
+    assert ("body", "image_url", code) in field_codes(body)

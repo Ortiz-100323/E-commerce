@@ -52,7 +52,9 @@ export function ActorPrompt({ initialName = '', onSave, onCancel }: ActorPromptP
                 Cancel
               </button>
             ) : null}
-            <button type="submit">Continue</button>
+            <button type="submit" className={styles.primary}>
+              Continue
+            </button>
           </div>
         </form>
       </div>

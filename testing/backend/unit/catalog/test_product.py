@@ -110,6 +110,7 @@ def test_create_records_product_created_with_a_snapshot() -> None:
                 "stock": 10,
                 "weight_kg": "0.800",
                 "tags": (),
+                "image_url": None,
                 "status": "ACTIVE",
             },
         )

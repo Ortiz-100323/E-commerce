@@ -2388,3 +2388,181 @@ If you meant "yes" to adding the accessibility checker, tell me and I'll change 
 - **Still waiting for you:** pull request #1 (ECOM-016), to merge on GitHub.
 
 ECOM-018 is To Do and won't be started until you say so.
+
+## #040 — 2026-11-22 — ECOM-018 part A built: the product card, checked with Playwright on desktop and mobile
+
+### User
+
+> Now you can start it
+
+### Assistant
+
+**Your product card is built and checked with Playwright on a desktop and a phone. Here it is, for your review.**
+
+Screenshots, taken by the browser tests on your running shop: [tasks/ECOM-018-evidence/](tasks/ECOM-018-evidence/README.md).
+- **01 and 03:** your real catalog, on desktop and on a phone.
+- **02 and 04:** every card state side by side: a photo, a broken photo, "Only 2 left", "Out of stock", a gift, a very long name, and two products with the same name.
+
+In those pictures the text looks lighter than it will for you, because the test browser has basic fonts. In your browser, names and prices show in bold.
+
+## What you'll see in the shop
+
+- **An image area on top, 4:3.** Your products have no photos yet, so each card shows its category's colour and a simple line icon: Home & Office in sand with a house, Electronics in blue with a speaker, Accessories in green with a bag, Beauty in rose with a bottle, and so on. When a product gets an image link, the photo shows instead. If the photo can't load, the placeholder comes back.
+- **Below:** the name in at most two lines (the full name on hover), the category in softer text, the SKU, and the price in large type ("Free" for gifts).
+- **Badges:** "Only 3 left" from 5 units down, and "Out of stock" with the button greyed out.
+- **Add to cart right on the card.** It briefly turns green and says "Added", and screen readers announce it. Once you've added all the stock there is, it says "All 3 in your cart" and stops.
+- **Anywhere else on the card** opens the product page.
+- **Hover:** the card lifts a little with a soft shadow, on computers only and not for people who ask their system to reduce motion.
+- **Same height** for every card, with the buttons lined up.
+- **Keyboard:** Tab reaches the card (a blue frame appears around it) and then its button. Enter opens the product; Enter or Space adds it to the cart.
+- **Phone:** two columns, with large buttons.
+- **The two Bluetooth Speakers** now read "SKU BS-021" and "SKU BS-099".
+
+**Product photos:** the admin product form has a new **Image URL (optional)** field, with a preview. Only `https://` addresses are accepted, and changes appear in the product's history.
+
+## Acceptance criteria (part A)
+
+| # | Criterion | Result | How it was proven |
+|---|---|---|---|
+| 1 | 4:3 image area: the photo, or the category placeholder; a broken photo shows the placeholder | ✅ Pass | Measured on every card on desktop and phone |
+| 2 | Two lines of name, softer category, highlighted price | ✅ Pass | A very long name is cut at two lines |
+| 3 | "Only N left" and "Out of stock" with a disabled button | ✅ Pass | Both badges and the disabled button |
+| 4 | Add to cart on the card, never past the stock | ✅ Pass | Stops at "All 2 in your cart" |
+| 5 | Clicking the card opens the product | ✅ Pass | A click on the image opens the product page |
+| 6 | Same height on desktop and mobile | ✅ Pass | All cards within 1 pixel, on both |
+| 7 | Keyboard only | ✅ Pass | Tab, Enter, Space, Shift+Tab, with a visible frame |
+| 8 | Look-alikes told apart | ✅ Pass | The SKU on every card |
+| 9 | Playwright on desktop and mobile, with screenshots | ✅ Pass | 19 browser tests passed |
+| 10 | An admin can set and clear an HTTPS image URL, shown in the history | ✅ Pass | Form and server tests; `http:`, `javascript:` and `data:` addresses are refused |
+
+**Found by Playwright before you saw it:**
+- **A real bug:** a photo that isn't 4:3 stretched its card and broke the grid's alignment. Fixed; the photo now always fills the 4:3 area.
+- **A design problem:** the first screenshots showed three categories in the same grey. Each kind of category now has its own colour.
+
+**Failure cases and retries:** all pass.
+- A bad image address is refused with a clear message.
+- A broken or slow photo never moves the layout.
+- Clicking Add to cart repeatedly stops at the stock.
+
+**Tests:** written first. 24 new backend tests, 13 new frontend tests and 9 browser tests (run on 2 devices). In the CI container:
+- all static checks;
+- 60 tooling tests;
+- 893 backend tests, with 99.6% of the business rules covered;
+- 149 frontend tests;
+- the live smoke checks.
+
+Your containers are rebuilt, and your database is on migration 0009.
+
+One slip on my side: a command of mine hung because I broke my own rule against `python -` in a shell command. I stopped it; nothing was changed.
+
+### What to test (http://localhost:3000; press **Ctrl+F5** first)
+
+1. **Shop:** the new cards with colours and icons.
+   → Every row lines up, and the buttons sit at the same height.
+2. Hover a card.
+   → It lifts a little.
+3. Press **Add to cart** on a card.
+   → "Added" in green, and the header's cart count goes up.
+4. Search **Bluetooth Speaker**.
+   → Two cards: SKU BS-021 at $59.99 and SKU BS-099 at $24.99.
+5. Click a card's picture or category.
+   → The product page opens.
+6. **Admin → Products → Edit** a product, and paste a photo address starting with `https://` into **Image URL (optional)**.
+   → A preview appears. Save, and the shop shows the photo on its card.
+7. Make your browser narrow (or open the shop on your phone, on the same network).
+   → Two columns.
+
+**Status:** ECOM-018 part A is In Review, not committed yet. Tell me what you'd like changed, or "commit". Part B (the polish collected since ECOM-007) is planned in detail after you accept the card.
+
+## #041 — 2026-11-22 — ECOM-018 part A, round 2: one look for every screen
+
+### User
+
+> I dont think you did good enough in the interface, It's a little odd, looks half of it has styles and half of it do not.
+>
+> 1. Style every button, input, dropdown and link the same way. This is a small amount of work and gives the biggest improvement.
+> 2. Reorganise the filter bar and move Sort next to the product count.
+> 3. Redesign the product page with a picture and two columns.
+> 4. Make the cards lighter: smaller buttons, stock labels, no SKU.
+> 5. Header, colour and empty-state improvements.
+
+### Assistant
+
+**You were right. Only the card had a design; every other button, field and dropdown still used the browser's default look. All five points are done, in your order, and checked with Playwright on a desktop and a phone.**
+
+Screenshots of every screen: [tasks/ECOM-018-evidence/](tasks/ECOM-018-evidence/README.md), numbers 05 to 18. Numbers 01 to 04 are the previous version, kept for comparison.
+
+## What changed
+
+1. **One look everywhere.**
+   - Every button, field, dropdown, checkbox, link, table and message box now uses the same colours, sizes and corners. That covers the shop, the product page, the cart, checkout, the admin pages, the CSV import and the pop-ups.
+   - It's defined once and reused everywhere, so a new screen gets the same look automatically.
+2. **The filter bar.**
+   - One white panel: the search box and **Search** on top, then Category, **In stock only** and **Gifts only** (as tick-chips), and a Min–Max price range.
+   - **Sort by** now sits on the right of "101 products", just above the grid.
+   - **On a phone** the filters fold behind a **Filters** button that shows how many are active, e.g. "Filters (2)", so the products show on the first screen. If you type a wrong price, the filters open by themselves so you see the message.
+3. **The product page.** The picture is on the left. The name, a large price, the stock label, a big **Add to cart**, the description and the details (category, SKU, weight, stock) are on the right. On a phone they stack.
+4. **Lighter cards.**
+   - The stock is a small label with a coloured dot: "In stock", "Only 3 left" or "Out of stock".
+   - The price and a smaller rounded button share one row.
+   - The SKU is gone, **except** when two products on the same page have the same name. That way the two Bluetooth Speakers can still be told apart, which was in your first brief.
+5. **Header, colour and empty states.**
+   - A white header that stays on top while you scroll, with the active page underlined, and the cart as a button with a number badge.
+   - One deep green as the brand colour.
+   - A clear "No products match your search" panel with **Clear filters**, an empty cart that invites you back to the shop, and a "Product not found" page with a way back.
+
+**Found while checking the screenshots, and fixed before showing you:**
+- the Price label sat a few pixels higher than Category;
+- on the phone the open filters filled the whole first screen;
+- the checkout and cart titles were smaller than the other titles;
+- the cart button's name for screen readers came out with extra spaces.
+
+No new packages were added.
+
+## Acceptance criteria (round 2)
+
+| # | Criterion | Result | How it was proven |
+|---|---|---|---|
+| 1 | Every button, field, dropdown and link looks the same on every screen | ✅ Pass | Playwright screenshots of all main screens (05 to 18) |
+| 2 | Sort next to the product count; the filters together in one panel | ✅ Pass | Component test |
+| 3 | On a phone, the filters fold behind "Filters (N)" and open by themselves on a price error | ✅ Pass | Component tests; Playwright on the phone and the desktop |
+| 4 | Product page: the picture beside the details, or above them on a phone | ✅ Pass | Playwright measures both layouts |
+| 5 | Lighter cards: a stock label, a compact button, no SKU unless names repeat | ✅ Pass | Component tests; Playwright (the tent has no SKU, the two speakers do) |
+| 6 | Empty states say what to do next | ✅ Pass | Component and Playwright tests |
+| 7 | Everything from round 1 still works: 4:3 pictures, equal heights, the keyboard, the stock limit, large buttons on phones | ✅ Pass | All earlier browser tests, on both devices |
+
+**Failure cases and retries:** all pass.
+- A wrong price shows its message, and the filters open to show it.
+- If the products can't load, a **Try again** button appears.
+- A missing product shows "Product not found" with a way back.
+- Pressing Add to cart repeatedly still stops at the stock.
+- The checkout still re-checks the stock, so nothing is oversold.
+
+**Tests:** 7 new component tests and 4 new browser tests. In the CI container:
+- all static checks;
+- 60 tooling tests;
+- 893 backend tests (99% coverage);
+- 156 frontend tests;
+- the live smoke checks;
+- 26 browser tests on desktop and phone.
+
+Your shop container is rebuilt.
+
+One slip on my side: a text-processing command removed a block of the shop page because of a Windows path. I put it back right away with the editor, and the tests confirm it.
+
+### What to test (http://localhost:3000; press **Ctrl+F5** first)
+
+1. **Shop:** look at the header, the search panel and the cards.
+   → Every button and field has the same style; **Sort by** sits next to the product count.
+2. Search **Bluetooth Speaker**.
+   → Only these two cards show a SKU (BS-021 and BS-099); the other cards don't.
+3. Open any product.
+   → The picture is on the left and the details are on the right; **Add to cart** is large and green.
+4. Search for something that doesn't exist, like **zzz**.
+   → "No products match your search", with **Clear filters**.
+5. Open **Admin**, the **Cart** and **Checkout**.
+   → They share the same buttons, fields and colours as the shop.
+6. Make the window narrow, or use your phone.
+   → The filters fold behind **Filters**; tick one and the button shows "Filters (1)".
+
+**Status:** ECOM-018 part A (round 2) is waiting for your review and isn't committed. Tell me what you'd like changed, or say "commit". Part B will then be planned in detail.

@@ -4,6 +4,7 @@ from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 from typing import Self
+from urllib.parse import urlsplit
 
 from ecommerce.catalog.domain.errors import InvalidProduct
 from ecommerce.shared_kernel.domain.errors import DomainValidationError, ValidationIssue
@@ -17,6 +18,7 @@ MAX_CATEGORY_LENGTH = 80
 MAX_PRICE = Decimal("9999999999.99")
 MAX_STOCK = 2_147_483_647
 MAX_WEIGHT_KG = Decimal("9999999.999")
+MAX_IMAGE_URL_LENGTH = 2048
 WEIGHT_DECIMAL_PLACES = 3
 GRAM = Decimal("0.001")
 
@@ -205,6 +207,42 @@ class Weight:
         except InvalidOperation as error:
             raise reject("weight_kg", "not_a_number", "The weight must be a number.") from error
         return cls(kg)
+
+
+@dataclass(frozen=True)
+class ImageUrl:
+    value: str
+
+    def __post_init__(self) -> None:
+        trimmed = self.value.strip()
+        if len(trimmed) > MAX_IMAGE_URL_LENGTH:
+            raise reject(
+                "image_url",
+                "too_long",
+                f"Use at most {MAX_IMAGE_URL_LENGTH} characters.",
+                max_length=MAX_IMAGE_URL_LENGTH,
+            )
+        if not trimmed.lower().startswith("https://"):
+            raise reject(
+                "image_url",
+                "image_url_not_https",
+                "Use an image address that starts with https://.",
+            )
+        if (
+            any(char.isspace() for char in trimmed)
+            or has_control_characters(trimmed)
+            or not urlsplit(trimmed).hostname
+        ):
+            raise reject(
+                "image_url",
+                "invalid_image_url",
+                "This is not a valid image address, like https://example.com/photo.jpg.",
+            )
+        object.__setattr__(self, "value", "https://" + trimmed[len("https://") :])
+
+    @classmethod
+    def of(cls, value: str) -> Self | None:
+        return None if not value.strip() else cls(value)
 
 
 class ProductTag(StrEnum):

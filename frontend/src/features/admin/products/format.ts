@@ -17,6 +17,7 @@ const FIELD_LABELS: Record<string, string> = {
   price: 'Price',
   stock: 'Stock',
   weight_kg: 'Weight (kg)',
+  image_url: 'Image URL',
   tags: 'Tags',
   status: 'Status',
   quantity: 'Quantity',

@@ -34,7 +34,15 @@ async function names(): Promise<string[]> {
   const grid = await screen.findByRole('list', { name: 'Products' })
   return within(grid)
     .getAllByRole('listitem')
-    .map((card) => card.getAttribute('aria-label') ?? '')
+    .map((card) => within(card).getByRole('link').textContent ?? '')
+}
+
+function cardOf(name: string) {
+  return screen.getByRole('listitem', { name })
+}
+
+function queryCardOf(name: string) {
+  return screen.queryByRole('listitem', { name })
 }
 
 async function waitForNames(expected: string[]) {
@@ -42,8 +50,65 @@ async function waitForNames(expected: string[]) {
 }
 
 function cartCount() {
-  return screen.getByText(/^Cart: /).textContent
+  return screen.getByRole('link', { name: /^Cart: / }).textContent
 }
+
+describe('the shop layout', () => {
+  it('puts the sort next to the product count, below the filters', async () => {
+    fakeCatalog(CATALOG)
+    renderApp('/')
+    await waitForNames(['Gaming Keyboard', 'Gift Card', 'Running Shoes', 'Trail Shoes'])
+
+    const sort = screen.getByRole('combobox', { name: 'Sort by' })
+    const search = screen.getByRole('search')
+    expect(search).not.toContainElement(sort)
+    expect(sort.closest('div')).toContainElement(screen.getByText('4 products'))
+    expect(within(search).getByRole('combobox', { name: 'Category' })).toBeInTheDocument()
+    expect(within(search).getByRole('group', { name: 'Price' })).toBeInTheDocument()
+  })
+
+  it('folds the filters behind a button that counts the active ones', async () => {
+    fakeCatalog(CATALOG)
+    renderApp('/?category=Sports&in_stock=true')
+    await waitForNames(['Running Shoes'])
+
+    const toggle = screen.getByRole('button', { name: 'Filters (2)' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('opens the folded filters when a price is wrong', async () => {
+    fakeCatalog(CATALOG)
+    renderApp('/')
+    await waitForNames(['Gaming Keyboard', 'Gift Card', 'Running Shoes', 'Trail Shoes'])
+
+    await user.type(screen.getByLabelText('Min price'), 'abc')
+    await user.click(screen.getByRole('button', { name: 'Search' }))
+
+    expect(screen.getByRole('button', { name: 'Filters' })).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('shows an empty state that explains what to do', async () => {
+    fakeCatalog(CATALOG)
+    renderApp('/?q=nothing')
+
+    expect(
+      await screen.findByRole('heading', { name: 'No products match your search' }),
+    ).toBeVisible()
+    expect(screen.getByText(/Try another word/)).toBeVisible()
+  })
+
+  it('shows the product page with its picture and its details side by side', async () => {
+    const catalog = fakeCatalog(CATALOG)
+    const { container } = renderApp(`/products/${catalog.bySku('RS-001')?.id}`)
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Running Shoes' })).toBeVisible()
+    expect(container.querySelector('[data-placeholder="Sports"]')).not.toBeNull()
+    expect(screen.getByText('In stock')).toBeVisible()
+    expect(screen.getByText('RS-001', { selector: 'dd' })).toBeInTheDocument()
+  })
+})
 
 describe('the shop search', () => {
   it('lists active products by name, with prices and badges', async () => {
@@ -51,16 +116,12 @@ describe('the shop search', () => {
     renderApp('/')
 
     await waitForNames(['Gaming Keyboard', 'Gift Card', 'Running Shoes', 'Trail Shoes'])
-    const gift = within(screen.getByRole('listitem', { name: 'Gift Card' }))
+    const gift = within(cardOf('Gift Card'))
     expect(gift.getByText('Gift')).toBeInTheDocument()
     expect(gift.getByText('Free')).toBeInTheDocument()
-    expect(
-      within(screen.getByRole('listitem', { name: 'Trail Shoes' })).getByText('Out of stock'),
-    ).toBeInTheDocument()
-    expect(
-      within(screen.getByRole('listitem', { name: 'Running Shoes' })).getByText('$89.99'),
-    ).toBeInTheDocument()
-    expect(screen.queryByRole('listitem', { name: 'Old Shoes' })).not.toBeInTheDocument()
+    expect(within(cardOf('Trail Shoes')).getByText('Out of stock')).toBeInTheDocument()
+    expect(within(cardOf('Running Shoes')).getByText('$89.99')).toBeInTheDocument()
+    expect(queryCardOf('Old Shoes')).not.toBeInTheDocument()
     expect(screen.getByText('4 products')).toBeInTheDocument()
   })
 

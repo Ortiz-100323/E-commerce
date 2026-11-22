@@ -194,6 +194,7 @@ describe('creating, editing, archiving and restoring', () => {
           stock: 10,
           weight_kg: '0.8',
           gift: false,
+          image_url: null,
         },
       },
     ])
@@ -668,5 +669,52 @@ describe('the history page', () => {
     renderApp('/admin/products/00000000-0000-4000-8000-999999999999/history')
 
     expect(await screen.findByRole('heading', { name: 'Product not found' })).toBeInTheDocument()
+  })
+})
+
+describe('the product image', () => {
+  const PHOTO = 'https://images.example.com/running-shoes.jpg'
+
+  it('saves an https image address and shows a preview', async () => {
+    asReviewer()
+    const catalog = fakeCatalog()
+    renderApp('/admin/products/new')
+
+    await fillNewProduct({ ...runningShoes, 'Image URL (optional)': PHOTO })
+
+    expect(screen.getByRole('img', { name: 'Image preview' })).toHaveAttribute('src', PHOTO)
+    await user.click(screen.getByRole('button', { name: 'Create product' }))
+    await screen.findByRole('row', { name: 'RS-001' })
+    expect(catalog.requests[0].body).toMatchObject({ image_url: PHOTO })
+  })
+
+  it('refuses an address that is not https before sending anything', async () => {
+    asReviewer()
+    const catalog = fakeCatalog()
+    renderApp('/admin/products/new')
+
+    await fillNewProduct({
+      ...runningShoes,
+      'Image URL (optional)': 'http://insecure.example.com/a.jpg',
+    })
+    await user.click(screen.getByRole('button', { name: 'Create product' }))
+
+    expect(await screen.findByText('Use an image address that starts with https://.')).toBeVisible()
+    expect(screen.queryByRole('img', { name: 'Image preview' })).toBeNull()
+    expect(catalog.requests).toEqual([])
+  })
+
+  it('keeps the image when editing other fields, and clears it when emptied', async () => {
+    asReviewer()
+    const catalog = fakeCatalog([{ sku: 'RS-001', name: 'Running Shoes', image_url: PHOTO }])
+    renderApp('/admin/products')
+
+    await user.click((await row('RS-001')).getByRole('link', { name: 'Edit' }))
+    expect(await screen.findByLabelText('Image URL (optional)')).toHaveValue(PHOTO)
+    await fill('Image URL (optional)', '')
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => expect(catalog.requests).toHaveLength(1))
+    expect(catalog.requests[0].body).toMatchObject({ image_url: null })
   })
 })

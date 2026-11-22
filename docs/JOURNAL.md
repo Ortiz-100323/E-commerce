@@ -1462,7 +1462,7 @@ Template:
 
 ### D-106: ECOM-018 plan: a real store card first, then the collected polish
 - **Date:** 2026-11-22
-- **Status:** Accepted (owner, prompt #038: "I agree with three questions", read as accepting the three recommendations). Not started yet: the owner asked to register and commit only.
+- **Status:** Accepted (owner, prompt #038: "I agree with three questions", read as accepting the three recommendations). Not started yet: the owner asked to register and commit only. Part A built and accepted by the owner (prompts #040 to #042, see D-109).
 - **Decision (proposed):**
   - **Part A, reviewed first:**
     - **Layout:** a 4:3 image area on top; a name of at most two lines; a softer category; the SKU in small text; the price highlighted.
@@ -1486,6 +1486,15 @@ Template:
   1. **Product images:** yes. An optional HTTPS-only `image_url` on `Product`, set in the admin form and audited; the CSP allows `img-src https:`. Uploading photos to the shop stays out of scope.
   2. **Low stock:** "Only N left" from 5 units down.
   3. **Accessibility package:** not added. `@axe-core/playwright` is not installed. Keyboard and label checks are written in the component and Playwright tests instead.
+- **As built, part A (prompt #040):**
+  - **Images:**
+    - `ImageUrl` lower-cases the scheme, because the database CHECK `LIKE 'https://%'` is case-sensitive;
+    - an empty value clears the image and no value keeps it, so the CSV import never touches it;
+    - audit values may now be empty (`None`), so clearing an image is recorded as before and after.
+  - **Colours:** each known kind of category has a fixed tone (sports green, electronics blue, kitchen apricot, gifts plum, outdoors teal, home sand, beauty rose, tools grey). The name hash is used only for unknown categories. The first Playwright screenshots showed three categories in the same grey, which defeats the purpose of a category colour.
+  - **No inline styles:** the tones are 8 CSS classes, never style attributes, so the CSP needs no `unsafe-inline` for styles.
+  - **A bug found by Playwright:** a photo that isn't 4:3 stretched its card. The photo is now positioned inside the 4:3 box.
+  - **Browser projects:** Playwright runs a `desktop` and a `mobile` project. The purchase specs run on desktop only, so a phone run never buys.
 
 ### D-107: ECOM-019 plan: admin sign-in with server-side sessions
 - **Date:** 2026-11-22
@@ -1517,3 +1526,29 @@ Template:
   - **A clear "already registered" message** on sign-up: an accepted enumeration trade-off for a shop with no email confirmation.
   - **A sign-in cookie that is present but expired** gets 401 at checkout, so a buyer never places an unlinked order by surprise.
 - **Out of scope (owner):** email confirmation, password reset, profile editing.
+
+### D-109: ECOM-018 part A, round 2: one look for every screen
+- **Date:** 2026-11-22
+- **Status:** Accepted (owner, prompt #042: "now it is good enought"). Part A is done; part B is next
+- **Context:** the owner found the interface "half styled". The product card had its own design, but every other button, field, dropdown and link still used the browser's default look. The owner listed five fixes in order of value:
+  1. one style for every control;
+  2. reorganise the filter bar, with Sort next to the product count;
+  3. a two-column product page with a picture;
+  4. lighter cards: smaller buttons, stock labels, no SKU;
+  5. header, colour and empty-state improvements.
+- **Decision:**
+  - **Shared design tokens** in `index.css`: ink, canvas, surface, lines, a spruce brand colour (`#1d5c57`), states (ok, warning, danger), radii, the control height (2.5 rem) and the page width (72 rem).
+  - **Base styles for every control** (buttons, inputs, selects with their own arrow, text areas, checkboxes, file inputs, tables, focus rings), all inside `:where()`. They carry no specificity, so any component class still wins.
+  - **One shared module** `styles/controls.module.css` defines `primary`, `secondary`, `quiet` (a link-style button), `alert`, `notice`, `success`, `info` and `visuallyHidden`. Each feature module reuses them with `composes`, so the six separate copies of "primary button" are gone.
+  - **Shop:** one search panel. The first row is the search box with its button. The second row holds Category, In stock only and Gifts only (as toggle chips), and the price range. The product count and **Sort** sit together in a results bar above the grid. **On phones** the second row folds behind a **Filters** button that counts the active filters. It opens by itself when a price is wrong, so the error is never hidden.
+  - **Product page:** the picture on the left (the photo, or the category placeholder), with the name, price, stock label, Add to cart, description and details on the right. On a phone they stack. The SKU moves to the details list.
+  - **Card:** stock is a small label with a coloured dot ("In stock", "Only N left", "Out of stock"); the price and a compact pill button share one row; Gift is a small tag on the picture.
+  - **SKU only on look-alikes:** the card shows the SKU only when another product on the same page has the same name. This honours "no SKU" and keeps acceptance criterion 8 (the two Bluetooth Speakers are still told apart).
+  - **Header:** white and sticky, with a wordmark, the active link underlined in the brand colour, and the cart as a pill with a count badge. Its accessible name stays "Cart: N items".
+  - **Empty states:** a no-results panel with a next step ("Clear filters"), an empty cart that invites you back to the shop, and a not-found product page with a way back.
+  - **Touch targets:** card buttons are 34 px with a mouse, and 44 px on touch screens and narrow phones.
+- **Alternatives:**
+  - A UI library such as MUI or Chakra (rejected: a new package needs the owner's approval, and the app is small enough for plain CSS).
+  - Hiding the SKU everywhere (rejected: the two Bluetooth Speakers would look identical again).
+  - Keeping the filters always open on phones (rejected: Playwright showed they filled the whole first screen, with no product visible).
+- **Process slip:** a text-processing command lost a block of the shop page because a Windows path broke it. The block was restored with the editor at once, and the tests confirmed the result. Large edits use the editor tools only.

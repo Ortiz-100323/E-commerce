@@ -17,6 +17,7 @@ from ecommerce.catalog.domain.product import Product, ProductDetails, ProductId,
 from ecommerce.catalog.domain.value_objects import (
     Category,
     Description,
+    ImageUrl,
     Price,
     ProductName,
     ProductTag,
@@ -123,6 +124,7 @@ def changeable_columns(product: Product) -> dict[str, Any]:
         "stock": product.stock.value,
         "weight_kg": product.weight.kg,
         "tags": sorted(tag.value for tag in product.tags),
+        "image_url": None if product.image_url is None else product.image_url.value,
         "status": product.status.value,
         "updated_at": product.updated_at,
     }
@@ -140,6 +142,7 @@ def to_product(row: RowMapping) -> Product:
             stock=StockQuantity(row["stock"]),
             weight=Weight(row["weight_kg"]),
             tags=frozenset(ProductTag(tag) for tag in row["tags"]),
+            image=None if row["image_url"] is None else ImageUrl(row["image_url"]),
         ),
         status=ProductStatus(row["status"]),
         version=row["version"],

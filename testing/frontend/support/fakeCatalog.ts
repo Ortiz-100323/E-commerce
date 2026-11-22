@@ -13,12 +13,23 @@ type Draft = {
   stock: number
   weight_kg: string
   gift: boolean
+  image_url?: string | null
   version?: number
 }
 
 type Recorded = { method: string; path: string; actor: string | null; body: unknown }
 
-const FIELDS = ['name', 'description', 'category', 'price', 'stock', 'weight_kg', 'tags', 'status']
+const FIELDS = [
+  'name',
+  'description',
+  'category',
+  'price',
+  'stock',
+  'weight_kg',
+  'tags',
+  'image_url',
+  'status',
+]
 
 let counter = 0
 let clock = Date.UTC(2026, 10, 21, 10, 0, 0)
@@ -51,6 +62,7 @@ function snapshot(product: Product): Record<string, unknown> {
     stock: product.stock,
     weight_kg: product.weight_kg,
     tags: product.tags,
+    image_url: product.image_url,
     status: product.status,
   }
 }
@@ -127,6 +139,7 @@ export function fakeCatalog(seed: Partial<Product>[] = []) {
       stock: draft.stock,
       weight_kg: weight(draft.weight_kg),
       gift: draft.gift,
+      image_url: draft.image_url ?? null,
       tags: draft.gift ? ['GIFT'] : [],
       status: 'ACTIVE',
       is_sellable: draft.stock > 0,
@@ -182,6 +195,7 @@ export function fakeCatalog(seed: Partial<Product>[] = []) {
         stock: partial.stock ?? 5,
         weight_kg: partial.weight_kg ?? '1.000',
         gift: partial.gift ?? false,
+        image_url: partial.image_url ?? null,
       },
       'Seed',
     )
@@ -302,6 +316,7 @@ export function fakeCatalog(seed: Partial<Product>[] = []) {
         stock: draft.stock,
         weight_kg: weight(draft.weight_kg),
         gift: draft.gift,
+        image_url: draft.image_url ?? null,
         tags: draft.gift ? ['GIFT'] : [],
       }
       if (draft.version !== current.version) {

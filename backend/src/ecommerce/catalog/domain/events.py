@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
-AuditValue = str | int | tuple[str, ...]
+AuditValue = str | int | tuple[str, ...] | None
 
 
 @dataclass(frozen=True)
