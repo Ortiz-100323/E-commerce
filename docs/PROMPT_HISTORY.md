@@ -3223,3 +3223,50 @@ Written for: the code-challenge reviewers.
 **Status:** ECOM-017 is waiting for your review. Say "commit and push", and tell me how you want `main` updated:
 - **(a)** I open one pull request per ticket and you merge them in order; or
 - **(b)** I bring `main` up to date with the final branch in one step and push it (a fast-forward, nothing rewritten). My recommendation is (b), because every branch is already tested and accepted, and the CI workflow will run on `main` after the push.
+
+## #053 — 2026-11-22 — ECOM-017 committed and pushed; `main` brought up to date (option b)
+
+### User
+
+> commit and push, go with option b
+
+### Assistant
+
+**Done: ECOM-017 is committed and pushed, and `main` now holds every ticket. Nothing was rewritten.**
+
+- **Commit:** `3aba984` (ECOM-017) on `feature/ECOM-017-readme`, pushed.
+- **Security check before pushing:**
+  - no secret-like files are tracked now or anywhere in the history;
+  - there are no secret patterns and none of your personal emails in the 10 commits new to `main`.
+- **Updating `main`:** you had merged PR #1 on GitHub in the meantime. That added a merge commit to `main`, so a pure fast-forward was no longer possible, and forcing it would have erased your merge.
+  - I merged the final branch into `main` with one merge commit, `f08a6d4`, and pushed it (`c97970f..f08a6d4`).
+  - `main` now has exactly the final branch's files, and nothing was rewritten.
+- **ECOM-016 is marked Done,** since you merged PR #1.
+- GitHub Actions started on `main`. I'll report its result.
+
+## #054 — 2026-11-22 — CI on `main` is green
+
+### User
+
+> is the CI green on main?
+
+### Assistant
+
+**Yes. GitHub Actions is green on `main`.**
+
+| Item | Result |
+|---|---|
+| Run | [45065262604](https://github.com/Ortiz-100323/E-commerce/actions/runs/45065262604) on `f08a6d4` ("Merge ECOM-016 to ECOM-021 and ECOM-017 into main") |
+| Duration | About 3 minutes |
+| Start the stack | ✅ |
+| Every check in the `ci` container (lint, no comments, tooling, backend, frontend, smoke) | ✅ |
+| No container runs as root | ✅ |
+| Image sizes within budget | ✅ |
+| Browser tests (Playwright, desktop and phone) | ✅ |
+| Upload results and show logs | Skipped (they run only on failure) |
+
+PR #1 is merged, `main` holds everything from ECOM-000 to ECOM-021 and ECOM-017, and the README is what reviewers see first on GitHub.
+
+I recorded the delivery as D-121 in the journal, plus these two prompt entries. I committed them on `feature/ECOM-017-readme` and moved `main` forward to that commit, so nothing went straight onto `main`.
+
+**The delivery is complete.** The only open items are product ideas for later: account deactivation, refunds and changing an order's status.

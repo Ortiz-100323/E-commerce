@@ -1796,3 +1796,19 @@ Template:
 - **Alternatives:**
   - A separate `docs/DELIVERY.md` linked from a short README (rejected: the challenge asks for the decisions, the approach and the instructions in the README itself);
   - testing the fresh clone against the owner's running stack (rejected: it would reuse the owner's database and prove nothing about a clean machine).
+
+### D-121: `main` brought up to date with one merge commit, because PR #1 was already merged
+- **Date:** 2026-11-22
+- **Status:** Done (owner, prompt #053: "commit and push, go with option b")
+- **Context:** the owner chose option (b): bring `main` up to the final branch in one step, without rewriting anything. Meanwhile the owner had merged PR #1 on GitHub, so `main` ended with the merge commit `c97970f`. That commit adds no file changes, but it isn't in the ticket branches' history, so a pure fast-forward was impossible.
+- **Decision:**
+  - `feature/ECOM-017-readme` was merged into `main` with one merge commit, `f08a6d4`;
+  - `main` then has exactly the final branch's files (`git diff` shows no difference), and nothing was rewritten;
+  - force-pushing `main` to the branch was rejected, because it would have dropped the owner's PR #1 merge from `main`'s history.
+- **Before pushing:**
+  - no secret-like files were tracked now or anywhere in the history;
+  - there were no secret patterns, and none of the owner's personal emails, in the 10 commits new to `main`.
+- **Result:** GitHub Actions run [45065262604](https://github.com/Ortiz-100323/E-commerce/actions/runs/45065262604) on `main` passed in about 3 minutes. It covers the stack, every check in the `ci` container, the root and image-size checks, and the Playwright browser tests.
+- **Housekeeping:**
+  - ECOM-016 is marked Done (PR #1 merged by the owner);
+  - the records are committed on `feature/ECOM-017-readme` and `main` is fast-forwarded to it, so nothing is committed straight to `main`.

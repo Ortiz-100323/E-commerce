@@ -4,7 +4,7 @@
 |---|---|
 | Type | Technical task |
 | Phase | 5 |
-| Status | **In Review**: built (prompt #035); GitHub Actions green on pull request #1 (prompt #036); waiting for the owner to accept and merge |
+| Status | **Done**: built (prompt #035); GitHub Actions green on pull request #1 (prompt #036); merged into `main` by the owner (PR #1, merge `c97970f`) |
 | Depends on | ECOM-012, ECOM-015 |
 | Architecture | §8.1 (E2E), §10, CC-08 |
 | Journal | D-100, D-101, D-102, D-103, D-104, D-110 |
