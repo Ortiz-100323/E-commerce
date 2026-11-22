@@ -16,6 +16,7 @@ from fakes import SequenceClock, dependencies_factory
 PRODUCTS = f"{API_PREFIX}/products"
 CATEGORIES = f"{API_PREFIX}/categories"
 IMPORT_PREVIEW = f"{API_PREFIX}/imports/preview"
+IMPORTS = f"{API_PREFIX}/imports"
 ANTONIO = {ACTOR_HEADER: "Antonio"}
 MARIA = {ACTOR_HEADER: "Maria"}
 

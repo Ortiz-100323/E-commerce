@@ -7,7 +7,7 @@ from sqlalchemy.exc import OperationalError
 
 from ecommerce.catalog.api.imports_router import handle_import_file_rejected
 from ecommerce.catalog.api.imports_router import router as imports_router
-from ecommerce.catalog.api.problems import CATALOG_PROBLEMS
+from ecommerce.catalog.api.problems import CATALOG_PROBLEMS, IMPORT_PROBLEMS
 from ecommerce.catalog.api.router import categories_router
 from ecommerce.catalog.api.router import router as catalog_router
 from ecommerce.catalog.application.importing import (
@@ -91,7 +91,9 @@ def create_app(dependencies_factory: DependenciesFactory = production_dependenci
 
     app = FastAPI(title="E-commerce API", version="0.1.0", lifespan=lifespan)
     app.add_middleware(RequestIdMiddleware)
-    install_problem_handlers(app, {**INFRASTRUCTURE_PROBLEMS, **CATALOG_PROBLEMS})
+    install_problem_handlers(
+        app, {**INFRASTRUCTURE_PROBLEMS, **CATALOG_PROBLEMS, **IMPORT_PROBLEMS}
+    )
     app.add_exception_handler(ImportFileRejected, handle_import_file_rejected)
     app.include_router(health_router, prefix=API_PREFIX)
     app.include_router(catalog_router, prefix=API_PREFIX)

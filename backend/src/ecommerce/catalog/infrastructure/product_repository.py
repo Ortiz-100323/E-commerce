@@ -1,3 +1,4 @@
+from collections.abc import Collection
 from typing import Any
 
 from psycopg import errors
@@ -87,6 +88,18 @@ class SqlAlchemyProductRepository:
             )
         product.bump_version()
         self._stored_events.extend(product.pull_events())
+
+    async def lock_by_skus(self, skus: Collection[str]) -> dict[str, Product]:
+        if not skus:
+            return {}
+        statement = (
+            select(products)
+            .where(products.c.sku.in_(sorted(skus)))
+            .order_by(products.c.sku)
+            .with_for_update()
+        )
+        rows = (await self._session.execute(statement)).mappings().all()
+        return {row["sku"]: to_product(row) for row in rows}
 
     async def _first(self, statement: Any) -> Product | None:
         row = (await self._session.execute(statement)).mappings().first()

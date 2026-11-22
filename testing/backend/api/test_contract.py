@@ -52,10 +52,15 @@ def bad_value(schema: dict[str, Any]) -> str | None:
     return BAD_VALUES.get(schema.get("type", ""))
 
 
-def with_path(path: str, value: str = VALID_ID) -> str:
+def with_path(path: str, operation: dict[str, Any] | None = None) -> str:
+    integers = {
+        parameter["name"]
+        for parameter in (operation or {}).get("parameters", [])
+        if parameter["in"] == "path" and non_null(parameter["schema"]).get("type") == "integer"
+    }
     for part in path.split("/"):
         if part.startswith("{"):
-            path = path.replace(part, value)
+            path = path.replace(part, "2" if part.strip("{}") in integers else VALID_ID)
     return path
 
 
@@ -78,7 +83,7 @@ def bad_requests() -> Iterator[Any]:
             if value is not None:
                 yield pytest.param(
                     method,
-                    with_path(path),
+                    with_path(path, operation),
                     {"params": {parameter["name"]: value}, "headers": ACTOR},
                     422,
                     id=f"{method} {path} bad query {parameter['name']}",
@@ -86,7 +91,7 @@ def bad_requests() -> Iterator[Any]:
         for parameter in parameters(operation, "header"):
             yield pytest.param(
                 method,
-                with_path(path),
+                with_path(path, operation),
                 {"json": {}},
                 422,
                 id=f"{method} {path} missing header {parameter['name']}",
@@ -95,29 +100,29 @@ def bad_requests() -> Iterator[Any]:
         if "text/csv" in body_types:
             yield pytest.param(
                 method,
-                with_path(path),
-                {"json": {"name": "x"}},
+                with_path(path, operation),
+                {"json": {"name": "x"}, "headers": ACTOR},
                 415,
                 id=f"{method} {path} JSON instead of CSV",
             )
             yield pytest.param(
                 method,
-                with_path(path),
-                {"content": b"", "headers": {"content-type": "text/csv"}},
+                with_path(path, operation),
+                {"content": b"", "headers": {**ACTOR, "content-type": "text/csv"}},
                 422,
                 id=f"{method} {path} empty CSV",
             )
             yield pytest.param(
                 method,
-                with_path(path),
-                {"content": b"\xff\xfe", "headers": {"content-type": "text/csv"}},
+                with_path(path, operation),
+                {"content": b"\xff\xfe", "headers": {**ACTOR, "content-type": "text/csv"}},
                 422,
                 id=f"{method} {path} CSV that is not UTF-8",
             )
         if "application/json" in body_types:
             yield pytest.param(
                 method,
-                with_path(path),
+                with_path(path, operation),
                 {
                     "content": b'{"name":',
                     "headers": {**ACTOR, "content-type": "application/json"},
@@ -127,14 +132,14 @@ def bad_requests() -> Iterator[Any]:
             )
             yield pytest.param(
                 method,
-                with_path(path),
+                with_path(path, operation),
                 {"json": [], "headers": ACTOR},
                 422,
                 id=f"{method} {path} body of the wrong type",
             )
             yield pytest.param(
                 method,
-                with_path(path),
+                with_path(path, operation),
                 {"json": {}, "headers": ACTOR},
                 422,
                 id=f"{method} {path} empty body",
@@ -182,6 +187,25 @@ def test_every_product_change_requires_the_actor_header() -> None:
             assert headers == [(ACTOR_HEADER, True)], (method, path)
 
 
+def test_every_import_change_requires_the_actor_header() -> None:
+    changes = [
+        (method, path)
+        for path, method, operation in operations()
+        if path.startswith(f"{API_PREFIX}/imports")
+        and method in CHANGE_METHODS
+        and not path.endswith("/preview")
+    ]
+
+    assert len(changes) == 4
+    for path, method, operation in operations():
+        if (method, path) in changes:
+            headers = [
+                (parameter["name"], parameter["required"])
+                for parameter in parameters(operation, "header")
+            ]
+            assert headers == [(ACTOR_HEADER, True)], (method, path)
+
+
 def test_the_contract_covers_every_endpoint_that_takes_input() -> None:
     covered = {(case.values[0], str(case.id).split(" ")[1]) for case in bad_requests()}
     taking_input = {
@@ -190,5 +214,5 @@ def test_the_contract_covers_every_endpoint_that_takes_input() -> None:
         if operation.get("parameters") or "requestBody" in operation
     }
 
-    assert len(taking_input) == 8
+    assert len(taking_input) == 13
     assert taking_input <= covered

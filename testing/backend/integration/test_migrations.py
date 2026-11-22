@@ -141,3 +141,17 @@ def test_the_weather_migration_drops_the_table_and_can_be_undone(test_database_u
 
     assert "weather_searches" not in table_names(test_database_url)
     assert {"products", "audit_log"} <= table_names(test_database_url)
+
+
+def test_the_import_batches_migration_downgrades_and_upgrades_cleanly(
+    test_database_url: str,
+) -> None:
+    config = alembic_config(test_database_url)
+    try:
+        command.downgrade(config, "0005")
+        assert {"import_batches", "import_batch_rows"}.isdisjoint(table_names(test_database_url))
+        assert "products" in table_names(test_database_url)
+    finally:
+        upgrade_to_head(test_database_url)
+
+    assert {"import_batches", "import_batch_rows"} <= table_names(test_database_url)

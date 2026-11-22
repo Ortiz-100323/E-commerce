@@ -22,6 +22,7 @@
 > | 16 | 2026-11-21 | ECOM-008: the shop search page, with every filter in the URL, and a minimal cart that never holds more than the stock shown (D-087). |
 > | 17 | 2026-11-21 | ECOM-009: the temporary weather feature is removed (§4.6, §8.3, §12, D-088). |
 > | 18 | 2026-11-21 | ECOM-010: the sample's profile and expected report are re-verified (§2); file-level import errors reach the client as 413, 415 or a 422 on the field `file` (§6.2, D-090). |
+> | 19 | 2026-11-21 | ECOM-011: the import review workflow as built. Uploads stay a `text/csv` body; rows list their allowed actions; stale rows are checked again at commit; two new problem types (§4.5, §4.6, §6.2, D-091). |
 >
 > Every decision here also appears in [JOURNAL.md](JOURNAL.md) with its context and the alternatives considered.
 
@@ -323,7 +324,8 @@ Exact versions are pinned in Phase 0 and logged in the journal.
 | POST | `/products/{id}/restore` | Un-archive |
 | GET | `/products/{id}/history` | The product's audit timeline |
 | GET | `/categories` | List distinct categories |
-| POST | `/imports` | Upload a CSV (multipart). Creates an `ImportBatch` and returns the classified report. |
+| POST | `/imports` | Upload a CSV as a `text/csv` body (`file_name` query parameter). Creates an `ImportBatch` and returns the classified report. |
+| POST | `/imports/preview` | Classify a CSV without storing anything (ECOM-010) |
 | GET | `/imports/{id}` | Get the batch with all its rows and outcomes |
 | PATCH | `/imports/{id}/rows/{line}` | Resolve a row: `confirm`, `correct` or `skip` |
 | POST | `/imports/{id}/commit` | Apply the batch |
@@ -342,6 +344,10 @@ Exact versions are pinned in Phase 0 and logged in the journal.
   - `PUT` replaces every field except `sku`, which is refused as an unknown field. It needs the `version` that was read.
   - `GET /products` takes `q`, `category`, `min_price`, `max_price`, `in_stock`, `tag`, `status` (`ACTIVE` by default, `ARCHIVED`, `ALL`), `sort` (`name`, `price` or `created_at`, with `-` for descending), `page` and `page_size` (≤ 100). It returns `{items, total, page, page_size}`.
   - `GET /categories` returns `{items}`: the active categories, merged case-insensitively.
+- **Imports as built (ECOM-011, D-091):**
+  - `POST /imports` takes the file as a `text/csv` body, like the preview, with an optional `file_name` query parameter; it returns 201 with `Location` and the whole batch. No multipart package is needed.
+  - Every row in a batch lists the `actions` it allows; `PATCH /imports/{id}/rows/{line}` takes `{"action": "confirm" | "correct" | "skip", "values"?}` and returns the row with the batch summary (`pending_lines`, `committable`).
+  - `POST /imports/{id}/commit` and `DELETE /imports/{id}` return the whole batch; repeating either is a safe retry.
 
 ### 4.6 Errors: one format for everything
 
@@ -416,6 +422,8 @@ Domain validation **collects every issue before raising**, rather than stopping 
 | `product-not-sellable` | 409 | The product is archived, or has 0 stock | `items[] {sku, reason}` |
 | `import-not-committable` | 409 | Rows are still unresolved | `pending_lines[]` |
 | `import-stale-rows` | 409 | A product changed after the preview | `lines[]` |
+| `import-not-pending` | 409 | The import was already committed, discarded or has expired | `import_status` |
+| `import-row-not-resolvable` | 409 | The action does not fit the row, for example correcting a rejected row (D-037) | `line`, `outcome`, `action` |
 | `payload-too-large` | 413 | The upload is over 5 MB | `max_bytes` |
 | `unsupported-media-type` | 415 | The upload is not a CSV | — |
 | `validation-error` | 422 | Pydantic or domain validation failed | `errors[]` |
@@ -554,6 +562,7 @@ How they reach the client (ECOM-010, D-090): 413 is the problem type `payload-to
 | `integer_normalized` | stock `12.0` | Store 12 |
 | `duplicate_sku_in_file` | RS-001 appears on lines 2 and 36 | Import line 36; line 2 becomes `superseded` |
 | `restores_archived_product` | The SKU belongs to an archived product | Restore the product with the update (CQ-08) |
+| `changed_since_preview` | The product behind the row changed between the upload and the commit | The row is checked again and must be confirmed again (ECOM-011, D-091) |
 
 #### Row review: the row is held for a person (the only editable rows, D-037)
 

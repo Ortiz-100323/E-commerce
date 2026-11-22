@@ -328,3 +328,27 @@ def classify(
     for draft in drafts:
         compare_with_catalog(draft, existing, policies)
     return Classification(tuple(draft.freeze() for draft in drafts))
+
+
+def evaluate_row(
+    line: int,
+    raw: str,
+    values: Mapping[str, str],
+    confirmed: frozenset[str],
+    existing: Mapping[str, ExistingProduct],
+    policies: ImportPolicies,
+) -> ClassifiedRow:
+    draft = Draft(line, raw, dict(values))
+    parsed = parse_fields({column: values.get(column, "") for column in COLUMNS}, policies)
+    accepted = {
+        found.code
+        for found in parsed.issues
+        if found.severity is Severity.REVIEW and found.code in confirmed
+    }
+    draft.issues.extend(found for found in parsed.issues if found.code not in accepted)
+    draft.product.update(parsed.values)
+    if "zero_price" in accepted:
+        draft.product["gift"] = True
+    draft.outcome = outcome_of(draft.issues)
+    compare_with_catalog(draft, existing, policies)
+    return draft.freeze()

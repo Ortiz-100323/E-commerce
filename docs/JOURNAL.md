@@ -1215,3 +1215,29 @@ Template:
   - Multipart now (rejected: a new package without approval).
   - Classifying in the database with SQL `similarity()` (rejected: the rule couldn't be unit-tested without PostgreSQL, and the preview would need a round trip per row).
   - Separate import-only validation rules (rejected: two copies of the product rules would drift apart).
+
+### D-091: CSV import, part 2: review workflow, commit and audit (ECOM-011)
+- **Date:** 2026-11-21
+- **Status:** Proposed (part of the ECOM-011 review)
+- **Context:** the owner asked to commit ECOM-010 and close ECOM-011 and ECOM-012 together, so the whole import can be tested in the admin portal (prompt #026).
+- **Decision:**
+  - **Upload stays a raw `text/csv` body.** The owner didn't answer the `python-multipart` question, and a package needs explicit approval, so `POST /imports` takes the file exactly like the preview; the name travels in the `file_name` query parameter. The browser sends the chosen file as the body, so the portal needs no extra package either. §4.5 said "multipart"; it is updated.
+  - **`ImportBatch` is a catalog aggregate** stored in `import_batches` and `import_batch_rows` (migration 0006). Each row keeps its raw line and raw values unchanged; the current values, outcome, issues, normalised product, field diff, target product and version, decision and resolution history are JSONB beside them. Batches are never deleted.
+  - **What each row allows** (the API returns it as `actions`, so the screen never guesses):
+    - a row held for review: `confirm` only when every review issue is a zero price or a zero weight; `correct` and `skip` always;
+    - a row that started in review stays correctable after it moved (the reviewer can fix their own mistake);
+    - an update that needs confirmation: `confirm` or `skip`, and either can replace the other;
+    - create, unchanged, rejected, superseded and blank rows: nothing. A rejected row gets 409 `import-row-not-resolvable` (D-037).
+  - **Confirming and correcting re-run the ECOM-010 rules** for that row, against the product that holds its SKU now. A confirmed zero price becomes a gift; a confirmation is remembered, so later corrections keep it. A correction that would be rejected is refused with a 422 on the columns and changes nothing; reusing another active row's SKU is `duplicate_sku_in_file`.
+  - **Retries are safe everywhere:** confirming, skipping or sending the same correction twice records nothing new; committing a committed import returns it unchanged (200); discarding twice returns 200.
+  - **Commit is one transaction:**
+    - it locks the batch row first, then the products `FOR UPDATE` in SKU order (§4.4);
+    - a create row whose SKU now exists, or an update row whose product version moved, is stale;
+    - stale rows are checked again against the current product, lose their decision, get the warning `changed_since_preview`, and are saved; the commit then answers 409 `import-stale-rows` with the lines, and **no product is changed**.
+  - **Expiry is computed:** a batch older than 24 hours reads as `EXPIRED`, and the first change attempted after that stores the status. Every change to a batch that is not pending answers 409 `import-not-pending`; its extra field is `import_status`, because `status` is already the problem's HTTP status.
+  - **Audit:** `import.started`, `import.committed` and `import.discarded` on `import_batch`; `import.row.confirmed`, `import.row.corrected` and `import.row.skipped` on `import_row` (`<batch id>:<line>`), with the values before and after and the original issues. Products created or updated by a commit carry `{source, batch_id, line, file_sha256, raw}` in their entries' context, and a product's history now starts with its row's resolutions, then the creation with the raw CSV line (§6.4).
+  - **Honesty about TDD:** for this ticket the tests were written right after each part of the code, not before it, to close two tickets in one session. Every acceptance criterion and failure case has its own test.
+- **Alternatives:**
+  - Sending a stale row literally to `needs_review` (rejected: it is not a review issue under D-037; a fresh diff that must be confirmed again is what the reviewer needs).
+  - Returning the whole batch after every row change (rejected: up to 10,000 rows per click; the PATCH returns the row and the batch summary).
+  - A background job for expiry (rejected: nothing to run on; reading the status at request time is exact).

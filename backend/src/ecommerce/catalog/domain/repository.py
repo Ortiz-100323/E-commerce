@@ -1,3 +1,4 @@
+from collections.abc import Collection
 from typing import Protocol
 
 from ecommerce.catalog.domain.product import Product, ProductId
@@ -12,3 +13,5 @@ class ProductRepository(Protocol):
     async def get_by_sku(self, sku: Sku) -> Product | None: ...
 
     async def save(self, product: Product) -> None: ...
+
+    async def lock_by_skus(self, skus: Collection[str]) -> dict[str, Product]: ...
