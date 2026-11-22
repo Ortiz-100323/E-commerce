@@ -4,9 +4,9 @@
 |---|---|
 | Type | Documentation |
 | Phase | Hand-in |
-| Status | **Planned** (prompts #055, #056) |
+| Status | **In review**: built and verified (prompt #059), committed on the owner's word (prompt #060); the owner reviews the README at the end |
 | Depends on | ECOM-022 |
-| Journal | D-122, D-123 |
+| Journal | D-122, D-123, D-125 |
 
 ## Context
 
@@ -45,7 +45,25 @@ The README is about the system, written in plain, direct English. It is not a na
   - every relative link in `README.md` and `docs/adr/*.md` resolves;
   - every ADR is in the index and linked from the README;
   - every ADR has the required sections and cites a `D-` entry that exists.
-- The commands are proven by the ECOM-022 fresh-clone run.
+- The commands are proven by the ECOM-022 fresh-clone run and by running them natively on Windows.
+
+## As built and verified (2026-11-22, prompts #058 and #059, D-125)
+
+- **README.md:** rewritten about the system, in the ten sections.
+- **docs/adr/:** 30 records and an index.
+  - One record is superseded: ADR-0027, replaced by ADR-0028.
+  - Each record cites the journal entries it comes from.
+- **The docs check is a script, not a tooling test.** The `ci` image doesn't contain `docs/` or the README, so the check can't run there.
+  - `testing/scripts/check_docs.py` runs on the host as `python testing/run.py docs`, and in GitHub Actions.
+  - Its 19 tests run in `testing/tooling` on temporary files.
+- **D-125:** proving the commands found that running without Docker failed on Windows. It was fixed with `python -m ecommerce.serve`, and the seed now runs on a compatible event loop, with 11 new tests.
+
+| # | Acceptance criterion | Result | How it was proven |
+|---|---|---|---|
+| 1 | Every section in the scope is in the README | **Pass** | `run.py docs` checks all ten headings |
+| 2 | Every command in the quick start, running without Docker and the tests sections was run as written | **Pass** | Docker: the ECOM-022 fresh clone, plus the rebuilt stack after the D-125 fix (`ci` exit 0, browser tests 44 passed and 5 skipped). Without Docker, on Windows: migrations, seed, `ecommerce.serve`, Vite and `run.py all` |
+| 3 | Every ADR is linked from the README and the index, cites real journal entries, and every link resolves | **Pass** | `run.py docs`, including links to headings |
+| 4 | The README describes the system in plain English | **For the owner's review** | — |
 
 ## Definition of done
 

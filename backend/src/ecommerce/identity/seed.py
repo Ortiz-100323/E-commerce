@@ -1,6 +1,6 @@
-import asyncio
 import logging
 
+from ecommerce.event_loop import run as run_on_compatible_loop
 from ecommerce.identity.application.accounts import NewAccount, SeedFirstAdmin
 from ecommerce.identity.application.ports import IdentityUnitOfWorkFactory, PasswordHasher
 from ecommerce.identity.domain.errors import EmailAlreadyRegistered
@@ -67,7 +67,7 @@ async def run() -> int:
 
 def main() -> int:
     configure_logging(Settings().log_level)
-    return asyncio.run(run())
+    return run_on_compatible_loop(run())
 
 
 if __name__ == "__main__":

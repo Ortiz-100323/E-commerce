@@ -1857,3 +1857,40 @@ Template:
   - on the same clone, the `ci` container passed (60 tooling, 1,099 backend at 99% coverage, 204 frontend, smoke), and the browser tests passed (44, with 5 skipped by design);
   - the clone and its volume were removed, and the owner's stack restarted with its data.
 - **Chrome DevTools MCP:** its tools didn't load into this session, so the owner ran the import check in their own browser instead. The evidence is in `tasks/ECOM-022-evidence/`.
+
+### D-125: Bug: "Running without Docker" fails on Windows (found while proving the README, ECOM-023)
+- **Date:** 2026-11-22
+- **Status:** Fixed with option A (owner, prompt #059: "go with A. But test again in docker after your change"). See "Fix" below.
+- **How it was found:** each command in the README's "Running without Docker" section was run as written, on the owner's Windows machine.
+- **What happens:**
+  - `uv sync` and `uv run alembic upgrade head` work. The migrations reach `0012`, because Alembic uses psycopg in sync mode.
+  - `uv run python -m ecommerce.identity.seed` fails: "Psycopg cannot use the 'ProactorEventLoop' to run in async mode."
+  - `uv run uvicorn …` starts, but every request that touches the database fails. `/api/v1/health` answers 503 "database down", and `/api/v1/products` answers 500 with the same psycopg error in the log.
+  - The frontend half (`npm ci`, `npm run dev`) works: the page loads on 5173, and Vite forwards `/api` to the backend.
+- **Cause:** on Windows, Python's default event loop is the Proactor loop, which psycopg's async driver can't use. The tests already work around it with a selector loop in `testing/backend/conftest.py` (D-060). The seed and the server don't, and the containers run Linux, so CI and Docker never hit it.
+- **Not affected:** Docker, the `ci` container, GitHub Actions, and `python testing/run.py all` on the host (all green on Windows, including 1,099 backend tests).
+- **Options for the owner:**
+  - **A, a code fix:**
+    - the seed runs on a selector loop on Windows;
+    - the backend gets a small start command (`python -m ecommerce.serve`) that runs uvicorn on a selector loop on Windows;
+    - the README uses that command, with tests for both.
+  - **B, a docs fix:** the README says running without Docker is supported on Linux, macOS and WSL 2, and on Windows it points to Docker or WSL.
+- **Fix (option A):**
+  - `ecommerce/event_loop.py` picks `asyncio.SelectorEventLoop` on Windows and keeps the default elsewhere. `run()` runs a coroutine on that loop, and `new_event_loop()` is the factory uvicorn loads.
+  - The seed's `main` runs on it.
+  - `python -m ecommerce.serve` (`ecommerce/serve.py`) starts the production app with uvicorn on that loop, on 127.0.0.1:8001 by default, with `--host` and `--port`.
+  - The README's "Running without Docker" uses `uv run python -m ecommerce.serve`.
+  - The Docker start command is unchanged.
+- **Tests, written first and seen failing:** 11 in `testing/backend/unit/test_local_run.py`:
+  - the loop choice per platform;
+  - the loops created;
+  - the seed going through the compatible loop;
+  - serve's uvicorn options and its host and port;
+  - uvicorn being able to load both names.
+- **Verified:**
+  - **Natively on Windows,** with the README's commands: the migrations ran, the seed ran, the health check answered "database up", products listed, the admin logged in (200), and the Vite dev server reached the native backend.
+  - **In Docker, as the owner asked, on rebuilt images:**
+    - the `ci` container passed: lint, 11 import contracts, no comments, 79 tooling, 1,110 backend (99%), 204 frontend and smoke;
+    - the browser tests passed: 44, with 5 skipped by design;
+    - the host checks passed: containers, images and docs.
+  - **A stale image along the way:** a quiet `docker compose build -q ci` hadn't rebuilt the `ci` image, which was 9 hours old, so its first run checked old files. A plain `docker compose build ci` rebuilt it, and every result above comes from the rebuilt image.

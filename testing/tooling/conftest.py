@@ -28,6 +28,11 @@ def runner() -> ModuleType:
 
 
 @pytest.fixture(scope="session")
+def check_docs() -> ModuleType:
+    return load_module("scripts/check_docs.py", "check_docs")
+
+
+@pytest.fixture(scope="session")
 def no_raw_html() -> ModuleType:
     return load_module("scripts/check_no_raw_html.py", "check_no_raw_html")
 

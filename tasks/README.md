@@ -48,5 +48,5 @@ A ticket moves to **Done** only after the owner accepts it at its review gate.
 | [ECOM-017](ECOM-017.md) | README and delivery | 6 | ECOM-016, ECOM-018, ECOM-019, ECOM-020 | Done (prompt #053) |
 | [ECOM-021](ECOM-021.md) | Admins don't shop, and an admin orders screen with every order | After the MVP | ECOM-019, ECOM-020 | Done (accepted, prompt #051) |
 | [ECOM-022](ECOM-022.md) | One-command start (migrations and first admin, no product seed), proven from a fresh clone | Hand-in | ECOM-017, ECOM-021 | Done (prompt #057) |
-| [ECOM-023](ECOM-023.md) | README about the system, and decision records in docs/adr | Hand-in | ECOM-022 | Planned (prompts #055, #056) |
+| [ECOM-023](ECOM-023.md) | README about the system, and decision records in docs/adr | Hand-in | ECOM-022 | In review: committed, owner reviews at the end (prompt #060) |
 | [ECOM-024](ECOM-024.md) | Requirements checklist against the code challenge | Hand-in | ECOM-022, ECOM-023 | Planned (prompt #055) |

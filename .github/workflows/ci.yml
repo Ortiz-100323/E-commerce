@@ -35,6 +35,9 @@ jobs:
       - name: Check the image sizes
         run: python3 testing/run.py images
 
+      - name: Check the README and the decision records
+        run: python3 testing/run.py docs
+
       - name: Restore the Playwright browser cache (actions/cache v6.1.0)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:

@@ -115,6 +115,7 @@ COMMANDS: dict[str, Callable[[], list[Step]]] = {
     "smoke": smoke_steps,
     "containers": lambda: script_steps("check_containers", []),
     "images": lambda: script_steps("check_images", []),
+    "docs": lambda: script_steps("check_docs", []),
 }
 
 ALL_ORDER = ["lint", "nocomments", "tooling", "backend", "frontend", "smoke"]

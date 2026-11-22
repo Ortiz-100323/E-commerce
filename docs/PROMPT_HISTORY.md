@@ -3397,3 +3397,95 @@ To unblock it, run `/mcp` here and reconnect `chrome-devtools`, or reopen the se
 Nothing is committed yet. Everything is on `feature/ECOM-022-packaging`.
 
 **Next:** ECOM-023, the README about the system with the ADRs, then ECOM-024, the requirements checklist.
+
+## #058 — 2026-11-22 — ECOM-022 committed; ECOM-023 built, one gap found (running without Docker fails on Windows)
+
+### User
+
+> commit it and go for 23
+
+### Assistant
+
+**ECOM-022 is committed (`827a31a`). ECOM-023 is built, but proving the README found one gap that needs your decision before I fix it.**
+
+**What's built** (branch `feature/ECOM-023-readme-adr`, not committed):
+- **The README is rewritten about the system,** in your ten sections: what was built, quick start, running without Docker, running the tests, the sample CSV (downloaded on 2026-11-20), architecture, decisions and alternatives, out of scope, next steps, and how AI was used.
+- **30 decision records in `docs/adr/`,** built from the journal.
+  - Each has context, the decision, the alternatives discarded, the consequences, and the journal entries it comes from.
+  - One is superseded: the early "no login, self-declared name" (ADR-0027, replaced by ADR-0028).
+  - An index lists them all, and the README's decisions table links each one.
+- **A new check, `python testing/run.py docs`:**
+  - every link in the README and the ADRs resolves, including links to headings;
+  - every ADR is in the index and the README;
+  - every ADR has the four sections and cites real journal entries;
+  - the README has all ten sections.
+
+  It has 19 tests, was written test-first, and is added to GitHub Actions.
+
+**Proving the README's commands as written:**
+
+| Section | Command | Result |
+|---|---|---|
+| Quick start | `docker compose up --build` | ✅ (the ECOM-022 fresh clone) |
+| Running the tests | `docker compose run --rm ci`, and the browser tests | ✅ (the ECOM-022 fresh clone) |
+| Running the tests | `python testing/run.py all` on your Windows machine | ✅ 79 tooling, 1,099 backend (99%), 204 frontend, smoke |
+| Running without Docker | `docker compose up -d db`, `uv sync`, `alembic upgrade head` | ✅ |
+| Running without Docker | `npm ci`, `npm run dev` | ✅ the page on 5173, `/api` forwarded |
+| Running without Docker | `python -m ecommerce.identity.seed` | ❌ **fails on Windows** |
+| Running without Docker | `uvicorn …` | ❌ **starts, but every database call fails on Windows** (health says "database down") |
+
+**The gap (D-125):** on Windows, psycopg's async driver can't use Python's default event loop. The tests already work around it, but the seed and the server don't. Docker, CI and Linux or macOS are not affected.
+
+**How to fix it, your choice:**
+- **A (recommended): a code fix.** On Windows, the seed and the backend run on a compatible event loop. Running without Docker gets one start command, `uv run python -m ecommerce.serve`, with tests. It works the same everywhere, and you and a reviewer may well be on Windows.
+- **B: a docs fix.** The README says running without Docker is supported on Linux, macOS and WSL 2, and Windows users use Docker or WSL. No code change.
+
+Your Docker stack is running as before.
+
+## #059 — 2026-11-22 — Option A built: running without Docker works on Windows; everything green in Docker again
+
+### User
+
+> go with A. But test again in docker after your change.
+
+### Assistant
+
+**Done. Running without Docker now works on Windows, and everything passes again in Docker on freshly rebuilt images.**
+
+**What was built:**
+- **What it is:** a small helper picks an event loop the database driver supports on Windows. Nothing changes on Linux or macOS.
+- **The admin seed** runs on that loop.
+- **A new start command, `uv run python -m ecommerce.serve`,** runs the backend on that loop at http://127.0.0.1:8001 (`--host` and `--port` change it). The README uses it.
+- **Docker is untouched:** the container's start command is the same as before.
+- **Tests:** 11 new ones, written first and seen failing.
+
+**Why:** a reviewer on Windows following "Running without Docker" would have had a backend that couldn't reach its database.
+
+**Proof:**
+
+| Check | Result |
+|---|---|
+| Natively on Windows, the README's commands as written: migrations, seed, `ecommerce.serve` | ✅ health "database up", products listed, admin login 200 |
+| Natively on Windows: `npm run dev` against that backend | ✅ the page loads, and `/api` reaches the native backend |
+| **Docker, rebuilt images:** every check in the `ci` container | ✅ lint, 11 import contracts, no comments, 79 tooling, **1,110 backend** (99%), 204 frontend, smoke |
+| Docker: browser tests | ✅ 44 passed, 5 skipped by design |
+| Host checks: no root containers, image sizes, README and ADR links | ✅ |
+
+**One thing I caught on the way:** the first Docker run used a `ci` image that was 9 hours old, because a quiet rebuild hadn't actually rebuilt it. It failed on old files. I rebuilt it properly, and every result above comes from the rebuilt image.
+
+**Acceptance criteria for ECOM-023:**
+
+| # | Criterion | Result |
+|---|---|---|
+| 1 | The README has all ten sections | ✅ checked by `run.py docs` |
+| 2 | Every command in the README was run as written | ✅ in Docker, and without Docker on Windows |
+| 3 | Every ADR is linked, cites real journal entries, and every link works | ✅ checked by `run.py docs`, also in GitHub Actions |
+| 4 | The README describes the system in plain English | **Your review** |
+
+**Recorded:**
+- D-125 is marked fixed;
+- ECOM-023 is In review, with its verification table.
+
+Nothing is committed. Everything is on `feature/ECOM-023-readme-adr`.
+
+**Next:** once you've read the README and the ADRs and are happy with them, I'll commit and move to ECOM-024, the requirements checklist.
