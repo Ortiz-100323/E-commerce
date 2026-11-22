@@ -1894,3 +1894,45 @@ Template:
     - the browser tests passed: 44, with 5 skipped by design;
     - the host checks passed: containers, images and docs.
   - **A stale image along the way:** a quiet `docker compose build -q ci` hadn't rebuilt the `ci` image, which was 9 hours old, so its first run checked old files. A plain `docker compose build ci` rebuilt it, and every result above comes from the rebuilt image.
+
+### D-126: Requirements checklist (ECOM-024): 16 of 18 done, 2 partial, reported before fixing
+- **Date:** 2026-11-22
+- **Status:** Built (prompt #060: "commit it and go for 24, I'll review it all by the end"); the two gaps are waiting for the owner, as asked in prompt #055.
+- **Built:**
+  - **`docs/REQUIREMENTS_CHECK.md`:** one row per line of the challenge document (R-01 to R-18), in its words, each with where it is met and a status.
+  - **The docs check covers the checklist:**
+    - `run.py docs` now also checks `docs/REQUIREMENTS_CHECK.md`;
+    - a link labelled `file::test` must name a real test in that file: a whole `def` for Python, the title text for Vitest and Playwright;
+    - 4 new tooling tests, written first.
+  - **The no-comments check covers every kind of code and config file,** not only Python and TypeScript:
+    - JSON, CSS, HTML, SQL, Dockerfiles, YAML, nginx config, TOML, INI and shell;
+    - it scans `backend`, `frontend`, `testing`, `docker`, `docker-compose.yml` and `.github`, skipping lock files and generated folders;
+    - inside the `ci` image the root files are absent and reported as skipped, so GitHub Actions also runs the check on the host;
+    - 23 new tooling tests, written first.
+
+    The scan found no comments anywhere.
+- **Verified facts:**
+  - the fixture is byte-identical to the CSV as downloaded (SHA-256 `6fc46b84badb1ac3…`);
+  - GitHub's `main` is `4852c07`, so ECOM-022 to ECOM-024 aren't pushed.
+- **The two gaps:**
+  - **R-14:** the README documents decisions and alternatives, but has no section stating the approach itself (test-first, small accepted tickets, decisions recorded, business questions with safe defaults). It is only implied.
+  - **R-16:** the hand-in work is committed locally, but not on GitHub yet.
+- **Process slip:** while adding the tests, a shell append briefly wrote a `# type: ignore` comment into `testing/tooling/test_check_no_comments.py`. It was removed at once, the file matches its committed state, and the new tests went into their own file with no comments.
+
+### D-127: The README states the approach (closes R-14); the push waits for the owner's final review
+- **Date:** 2026-11-22
+- **Status:** Done (owner, prompt #061: "yes, add the approach section and commit it")
+- **Context:** the requirements check (D-126) found that the README covered decisions and alternatives, but not the approach the challenge also asks for.
+- **Decision:**
+  - The README has a new **Approach** section, between "Architecture" and "Decisions and alternatives", describing the system's way of working:
+    - the data first;
+    - nothing ambiguous guessed;
+    - the domain first;
+    - tests first;
+    - small tickets with a review gate;
+    - every decision recorded;
+    - business questions with safe defaults;
+    - verification the way a reviewer runs it.
+  - `run.py docs` now requires that section. Its test was written first and seen failing (107 tooling tests).
+  - R-14 is Done in `docs/REQUIREMENTS_CHECK.md`.
+- **Still open:** R-16. The hand-in branches are committed locally, and the push waits for the owner's final review.

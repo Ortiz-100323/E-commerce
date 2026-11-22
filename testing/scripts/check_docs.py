@@ -14,6 +14,7 @@ README_SECTIONS = [
     "Running the tests",
     "The sample CSV",
     "Architecture",
+    "Approach",
     "Decisions and alternatives",
     "Out of scope",
     "Next steps",
@@ -22,6 +23,7 @@ README_SECTIONS = [
 ADR_SECTIONS = ["Context", "Decision", "Alternatives discarded", "Consequences"]
 ADR_NAME = re.compile(r"^\d{4}-[a-z0-9-]+\.md$")
 LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
+LABELLED_LINK = re.compile(r"\[([^\]]*)\]\(([^)\s]+)\)")
 HEADING = re.compile(r"^#{1,6}\s+(.+?)\s*$")
 FENCE = re.compile(r"^```.*?^```", re.MULTILINE | re.DOTALL)
 INLINE_CODE = re.compile(r"`[^`\n]*`")
@@ -60,10 +62,22 @@ def link_targets(text: str) -> list[str]:
     return LINK.findall(prose_of(text))
 
 
+def labelled_links(text: str) -> list[tuple[str, str]]:
+    return LABELLED_LINK.findall(prose_of(text))
+
+
+def names_a_real_test(label: str, path: Path) -> bool:
+    name = label.partition("::")[2]
+    content = path.read_text(encoding="utf-8")
+    if name.isidentifier():
+        return re.search(rf"\bdef {re.escape(name)}\(", content) is not None
+    return name in content
+
+
 def broken_links(root: Path, document: Path) -> list[Problem]:
     source = root / document
     problems = []
-    for target in link_targets(source.read_text(encoding="utf-8")):
+    for label, target in labelled_links(source.read_text(encoding="utf-8")):
         if target.startswith(EXTERNAL):
             continue
         location, _, anchor = target.partition("#")
@@ -72,6 +86,8 @@ def broken_links(root: Path, document: Path) -> list[Problem]:
             problems.append(Problem(document, f"broken link: {target}"))
         elif anchor and resolved.suffix == ".md" and anchor not in anchors_of(resolved):
             problems.append(Problem(document, f"broken link: {target}"))
+        elif "::" in label and resolved.is_file() and not names_a_real_test(label, resolved):
+            problems.append(Problem(document, f"unknown test: {label}"))
     return problems
 
 

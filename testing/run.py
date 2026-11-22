@@ -57,11 +57,12 @@ def lint_steps() -> list[Step]:
 
 def nocomments_steps() -> list[Step]:
     roots = [
-        "backend/src",
-        "backend/migrations",
-        "frontend/src",
-        "frontend/vite.config.ts",
+        "backend",
+        "frontend",
         "testing",
+        "docker",
+        "docker-compose.yml",
+        ".github",
     ]
     return script_steps("check_no_comments", roots)
 
@@ -115,7 +116,7 @@ COMMANDS: dict[str, Callable[[], list[Step]]] = {
     "smoke": smoke_steps,
     "containers": lambda: script_steps("check_containers", []),
     "images": lambda: script_steps("check_images", []),
-    "docs": lambda: script_steps("check_docs", []),
+    "docs": lambda: script_steps("check_docs", ["docs/REQUIREMENTS_CHECK.md"]),
 }
 
 ALL_ORDER = ["lint", "nocomments", "tooling", "backend", "frontend", "smoke"]

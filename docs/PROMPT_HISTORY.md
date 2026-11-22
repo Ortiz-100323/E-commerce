@@ -3489,3 +3489,65 @@ Your Docker stack is running as before.
 Nothing is committed. Everything is on `feature/ECOM-023-readme-adr`.
 
 **Next:** once you've read the README and the ADRs and are happy with them, I'll commit and move to ECOM-024, the requirements checklist.
+
+## #060 — 2026-11-22 — ECOM-023 committed; ECOM-024 checklist built, two gaps reported before fixing
+
+### User
+
+> commit it and go for 24, I'll review it all by the end.
+
+### Assistant
+
+**ECOM-023 is committed (`fc7465d`). The ECOM-024 checklist is built: 16 of 18 requirements are done, and 2 are partial. I'm reporting them before fixing, as you asked.**
+
+**What was built** (branch `feature/ECOM-024-requirements-check`, not committed):
+- **`docs/REQUIREMENTS_CHECK.md`:** one row per line of the challenge document, in its own words. Each row says where the requirement is met (files, tests, screens) and gives a status. It is linked from the README.
+- **The checklist is checked automatically:**
+  - `run.py docs` fails if a file it points to doesn't exist, or if a test it names isn't in that file;
+  - it runs in GitHub Actions.
+- **The no-comments check now covers every kind of file,** not only Python and TypeScript: CSS, HTML, JSON, SQL, Dockerfiles, compose, workflows, nginx, TOML, INI and shell. It found no comments anywhere.
+- **27 new tooling tests, written first** (106 in all). Lint passes, and the checks pass on the host and in the rebuilt `ci` image.
+
+**The two gaps:**
+
+| # | Requirement | What's missing | Proposed fix |
+|---|---|---|---|
+| R-14 | "On a readme.md document your decisions, **approach**, alternatives considered." | The README covers decisions and alternatives in depth (30 ADRs), but has no section that states the approach itself. It is only implied. | Add a short **Approach** section to the README: test-first, small tickets each planned, tested and accepted, every decision recorded with its alternatives, and business questions kept open with safe defaults. Also add it to the README's required sections in the docs check. |
+| R-16 | "Please provide your solution in a Github repository." | ECOM-022, 023 and 024 are committed locally but **not pushed**. GitHub's `main` is still `4852c07`. | After your final review: push the three branches, bring `main` up to date, and confirm CI is green on GitHub. |
+
+**Also confirmed:** the sample CSV in the repository is byte-identical to the file you downloaded.
+
+**One slip, already undone:** while adding tests, a shell command briefly wrote a `# type: ignore` comment into a test file. I removed it at once. The file matches its committed state, and the new tests are in their own file with no comments. Recorded in D-126.
+
+**Shall I add the Approach section (R-14) now?** I'd leave the push (R-16) until your final review.
+
+## #061 — 2026-11-22 — Approach section added (R-14 closed); ECOM-024 committed
+
+### User
+
+> yes, add the approach section and commit it
+
+### Assistant
+
+**Done. The README now has an Approach section, R-14 is closed, and ECOM-024 is committed.**
+
+**The Approach section** sits between "Architecture" and "Decisions and alternatives". It describes how the system was built:
+- the data first: the sample CSV was profiled before any code;
+- nothing ambiguous guessed: unclear values go to a person;
+- the business rules in a domain with no framework;
+- tests first, including failures, retries and stock safety;
+- small tickets, each planned, tested in the running app and accepted;
+- every decision recorded with its alternatives;
+- business questions with safe defaults;
+- everything verified the way a reviewer runs it.
+
+**The docs check now requires the section.** Its test was written first and seen failing. All 107 tooling tests pass, and lint, the no-comments check and the docs check pass.
+
+**The requirements check: 17 of 18 done.** Only R-16 is left: pushing the hand-in work to GitHub, which waits for your final review.
+
+**Commits, all local:**
+- ECOM-022: `827a31a`;
+- ECOM-023: `fc7465d`;
+- ECOM-024: on `feature/ECOM-024-requirements-check`.
+
+When you've reviewed everything, say the word and I'll push the branches, bring `main` up to date and confirm CI is green on GitHub.

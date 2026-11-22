@@ -10,6 +10,7 @@ README_SECTIONS = [
     "Running the tests",
     "The sample CSV",
     "Architecture",
+    "Approach",
     "Decisions and alternatives",
     "Out of scope",
     "Next steps",
@@ -189,7 +190,56 @@ def test_main_passes_on_complete_documents(
     assert "Documents are consistent." in capsys.readouterr().out
 
 
+def test_the_readme_must_state_the_approach(check_docs: ModuleType, tmp_path: Path) -> None:
+    sections = [section for section in README_SECTIONS if section != "Approach"]
+    root = build(tmp_path, readme_text=readme(sections=sections))
+    assert messages(check_docs, root) == ["README.md has no section: Approach"]
+
+
 def test_the_runner_checks_the_documents_on_the_host(runner: ModuleType) -> None:
     steps = runner.COMMANDS["docs"]()
     assert [step.name for step in steps] == ["script check_docs"]
+    assert steps[0].command[-1] == "docs/REQUIREMENTS_CHECK.md"
     assert "docs" not in runner.ALL_ORDER
+
+
+def checklist(check_docs: ModuleType, root: Path, line: str) -> list[str]:
+    (root / "tests").mkdir(exist_ok=True)
+    (root / "tests" / "test_shop.py").write_text(
+        "def test_buys_once() -> None:\n    assert True\n", encoding="utf-8"
+    )
+    (root / "tests" / "shop.spec.ts").write_text(
+        "test('a double click on Pay buys only once', async () => {})\n", encoding="utf-8"
+    )
+    (root / "docs" / "CHECK.md").write_text(f"{line}\n", encoding="utf-8")
+    problems = check_docs.check(root, extra_documents=[Path("docs/CHECK.md")])
+    return [problem.message for problem in problems]
+
+
+def test_a_named_python_test_that_exists_passes(check_docs: ModuleType, tmp_path: Path) -> None:
+    line = "[test_shop.py::test_buys_once](../tests/test_shop.py)"
+    assert checklist(check_docs, build(tmp_path), line) == []
+
+
+def test_a_named_python_test_that_is_missing_is_reported(
+    check_docs: ModuleType, tmp_path: Path
+) -> None:
+    line = "[test_shop.py::test_buys_twice](../tests/test_shop.py)"
+    assert checklist(check_docs, build(tmp_path), line) == [
+        "unknown test: test_shop.py::test_buys_twice"
+    ]
+
+
+def test_a_python_name_must_be_a_whole_function(check_docs: ModuleType, tmp_path: Path) -> None:
+    line = "[test_shop.py::test_buys](../tests/test_shop.py)"
+    assert checklist(check_docs, build(tmp_path), line) == ["unknown test: test_shop.py::test_buys"]
+
+
+def test_a_named_browser_test_is_matched_by_its_title(
+    check_docs: ModuleType, tmp_path: Path
+) -> None:
+    good = "[shop.spec.ts::a double click on Pay buys only once](../tests/shop.spec.ts)"
+    bad = "[shop.spec.ts::a triple click](../tests/shop.spec.ts)"
+    assert checklist(check_docs, build(tmp_path), f"{good} {bad}") == [
+        "unknown test: shop.spec.ts::a triple click"
+    ]

@@ -25,6 +25,8 @@ A small online shop with an admin area, built as a code challenge:
   - Customers sign up and see their orders in **My orders**.
   - Admins create other admins, see every order, and can't buy.
 
+Each requirement of the challenge, and where it is met, is listed in [docs/REQUIREMENTS_CHECK.md](docs/REQUIREMENTS_CHECK.md).
+
 ## Quick start
 
 You need Docker with Compose v2, and ports 3000, 8001 and 5433 free.
@@ -163,6 +165,27 @@ backend (one deployable, three bounded contexts)
 | [`tasks/`](tasks/) | The ticket board, one file per ticket, and each ticket's test evidence |
 
 Full detail is in [docs/TECHNICAL_ARCHITECTURE.md](docs/TECHNICAL_ARCHITECTURE.md).
+
+## Approach
+
+- **The data came first.** Before any code, the sample CSV was profiled: currency symbols, words as prices, zero prices, negative stock, empty fields, blank lines, markup and duplicate SKUs. Those findings shaped the import rules ([ADR-0011](docs/adr/0011-csv-import-review-workflow.md), [ADR-0012](docs/adr/0012-csv-issue-taxonomy.md)).
+- **Nothing ambiguous is guessed.** Unclear values go to a person for review, and values are never rounded or reinterpreted silently.
+- **The business rules live in a domain with no framework.** They are tested without a database, and the API, the database and the UI are adapters around them ([ADR-0001](docs/adr/0001-modular-monolith-with-ddd.md)).
+- **Tests come first.** Every behaviour started with a failing test. Every ticket also tested its failure cases and the answer each one gives, what a retry does, and that stock never goes below zero ([ADR-0023](docs/adr/0023-test-first-and-one-runner.md)).
+- **The work was delivered in small tickets, each with a review gate.** The tickets on the [board](tasks/README.md) run from a walking skeleton that proved every container end to end (ECOM-000) to the hand-in. Each ticket went through four steps:
+  1. a plan, approved before building;
+  2. acceptance criteria;
+  3. a test in the running app;
+  4. acceptance before the next ticket started.
+
+  The evidence for each ticket is in `tasks/<ticket>-evidence/`.
+- **Every decision was recorded when it was made,** with the alternatives considered, in [docs/JOURNAL.md](docs/JOURNAL.md). Nothing was deleted: a changed decision is marked superseded. The lasting decisions are in [docs/adr](docs/adr/README.md).
+- **Business questions stay open, with safe defaults.** Rules that belong to the business are configurable policies, with a safe default until the business answers ([ADR-0014](docs/adr/0014-configurable-business-policies.md)).
+- **Everything was checked the way a reviewer would run it:**
+  - a fresh clone in an empty folder;
+  - one `docker compose up`;
+  - the full suite in the `ci` container;
+  - the browser tests on a desktop and a phone.
 
 ## Decisions and alternatives
 
