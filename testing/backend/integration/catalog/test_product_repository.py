@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
@@ -46,6 +47,28 @@ def make_product(number: int = 1, **overrides: Any) -> Product:
     product = Product.create(**values)
     product.pull_events()
     return product
+
+
+async def test_locking_an_absent_sku_blocks_another_writer(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    first = SqlAlchemyCatalogUnitOfWork(sessions)
+    second = SqlAlchemyCatalogUnitOfWork(sessions)
+    await first.__aenter__()
+    await second.__aenter__()
+    waiting: asyncio.Task[dict[str, Product]] | None = None
+    try:
+        assert await first.products.lock_by_skus({"NEW-1"}) == {}
+        waiting = asyncio.create_task(second.products.lock_by_skus({"NEW-1"}))
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(asyncio.shield(waiting), timeout=0.1)
+        await first.commit()
+        assert await asyncio.wait_for(waiting, timeout=1) == {}
+    finally:
+        if waiting is not None and not waiting.done():
+            waiting.cancel()
+        await second.__aexit__(None, None, None)
+        await first.__aexit__(None, None, None)
 
 
 @pytest.fixture

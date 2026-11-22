@@ -1,0 +1,212 @@
+.upload {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 32rem;
+}
+
+.upload label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-weight: 600;
+}
+
+.primary {
+  align-self: flex-start;
+  background: #111827;
+  color: #fff;
+  border: 1px solid #111827;
+  border-radius: 0.25rem;
+  padding: 0.5rem 1rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.secondary {
+  background: #fff;
+  border: 1px solid #9ca3af;
+  border-radius: 0.25rem;
+  padding: 0.4rem 0.8rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.meta {
+  margin: 0.25rem 0;
+  color: #4b5563;
+}
+
+.commitBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin: 1rem 0;
+}
+
+.hint {
+  margin: 0;
+  color: #4b5563;
+}
+
+.alert,
+.success,
+.info {
+  border-radius: 0.25rem;
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+}
+
+.alert {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+}
+
+.success {
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+}
+
+.info {
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+}
+
+.alert p,
+.success p,
+.info p {
+  margin: 0.25rem 0;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  border-bottom: 1px solid #d1d5db;
+  margin-top: 1rem;
+}
+
+.tab {
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 0.25rem 0.25rem 0 0;
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tab[aria-selected='true'] {
+  background: #fff;
+  border-color: #d1d5db;
+  font-weight: 600;
+}
+
+.panel {
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-top: none;
+  padding: 1rem;
+}
+
+.card {
+  border: 1px solid #e5e7eb;
+  border-radius: 0.25rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.card h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.issues {
+  margin: 0.25rem 0 0.75rem;
+  padding-left: 1.25rem;
+}
+
+.raw {
+  display: block;
+  background: #f3f4f6;
+  padding: 0.25rem 0.5rem;
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.editor {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 0.5rem 1rem;
+  margin: 0.75rem 0;
+}
+
+.editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.875rem;
+}
+
+.editor input {
+  padding: 0.35rem 0.5rem;
+  font: inherit;
+}
+
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.skipped {
+  color: #92400e;
+  font-weight: 600;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: top;
+}
+
+.before {
+  color: #991b1b;
+  text-decoration: line-through;
+}
+
+.after {
+  color: #166534;
+}
+
+.badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: #e0e7ff;
+}

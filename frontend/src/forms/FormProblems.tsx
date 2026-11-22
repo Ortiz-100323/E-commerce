@@ -3,6 +3,7 @@ import styles from './Forms.module.css'
 
 const LABELS: Record<string, string> = {
   'X-Actor-Name': 'Reviewer name',
+  file: 'File',
 }
 
 function label(problem: FieldProblem): string {

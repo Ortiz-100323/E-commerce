@@ -26,6 +26,7 @@ export function AdminLayout() {
       </div>
       <nav aria-label="Admin" className={styles.nav}>
         <NavLink to="/admin/products">Products</NavLink>
+        <NavLink to="/admin/imports/new">Import CSV</NavLink>
       </nav>
       <Outlet />
       {changing ? (

@@ -252,8 +252,37 @@ async def resolve_row(
                 )
             ],
         )
+    if body.action is RowAction.CONFIRM and body.expected_outcome is None:
+        raise InvalidParameters(
+            "body",
+            [
+                ValidationIssue(
+                    "expected_outcome",
+                    "required",
+                    "Send the row outcome that was shown when it was confirmed.",
+                )
+            ],
+        )
+    if body.action is not RowAction.CONFIRM and body.expected_outcome is not None:
+        raise InvalidParameters(
+            "body",
+            [
+                ValidationIssue(
+                    "expected_outcome",
+                    "not_allowed",
+                    "The expected outcome is only sent with the action confirm.",
+                )
+            ],
+        )
     values = body.values.provided() if body.values is not None else None
-    change = await use_case.execute(batch_id, line, body.action, values, actor)
+    change = await use_case.execute(
+        batch_id,
+        line,
+        body.action,
+        values,
+        actor,
+        expected_outcome=body.expected_outcome,
+    )
     return ImportRowChangeResponse.of(change)
 
 

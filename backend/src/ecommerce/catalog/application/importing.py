@@ -331,6 +331,8 @@ class ResolveImportRow:
         action: RowAction,
         values: Mapping[str, str] | None,
         actor: Actor,
+        *,
+        expected_outcome: RowOutcome | None,
     ) -> RowChange:
         now = self._clock.now()
         async with self._catalog(actor) as work:
@@ -340,8 +342,9 @@ class ResolveImportRow:
             if action is RowAction.SKIP:
                 batch.skip(line, actor=actor.name, at=now)
             elif action is RowAction.CONFIRM:
-                existing = await catalog_entry(work, row.values.get("sku", ""))
-                batch.confirm(line, existing, self._policies, actor=actor.name, at=now)
+                if expected_outcome is row.outcome:
+                    existing = await catalog_entry(work, row.values.get("sku", ""))
+                    batch.confirm(line, existing, self._policies, actor=actor.name, at=now)
             else:
                 if values is None:
                     raise InvalidCorrection(

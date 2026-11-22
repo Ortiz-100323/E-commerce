@@ -1190,7 +1190,7 @@ Template:
 
 ### D-090: CSV import, part 1: preview and classification (ECOM-010)
 - **Date:** 2026-11-21
-- **Status:** Proposed (part of the ECOM-010 review)
+- **Status:** Accepted (owner tested the whole import in the portal, prompts #028 and #029)
 - **Decision:**
   - **The sample was re-verified before any code.** `profile_csv.py` confirmed every format fact in §2: UTF-8 without BOM, CRLF, no final newline, 97 data rows, blank lines 62–63, and the RS-001 and BS-021 duplicates. `simulate_import.py` then reproduced the expected report exactly: 84 create, 6 review, 2 rejected, 3 superseded, 2 blank and 3 warnings. A first look with Git Bash's `sed` had suggested LF line endings; that was wrong, because `sed` strips carriage returns before showing them. The script reads the raw bytes.
   - **The rules live in the domain** (`catalog/domain/importing/`), as pure functions over strings. Field checks reuse the product's own value objects and translate their codes into the §6.2 taxonomy (`markup_not_allowed` → `markup_in_name`, `too_small` → `negative_value`, and so on), so a product rule exists in one place only. The import adds only what the value objects can't know: currency symbols, `free`, whole numbers written as `12.0`, and the empty/zero review policies.
@@ -1218,7 +1218,7 @@ Template:
 
 ### D-091: CSV import, part 2: review workflow, commit and audit (ECOM-011)
 - **Date:** 2026-11-21
-- **Status:** Proposed (part of the ECOM-011 review)
+- **Status:** Accepted (owner tested the whole import in the portal, prompts #028 and #029)
 - **Context:** the owner asked to commit ECOM-010 and close ECOM-011 and ECOM-012 together, so the whole import can be tested in the admin portal (prompt #026).
 - **Decision:**
   - **Upload stays a raw `text/csv` body.** The owner didn't answer the `python-multipart` question, and a package needs explicit approval, so `POST /imports` takes the file exactly like the preview; the name travels in the `file_name` query parameter. The browser sends the chosen file as the body, so the portal needs no extra package either. §4.5 said "multipart"; it is updated.
@@ -1241,3 +1241,53 @@ Template:
   - Sending a stale row literally to `needs_review` (rejected: it is not a review issue under D-037; a fresh diff that must be confirmed again is what the reviewer needs).
   - Returning the whole batch after every row change (rejected: up to 10,000 rows per click; the PATCH returns the row and the batch summary).
   - A background job for expiry (rejected: nothing to run on; reading the status at request time is exact).
+
+### D-092: CSV import screens (ECOM-012)
+- **Date:** 2026-11-21
+- **Status:** Accepted (owner tested the whole import in the portal, prompts #028 and #029)
+- **Decision:**
+  - **Two screens under the admin area:** `/admin/imports/new` (choose a file, "Upload and check") and `/admin/imports/:id` (the review). The admin menu gains **Import CSV**. Both need the reviewer name, like every admin change.
+  - **The browser sends the chosen file itself as the request body** (`Content-Type: text/csv`, `file_name` in the query), so the bytes reach the server untouched and its encoding check still works. No new package (D-091).
+  - **The review screen follows the server, never guesses:**
+    - one tab per outcome plus **Warnings**, each with its count from the server's summary; it opens on the first tab that needs work (review, then updates, then new);
+    - buttons come from each row's `actions`: a review row has an editor with every column, **Save correction** (only the changed values are sent), **Confirm as free gift** or **Confirm weight 0** when allowed, and **Skip this row**;
+    - an update shows a Now → After table and a **Confirm this update** checkbox; clearing it skips the row; **Confirm all N updates** confirms the rest one by one;
+    - rejected rows show their reasons and raw line, with no editor;
+    - after each decision, the row and the counts are replaced from the server's answer, so a corrected row moves to its new tab at once.
+  - **Commit:** the button stays disabled until the server says the import is committable, and the hint lists the lines still waiting. A 409 is explained on the page, never as a generic pop-up: stale rows ("Nothing was imported. The rows on lines … now show the latest changes; confirm them again"), rows still pending, or an import no longer pending. After any refused commit the import is reloaded, so the screen shows the fresh diffs.
+  - **Discard** asks for confirmation first. Committed, discarded and expired imports show a banner and no commit button.
+  - **Product history** names the import events ("Corrected during import review"…) and the import context (CSV line, raw CSV line, import, file SHA-256).
+  - **Update cards keep their identity between decisions** (keyed by line), so the checkbox doesn't lose focus; review cards are rebuilt after a decision so the editor shows the row's new values.
+- **Alternatives:**
+  - A "Confirm all" that skips the confirmation per row (rejected: no bulk endpoint; one request per row keeps every decision audited separately, which the audit trail requires).
+  - Upload by reading the file as text in the browser (rejected: a non-UTF-8 file would be silently re-encoded and the server's `invalid_encoding` check would never fire).
+
+### D-093: Code review round 2 for ECOM-010 through ECOM-012
+- **Date:** 2026-11-21
+- **Status:** Accepted (review and fixes requested by the owner)
+- **Scope:** ECOM-010, ECOM-011 and ECOM-012, reviewed together because the parser, stored review workflow and portal form one import path.
+- **Results by ticket:**
+  - **ECOM-010:** the parser, classification policies, golden sample and file-level API errors were rechecked; no new defect was found in its domain or API code. The unsupported-media-type path exposed an ECOM-012 client defect described below.
+  - **ECOM-011:** fixed an outcome-changing confirmation retry. A confirmation now carries `expected_outcome`; if the row has since moved from `needs_review` to `update`, retrying the old command cannot approve the update. It remains pending for an explicit review.
+  - **ECOM-011:** fixed locking for a new SKU. Row locks cannot protect a key that does not exist, so product adds and import commit checks now share transaction-scoped PostgreSQL advisory locks keyed by SKU and acquired in sorted order.
+  - **ECOM-012:** fixed uploads overwriting every selected file's media type with `text/csv`. The client preserves a browser-supplied type and uses `text/csv` only when it is empty, allowing the backend's 415 validation and the page's explanation to work.
+- **Why `expected_outcome` is part of a confirm command:** idempotency must identify the state the user approved, not only the action name. The same `confirm` action can otherwise mean approving two materially different states after reclassification.
+- **Why advisory locks are shared by ordinary creates and imports:** locking only the import path would not exclude an admin create. Every writer of a SKU must participate in the same lock protocol for an absent key to be protected.
+- **Verification:** the focused import frontend suite passed 35 tests; the backend suite passed 725 tests with 99.61% scoped coverage. The complete quality run is recorded in the ticket and prompt history.
+
+### D-094: Skipped import rows get their own tab (owner's change request, ECOM-012 CR-01)
+- **Date:** 2026-11-22
+- **Status:** Accepted; verified by the owner's re-test in prompt #029
+- **Context:** the owner tested ECOM-010 to ECOM-012 in the portal and imported the sample: 88 created, 1 updated, 1 skipped ([evidence](../tasks/ECOM-012-evidence/README.md)). A skipped row stayed in **Needs review** with a "Skipped" label and its editor, and a cleared update stayed in **Updates**. The owner: "I believe those which we skipp should dissapear from screen [...] I mean dissapeared from the review screen, we can have a tab for them." This was the design of D-092, not a defect, so it is recorded as a change request.
+- **Decision:**
+  - A new **Skipped** tab sits between **Unchanged** and **Rejected**, so the tabs read: what will be imported, then what won't.
+  - A row whose decision is `skipped` leaves its outcome tab (Needs review, Updates or New) and is listed only under **Skipped**. The outcome tabs no longer count it.
+  - On the Skipped tab a decision can still be changed with the actions the server already allows: a skipped review row can be corrected or confirmed, and a skipped update can be ticked again. The row then returns to its tab. After a commit, discard or expiry the tab is read-only.
+  - Tab counts are now counted from the rows the server returns, instead of the server's per-outcome summary, because that summary counts skipped rows under their outcome. Nothing is guessed in the browser: rows, decisions and allowed actions all still come from the server.
+  - No backend change. The server already exposes each row's `decision`, and skipping and un-skipping were already allowed and audited (D-091).
+- **Alternatives:**
+  - A `skipped` count in the server's summary (rejected for now: it changes the ECOM-011 API for a pure display concern; the browser already holds every row).
+  - Hiding skipped rows entirely (rejected: the reviewer would lose the way to change their mind before the commit, and the owner asked for a tab).
+  - An "Undo skip" button (rejected: a skipped review row with an empty name cannot go back unchanged; correcting or confirming it is the real decision, and the server records it).
+- **Test-first proof:** the 5 new or changed component tests failed on the old screen (no Skipped tab, skipped rows still in their tab) and pass now.
+- **Other remarks:** the owner said the user experience needs improving. That goes to ECOM-018 (D-082), with what the screenshots show.

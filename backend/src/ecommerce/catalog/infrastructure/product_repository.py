@@ -2,7 +2,7 @@ from collections.abc import Collection
 from typing import Any
 
 from psycopg import errors
-from sqlalchemy import RowMapping, insert, select, update
+from sqlalchemy import RowMapping, func, insert, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -51,6 +51,7 @@ class SqlAlchemyProductRepository:
             "created_at": product.created_at,
             **changeable_columns(product),
         }
+        await self._lock_skus({product.sku.value})
         try:
             async with self._session.begin_nested():
                 await self._session.execute(insert(products).values(row))
@@ -92,6 +93,7 @@ class SqlAlchemyProductRepository:
     async def lock_by_skus(self, skus: Collection[str]) -> dict[str, Product]:
         if not skus:
             return {}
+        await self._lock_skus(skus)
         statement = (
             select(products)
             .where(products.c.sku.in_(sorted(skus)))
@@ -100,6 +102,12 @@ class SqlAlchemyProductRepository:
         )
         rows = (await self._session.execute(statement)).mappings().all()
         return {row["sku"]: to_product(row) for row in rows}
+
+    async def _lock_skus(self, skus: Collection[str]) -> None:
+        for sku in sorted(skus):
+            await self._session.execute(
+                select(func.pg_advisory_xact_lock(func.hashtextextended(sku, 0)))
+            )
 
     async def _first(self, statement: Any) -> Product | None:
         row = (await self._session.execute(statement)).mappings().first()

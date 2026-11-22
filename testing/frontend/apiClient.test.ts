@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import { ApiError, NETWORK_ERROR, INVALID_RESPONSE } from '../../frontend/src/api/apiError'
 import { apiUrl } from '../../frontend/src/api/client'
+import { importsApi } from '../../frontend/src/api/imports'
 import { productsApi } from '../../frontend/src/api/products'
 import { API, PRODUCT_ID, problem, product, serverError, validationProblem } from './support/api'
 import { server } from './support/server'
@@ -185,6 +186,23 @@ describe('the API client', () => {
     await productsApi.search()
 
     expect(header).toBeNull()
+  })
+
+  it('keeps the selected file media type so the server can reject a non-CSV upload', async () => {
+    let contentType: string | null = null
+    server.use(
+      http.post(`${API}/imports`, ({ request }) => {
+        contentType = request.headers.get('Content-Type')
+        return HttpResponse.json({ id: 'import-1' })
+      }),
+    )
+
+    await importsApi.upload(
+      new File(['not a csv'], 'products.txt', { type: 'text/plain' }),
+      'Maria',
+    )
+
+    expect(contentType).toBe('text/plain')
   })
 
   it('builds search URLs without empty parameters', () => {

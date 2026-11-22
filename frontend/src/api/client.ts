@@ -7,9 +7,12 @@ type QueryValue = string | number | boolean | null | undefined
 
 export type RequestOptions = {
   body?: unknown
+  file?: Blob
   query?: Record<string, QueryValue>
   actor?: string
 }
+
+export const CSV_MEDIA_TYPE = 'text/csv'
 
 export function apiUrl(path: string, query: Record<string, QueryValue> = {}): URL {
   const url = new URL(`${API_PREFIX}${path}`, window.location.origin)
@@ -27,19 +30,20 @@ export async function request<T>(
   options: RequestOptions = {},
 ): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json, application/problem+json' }
-  if (options.body !== undefined) {
+  let body: BodyInit | undefined
+  if (options.file !== undefined) {
+    headers['Content-Type'] = options.file.type || CSV_MEDIA_TYPE
+    body = options.file
+  } else if (options.body !== undefined) {
     headers['Content-Type'] = 'application/json'
+    body = JSON.stringify(options.body)
   }
   if (options.actor !== undefined) {
     headers[ACTOR_HEADER] = encodeURIComponent(options.actor)
   }
   let response: Response
   try {
-    response = await fetch(apiUrl(path, options.query), {
-      method,
-      headers,
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    })
+    response = await fetch(apiUrl(path, options.query), { method, headers, body })
   } catch {
     throw ApiError.network()
   }

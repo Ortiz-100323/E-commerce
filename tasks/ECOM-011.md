@@ -4,10 +4,10 @@
 |---|---|
 | Type | Story (backend) |
 | Phase | 3 |
-| Status | **In Review**: the owner tests it through the ECOM-012 import screen (prompt #026) |
+| Status | **Done**: accepted by the owner after the portal test of the whole import (prompts #028 and #029) |
 | Depends on | ECOM-010 |
 | Architecture | §4.2 (`ImportBatch`), §4.5, §6.1, §6.4, §6.5 (commit time) |
-| Journal | D-037, D-072, D-091 |
+| Journal | D-037, D-072, D-091, D-093 |
 
 ## Context
 
@@ -71,7 +71,7 @@ A person reviews flagged rows and confirms updates before anything reaches the c
 
 **Also proven:** the batch, rows, history and decisions survive a round trip through PostgreSQL; migration 0006 downgrades and upgrades cleanly; the database refuses an unknown row outcome; an imported product's history starts with its row correction, then `product.created` with the raw CSV line.
 
-**Totals:** 95 new backend tests. The `ci` container passes all static checks (4 import contracts, no comments) and 723 backend tests, with 99.6% coverage of the domain and application code.
+**Totals after code review:** 97 new backend tests. The `ci` container passes all static checks (4 import contracts, no comments) and 725 backend tests, with 99.61% coverage of the domain and application code.
 
 ## Business view
 
@@ -90,3 +90,12 @@ A person reviews flagged rows and confirms updates before anything reaches the c
 - Acceptance criteria pass, written test-first.
 - `run.py all` is green in the `ci` container.
 - Journal, prompt history and this ticket are updated; the owner has accepted it.
+
+## Code review round 2 (2026-11-21)
+
+Two retry/concurrency defects were found and fixed:
+
+- A retry of a `needs_review` confirmation could confirm a newly revealed `update` without the reviewer seeing that update. Confirm requests now include the outcome the reviewer saw; if the row has moved, the retry is a no-op and the new update remains pending.
+- `SELECT ... FOR UPDATE` cannot lock a SKU that does not exist. Concurrent writers could therefore race to create the same new SKU and surface a generic duplicate error. Product writes and import commits now take the same transaction-scoped PostgreSQL advisory lock for each SKU, in sorted order, before checking or inserting it.
+
+Regression tests cover the outcome-changing confirmation retry and blocking on an absent SKU. The complete backend suite passes with 725 tests and 99.61% scoped coverage.

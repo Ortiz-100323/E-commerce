@@ -1,6 +1,8 @@
 import { Navigate, type RouteObject } from 'react-router'
 
 import { AdminLayout } from '../features/admin/AdminLayout'
+import { ImportReviewPage } from '../features/admin/imports/ImportReviewPage'
+import { ImportUploadPage } from '../features/admin/imports/ImportUploadPage'
 import { EditProductPage, NewProductPage } from '../features/admin/products/ProductFormPages'
 import { ProductHistoryPage } from '../features/admin/products/ProductHistoryPage'
 import { ProductsTablePage } from '../features/admin/products/ProductsTablePage'
@@ -24,6 +26,8 @@ export const routes: RouteObject[] = [
           { path: 'products/new', element: <NewProductPage /> },
           { path: 'products/:productId/edit', element: <EditProductPage /> },
           { path: 'products/:productId/history', element: <ProductHistoryPage /> },
+          { path: 'imports/new', element: <ImportUploadPage /> },
+          { path: 'imports/:importId', element: <ImportReviewPage /> },
         ],
       },
       { path: '*', element: <NotFoundPage /> },

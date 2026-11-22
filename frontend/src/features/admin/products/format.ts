@@ -4,6 +4,9 @@ const EVENT_LABELS: Record<string, string> = {
   'product.archived': 'Archived',
   'product.restored': 'Restored',
   'product.stock_decreased': 'Stock decreased',
+  'import.row.confirmed': 'Confirmed during import review',
+  'import.row.corrected': 'Corrected during import review',
+  'import.row.skipped': 'Skipped during import review',
 }
 
 const FIELD_LABELS: Record<string, string> = {
@@ -18,6 +21,15 @@ const FIELD_LABELS: Record<string, string> = {
   status: 'Status',
   quantity: 'Quantity',
   order_reference: 'Order',
+  gift: 'Gift',
+  outcome: 'Import outcome',
+  decision: 'Decision',
+  source: 'Source',
+  batch_id: 'Import',
+  line: 'CSV line',
+  raw: 'Raw CSV line',
+  file_sha256: 'File SHA-256',
+  original_issues: 'Original issues',
 }
 
 export function formatPrice(price: string, currency: string): string {

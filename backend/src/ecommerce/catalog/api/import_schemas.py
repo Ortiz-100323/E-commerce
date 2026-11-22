@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ecommerce.catalog.application.importing import ImportPreview, ImportState, RowChange
 from ecommerce.catalog.domain.importing.batch import ImportRow, Resolution, RowAction
-from ecommerce.catalog.domain.importing.classification import ClassifiedRow
+from ecommerce.catalog.domain.importing.classification import ClassifiedRow, RowOutcome
 from ecommerce.shared_kernel.domain.errors import ValidationIssue
 
 MAX_VALUE_LENGTH = 10_000
@@ -267,6 +267,10 @@ class ResolveRowRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     action: RowAction = Field(examples=["confirm", "correct", "skip"])
+    expected_outcome: RowOutcome | None = Field(
+        default=None,
+        description="The row outcome shown to the reviewer; required with `confirm`.",
+    )
     values: RowValuesRequest | None = Field(
         default=None, description="The corrected values; only with the action `correct`."
     )

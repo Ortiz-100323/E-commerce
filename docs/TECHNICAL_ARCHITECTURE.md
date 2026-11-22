@@ -23,6 +23,9 @@
 > | 17 | 2026-11-21 | ECOM-009: the temporary weather feature is removed (§4.6, §8.3, §12, D-088). |
 > | 18 | 2026-11-21 | ECOM-010: the sample's profile and expected report are re-verified (§2); file-level import errors reach the client as 413, 415 or a 422 on the field `file` (§6.2, D-090). |
 > | 19 | 2026-11-21 | ECOM-011: the import review workflow as built. Uploads stay a `text/csv` body; rows list their allowed actions; stale rows are checked again at commit; two new problem types (§4.5, §4.6, §6.2, D-091). |
+> | 20 | 2026-11-21 | ECOM-012: the import screens as built: upload, review tabs, inline corrections, update confirmations, and 409s explained on the page (§5, D-092). |
+> | 21 | 2026-11-21 | Review fixes through ECOM-012: confirmations bind to the outcome the reviewer saw, selected-file media types reach server validation unchanged, and absent SKUs are protected with shared transaction advisory locks (§4.4, §4.5, D-093). |
+> | 22 | 2026-11-22 | The owner's portal test of the import: skipped rows leave their tab for a new **Skipped** tab, where a decision can still be changed (§5, D-094). |
 >
 > Every decision here also appears in [JOURNAL.md](JOURNAL.md) with its context and the alternatives considered.
 
@@ -298,7 +301,7 @@ Exact versions are pinned in Phase 0 and logged in the journal.
 - The audit log lives in the `audit_log` table, which is **append-only**. A trigger raises an error on any `UPDATE` or `DELETE`. Its entries are written in the **same transaction** as the change they describe (§6.4).
 - **Concurrency:**
   - Admin edits use optimistic locking (a `version` column, returning 409 on conflict).
-  - Checkout and the import commit use `SELECT … FOR UPDATE` on the products involved, **ordered by SKU** to avoid deadlocks.
+  - Existing products use `SELECT … FOR UPDATE`; product creation and import commits also take transaction-scoped PostgreSQL advisory locks keyed by SKU. All multi-SKU locks are acquired **in SKU order** to avoid deadlocks and to protect SKUs that do not have a row yet (D-093).
   - The isolation level is READ COMMITTED.
   - The full protocol is in §7.3.
 - The `idempotency_keys` table holds checkout keys, their request fingerprints and their outcomes (§7.2). Rows expire after 24 hours.
@@ -346,7 +349,7 @@ Exact versions are pinned in Phase 0 and logged in the journal.
   - `GET /categories` returns `{items}`: the active categories, merged case-insensitively.
 - **Imports as built (ECOM-011, D-091):**
   - `POST /imports` takes the file as a `text/csv` body, like the preview, with an optional `file_name` query parameter; it returns 201 with `Location` and the whole batch. No multipart package is needed.
-  - Every row in a batch lists the `actions` it allows; `PATCH /imports/{id}/rows/{line}` takes `{"action": "confirm" | "correct" | "skip", "values"?}` and returns the row with the batch summary (`pending_lines`, `committable`).
+  - Every row in a batch lists the `actions` it allows; `PATCH /imports/{id}/rows/{line}` takes `{"action": "confirm" | "correct" | "skip", "expected_outcome"?, "values"?}` and returns the row with the batch summary (`pending_lines`, `committable`). A confirm requires the outcome shown to the reviewer; if reclassification has changed it, the old command is a safe no-op (D-093).
   - `POST /imports/{id}/commit` and `DELETE /imports/{id}` return the whole batch; repeating either is a safe retry.
 
 ### 4.6 Errors: one format for everything
@@ -477,6 +480,8 @@ Domain validation **collects every issue before raising**, rather than stopping 
 | | `/admin/products/new`, `/:id/edit` | The product form. If the price is 0, a dialog asks **"Price is 0. Mark this product as a gift?"** |
 | | `/admin/imports/new` | Upload a CSV |
 | | `/admin/imports/:id` | **Review screen**, with one tab per outcome. Needs-review rows get an inline editor plus confirm and skip actions. Update rows show an old → new diff per field with a confirm checkbox, plus "confirm all". Rejected rows show their reasons, and warnings are listed too. The commit button stays disabled until the batch can be committed. |
+
+**Import screens as built (ECOM-012, D-092).** The admin menu has **Import CSV**. The upload sends the file itself as a `text/csv` body. The review screen takes every row, allowed action and the commit state from the server, replaces a row from the server's answer after each decision, and explains each 409 (`import-stale-rows`, `import-not-committable`, `import-not-pending`) on the page. A skipped row leaves its outcome tab and is listed under **Skipped**, where it can still be corrected, confirmed or ticked again; tab counts are counted from the server's rows (D-094).
 
 ---
 
@@ -700,6 +705,7 @@ The SKU is the product's identity, so a row with an existing SKU is normally an 
 - If the winning (last) row is rejected or needs review, an earlier row is **not** used in its place. Importing an earlier row would bring in data the file was meant to replace.
 
 **At commit time.** SKUs are checked again while the commit holds its locks (§7.3).
+- Transaction advisory locks protect every SKU, including one that had no product row at preview time; existing rows are then locked with `SELECT … FOR UPDATE`. Ordinary product creation uses the same SKU lock protocol (D-093).
 - If an SKU was taken after the preview, by another import or by the admin, the row goes back to review and the commit returns 409 `import-stale-rows`.
 - The unique index on `sku` is the final guard.
 

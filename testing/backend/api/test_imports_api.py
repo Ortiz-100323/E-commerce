@@ -18,10 +18,10 @@ HEADER = b"name,sku,description,category,price,stock,weight_kg\n"
 STARTED = datetime(2026, 11, 21, 9, 0, tzinfo=UTC)
 REVIEW_LINES = [7, 25, 41, 47, 50, 52]
 RESOLUTIONS: list[tuple[int, dict[str, Any]]] = [
-    (7, {"action": "confirm"}),
+    (7, {"action": "confirm", "expected_outcome": "needs_review"}),
     (25, {"action": "correct", "values": {"name": "Noise Cancelling Headphones"}}),
     (41, {"action": "correct", "values": {"name": "Plain Item"}}),
-    (47, {"action": "confirm"}),
+    (47, {"action": "confirm", "expected_outcome": "needs_review"}),
     (50, {"action": "correct", "values": {"weight_kg": "1.10"}}),
     (52, {"action": "correct", "values": {"category": "Gifts", "weight_kg": "0.01"}}),
 ]
@@ -187,7 +187,14 @@ async def test_values_with_another_action_are_refused(engine: AsyncEngine) -> No
     async with live_api(engine) as client:
         batch_id = (await upload(client)).json()["id"]
         response = await resolve(
-            client, batch_id, 7, {"action": "confirm", "values": {"price": "1"}}
+            client,
+            batch_id,
+            7,
+            {
+                "action": "confirm",
+                "expected_outcome": "needs_review",
+                "values": {"price": "1"},
+            },
         )
 
     body = assert_problem(response, 422, "validation-error")
@@ -201,7 +208,7 @@ async def test_a_product_changed_after_the_upload_sends_its_row_back(
     async with live_api(engine) as client:
         created = (await client.post(PRODUCTS, json=product_body(), headers=ANTONIO)).json()
         batch_id = (await upload(client, content)).json()["id"]
-        await resolve(client, batch_id, 2, {"action": "confirm"})
+        await resolve(client, batch_id, 2, {"action": "confirm", "expected_outcome": "update"})
         await client.put(
             f"{PRODUCTS}/{created['id']}",
             json=update_body(created["version"], price="91.00"),
@@ -209,7 +216,7 @@ async def test_a_product_changed_after_the_upload_sends_its_row_back(
         )
         stale = await commit(client, batch_id)
         fetched = (await client.get(f"{IMPORTS}/{batch_id}")).json()
-        await resolve(client, batch_id, 2, {"action": "confirm"})
+        await resolve(client, batch_id, 2, {"action": "confirm", "expected_outcome": "update"})
         retried = await commit(client, batch_id)
         product = (await client.get(f"{PRODUCTS}/{created['id']}")).json()
 
@@ -221,6 +228,27 @@ async def test_a_product_changed_after_the_upload_sends_its_row_back(
     assert again["issues"][-1]["code"] == "changed_since_preview"
     assert retried.status_code == 200, retried.text
     assert product["price"] == "94.99"
+
+
+async def test_retrying_a_review_confirmation_does_not_confirm_a_new_update(
+    engine: AsyncEngine,
+) -> None:
+    content = HEADER + b"Running Shoes,RS-001,Lightweight shoes.,Sports,0,10,0.8\n"
+    confirmation = {"action": "confirm", "expected_outcome": "needs_review"}
+    async with live_api(engine) as client:
+        await client.post(PRODUCTS, json=product_body(), headers=ANTONIO)
+        batch_id = (await upload(client, content)).json()["id"]
+        first = await resolve(client, batch_id, 2, confirmation)
+        retry = await resolve(client, batch_id, 2, confirmation)
+        fetched = (await client.get(f"{IMPORTS}/{batch_id}")).json()
+
+    assert first.status_code == retry.status_code == 200
+    current = row(fetched, 2)
+    assert current["outcome"] == "update"
+    assert current["decision"] is None
+    assert current["pending"] is True
+    assert len(current["history"]) == 1
+    assert await count(engine, "SELECT count(*) FROM audit_log WHERE entity = 'import_row'") == 1
 
 
 async def test_committing_twice_is_a_safe_retry(engine: AsyncEngine) -> None:
@@ -256,7 +284,12 @@ async def test_an_import_expires_after_24_hours(engine: AsyncEngine) -> None:
     async with live_api(engine, clock=clock) as client:
         batch_id = (await upload(client)).json()["id"]
         fetched = await client.get(f"{IMPORTS}/{batch_id}")
-        response = await resolve(client, batch_id, 7, {"action": "confirm"})
+        response = await resolve(
+            client,
+            batch_id,
+            7,
+            {"action": "confirm", "expected_outcome": "needs_review"},
+        )
 
     assert fetched.json()["status"] == "EXPIRED"
     assert assert_problem(response, 409, "import-not-pending")["import_status"] == "EXPIRED"

@@ -1466,3 +1466,220 @@ All 12 rows in [tasks/ECOM-010.md](tasks/ECOM-010.md) pass. These matter most fo
 **One approval for ECOM-011:** uploading a file through a normal form (multipart) needs the package **`python-multipart`**. The preview gets around it by sending the file as the request body, which Swagger supports. **May I add `python-multipart`** (pinned to a release at least two weeks old) for ECOM-011, or should ECOM-011 keep the same raw-body upload?
 
 **Status:** ECOM-010 is ready for your review, not committed. Next is ECOM-011: keeping an import, reviewing and correcting rows, confirming updates, and committing it all in one safe transaction with a full audit trail.
+
+## #026 — 2026-11-21 — ECOM-010 committed; ECOM-011 built and committed; ECOM-012 built: the import screens
+
+### User
+
+> I believe I'll pass this test and to together with the portal. Commit and focus on closing 11 and 12 so I can test in portal.
+
+(During the work:)
+
+> keep going.
+> You can get back now.
+
+### Assistant
+
+**ECOM-010, ECOM-011 and ECOM-012 are ready for you to test in the portal.**
+- **ECOM-010** is committed (`cfec584`).
+- **ECOM-011** is committed (`0b400c7`) on its own branch, `feature/ECOM-011-import-review`. Each ticket's branch starts from the previous one, so ECOM-012 needed ECOM-011 committed first. If you'd rather review it before it's committed, I can undo the commit and keep the changes.
+- **ECOM-012** is built on `feature/ECOM-012-import-ui` and isn't committed; it waits for your portal test.
+- Both containers are rebuilt and running the new code.
+
+**No new package:** you didn't answer the `python-multipart` question, so I kept the upload as it was in the preview: the file itself is sent as the request body. The portal works exactly the same way, so nothing extra is needed.
+
+**Being straight with you about test-first:** to close two tickets in one go, I wrote the tests for ECOM-011 and ECOM-012 right after each piece of code, not before it. Every acceptance criterion and failure case still has its own test, and everything is green. This is recorded in the journal (D-091).
+
+## ECOM-011: keep an import, review it, commit it safely
+
+### Acceptance criteria
+
+| # | Criterion | Result | How it was proven |
+|---|---|---|---|
+| 1 | Only rows held for review can be corrected; rejected rows can't be edited | ✅ Pass | Correcting a rejected row (line 16) or touching a superseded one (line 2) is refused with a clear 409. |
+| 2 | Commit is refused while rows are unresolved or updates unconfirmed | ✅ Pass | 409 `import-not-committable`, listing lines 7, 25, 41, 47, 50 and 52; nothing is written. |
+| 3 | A product changed after the upload sends its row back with 409 `import-stale-rows` | ✅ Pass | Upload, confirm, change the product's price, commit → refused; the row now shows the new difference (91.00 → 94.99) and must be confirmed again; then the commit works. |
+| 4 | After resolving the sample's 6 review rows and committing: up to 90 products, exactly 6 resolution entries | ✅ Pass | On an empty real database: 90 products, 2 of them free gifts, exactly 6 resolution entries in the audit log. |
+| 5 | Re-importing the same file reports 84 unchanged | ✅ Pass | 84 unchanged, 6 review, 2 rejected, 3 superseded, 2 blank. |
+
+**What was built**
+- An uploaded file is **kept as an import waiting for review**, for up to 24 hours.
+- A person can:
+  - **confirm** a free gift or a weight of 0;
+  - **correct** an empty value, and the row is checked again at once;
+  - **skip** a row;
+  - **confirm or skip** each update to an existing product.
+- **Commit** applies everything in one go, or nothing at all.
+- **Products changed in the meantime are never overwritten.** If someone edited a product after the upload, nothing is imported; that row shows the new difference and must be confirmed again.
+- **Every decision is recorded:** who made it, when, and the values before and after. A product's history now starts with its CSV line and the corrections made to it.
+
+**Why it was built**
+Challenge rules CC-03 and CC-04: a messy file must never reach the catalog without a person deciding on the doubtful rows.
+
+**Main goal**
+A safe, all-or-nothing import with a full audit trail.
+
+## ECOM-012: the import screens in the portal
+
+### Acceptance criteria
+
+| # | Criterion | Result | How it was proven |
+|---|---|---|---|
+| 1 | Uploading the sample shows the expected count on every tab | ✅ Pass | Needs review (6), Updates (0), New (84), Unchanged (0), Rejected (2), Superseded (3), Blank (2), Warnings (3). |
+| 2 | Correcting a review row checks it again and moves it to the right tab | ✅ Pass | Filling a weight moves the row to New, and the counts update. A price corrected to 0 stays in review, offering "Confirm as free gift". An invalid value shows its error inside the row. |
+| 3 | Commit enables only when nothing is left to resolve, and a refusal is explained | ✅ Pass | The button stays locked, listing the lines still waiting. Both kinds of refusal are explained on the page in plain words. |
+
+**What was built**
+- **Import CSV** in the admin menu: choose a file, and it's checked immediately.
+- **The review screen** has one tab per outcome, each with its count:
+  - rows needing a person get an editor, with **Save correction**, **Confirm as free gift** or **Confirm weight 0**, and **Skip this row**;
+  - updates show **Now → After the import**, a **Confirm this update** checkbox, and **Confirm all**;
+  - refused rows show their reasons and the original line;
+  - a **Warnings** tab lists everything that was quietly fixed.
+- **Commit import** stays locked until every doubtful row has a decision. **Discard import** asks before it acts.
+
+**Why it was built**
+Challenge rule CC-03, and so you can test the whole import in the portal instead of Swagger.
+
+**Main goal**
+Take a messy file to a clean catalog without leaving the browser, with nothing imported by mistake.
+
+**Human testable or background?**
+**Testable** in the portal.
+
+### What to test (http://localhost:3000 → Admin → **Import CSV**)
+
+1. Choose `Documents/Code Challenge E-Commerce.csv` and press **Upload and check**.
+   → The review screen opens. Your catalog already has RS-001, so you'll see **Needs review (6), Updates (1), New (83)**, plus Rejected (2), Superseded (3), Blank (2) and Warnings (3). **Commit import** is locked and lists the lines still waiting: 7, 25, 36, 41, 47, 50, 52.
+2. **Line 7 (Yoga Mat, price "free")** → **Confirm as free gift**.
+   → It leaves the tab; New becomes 84.
+3. **Line 50 (Gaming Keyboard)** → type `1.10` in Weight (kg) → **Save correction**.
+   → It moves to New.
+4. **Line 25** and **line 41** → type a name → **Save correction**. **Line 47 (Mystery Box)** → **Confirm as free gift**.
+5. **Line 52 (Gift Card)** → type `Gifts` in Category → **Save correction**.
+   → It stays in review, because its weight is 0. Press **Confirm weight 0**.
+6. **Updates** tab → RS-001 shows exactly what will change.
+   → Tick **Confirm this update**.
+7. **Rejected** tab.
+   → The `<script>` name and the stock of -5 are listed with their reasons, and there's no editor.
+8. **Commit import**.
+   → "Imported. 89 created, 1 updated, 0 skipped." **See the products** shows them.
+9. Open the **history of Gaming Keyboard (GK-088)**.
+   → First "Corrected during import review" (weight empty → 1.10, by you), then "Created", with CSV line 50 and the raw line.
+10. Upload the same file again.
+    → **Unchanged (84)**: nothing would change. Press **Discard import** and confirm.
+11. *(Optional: the "someone changed it meanwhile" check.)*
+    1. In Admin → Products, change Running Shoes' price.
+    2. Upload the file. → RS-001 appears under Updates.
+    3. In a second tab, change Running Shoes' price again.
+    4. Back on the import, tick **Confirm this update**, skip the six review rows, and press **Commit import**.
+    → A red message says nothing was imported. The update now starts from your latest price, unticked.
+
+### Failure cases and retries
+
+Every row in the failure tables of [tasks/ECOM-011.md](tasks/ECOM-011.md) (15 cases) and [tasks/ECOM-012.md](tasks/ECOM-012.md) (10 cases) passes. The main ones:
+- **Retrying is always safe.** Repeating a confirm, skip or correction records nothing new, and pressing Commit again on a committed import returns the same result with no duplicate products.
+- **All or nothing.** A refused commit writes no product at all.
+- **Stock:** an import only sets stock levels, through the same rules as the admin form. Products are locked while the commit runs, so a purchase can't slip in between.
+
+**Tests:** 95 new backend tests and 21 new frontend tests. The CI container is green:
+- all static checks, including no comments and the 4 import contracts;
+- 44 tooling tests;
+- 723 backend tests, with 99.6% of the business rules covered;
+- 110 frontend tests, with 96% line coverage;
+- the smoke checks on your running stack.
+
+**Status:** all three tickets are In Review, waiting for your portal test. When you're happy, say "commit" and I'll commit ECOM-012. Next on the board is ECOM-013 (orders, fake payment and checkout).
+
+## #027 — 2026-11-21 — Code review round 2: ECOM-010 through ECOM-012
+
+### User
+
+> Do the code review until ecom 12
+
+### Assistant
+
+Code review through ECOM-012 is complete. I reviewed ECOM-010–012, building on the earlier ECOM-000–009 review, fixed three defects, and recorded the results in each ticket and journal decision D-093.
+
+- **ECOM-010/012:** file uploads now preserve the browser's media type, so a non-CSV file reaches the backend as non-CSV and its 415 explanation appears in the portal.
+- **ECOM-011:** confirm commands now include the outcome the reviewer actually saw. Retrying a confirmation can no longer silently approve a newly revealed update.
+- **ECOM-011:** new SKU creation is now protected by shared transaction advisory locks. Concurrent admin/import writers cannot race through the gap where `SELECT ... FOR UPDATE` has no existing row to lock.
+
+Verification is fully green: `python testing/run.py all` passed all static and architecture checks, 44 tooling tests, 725 backend tests (99.61% scoped coverage), 112 frontend tests (95.91% line coverage), and the live smoke checks. `git diff --check` is also clean.
+
+The reviewed changes remain uncommitted.
+
+## #028 — 2026-11-22 — Owner's portal test of the import passed; skipped rows get their own tab (CR-01)
+
+### User
+
+> I believe those which we skipp should dissapear from screen.But it worked in general. Very good. We need to improve user experience but the functionality is great.
+>
+> *(Five screenshots attached, now stored as [01-review-in-progress.png](../tasks/ECOM-012-evidence/01-review-in-progress.png), [02-skipped-row-stays-in-needs-review.png](../tasks/ECOM-012-evidence/02-skipped-row-stays-in-needs-review.png), [03-update-confirmed-ready-to-commit.png](../tasks/ECOM-012-evidence/03-update-confirmed-ready-to-commit.png), [04-imported-result.png](../tasks/ECOM-012-evidence/04-imported-result.png) and [05-products-after-import.png](../tasks/ECOM-012-evidence/05-products-after-import.png).)*
+>
+> I mean dissapeared from the review screen, we can have a tab for them.
+
+### Assistant
+
+**Your portal test of the import passed, and skipped rows now have their own tab.** Your import is recorded as 88 created, 1 updated, 1 skipped. Your five screenshots are filed as a test record in [tasks/ECOM-012-evidence/](tasks/ECOM-012-evidence/README.md).
+
+## Change request CR-01: a Skipped tab
+
+**What was built**
+- A new **Skipped** tab, between Unchanged and Rejected. The tabs now read in order: first what will be imported, then what won't.
+- A skipped row **leaves** Needs review, Updates or New and appears only under Skipped. The other tabs stop counting it. This also covers an update you untick.
+- **You can still change your mind** on the Skipped tab: correct a row, confirm a free gift, or tick an update again, and the row goes back to its tab.
+- After a commit, the Skipped tab is read-only, so you can still see what was left out.
+
+**Why it was built**
+You asked for it during your test. Before, a skipped row stayed in Needs review with a small "Skipped" label, which made the list look unfinished. That was how I had designed it, not a fault, so it's recorded as a change request (journal D-094).
+
+**Main goal**
+Needs review shows only the rows that still need you.
+
+**Human testable or background?**
+**Testable** in the portal. It only changes the screen; the server and your data are untouched.
+
+### Acceptance criteria
+
+| # | Criterion | Result | How it was proven |
+|---|---|---|---|
+| 1 | Uploading the sample shows the expected count on every tab | ✅ Pass | The tabs now include **Skipped (0)** after Unchanged; every other count is unchanged. |
+| 2 | Correcting a review row checks it again and moves it to the right tab | ✅ Pass | Also from the Skipped tab: correcting a skipped row moves it to New (Skipped 1 → 0, New 84 → 85). |
+| 3 | Commit enables only when nothing is left to resolve, and a refusal is explained | ✅ Pass | Unchanged. A skipped row counts as decided, as before. |
+| CR-01 | Skipped rows leave the review screen and are listed under their own tab | ✅ Pass | Skipping line 25: Needs review 5 → 4, Skipped 1, and the row is gone from Needs review. Unticking an update moves it to Skipped and back. After a commit, the row is shown read-only under Skipped. |
+
+### What to test (press **Ctrl+F5** once first, so your browser loads the new screen)
+
+1. Reopen your committed import (the same address as before).
+   → You see **Skipped (1)** and **Needs review (0)**. Line 41 is under Skipped, read-only.
+2. Upload the sample again and press **Skip this row** on any review row.
+   → It disappears from Needs review at once. Needs review goes down by 1, Skipped goes up by 1.
+3. On the **Skipped** tab, type a name for line 25 or 41 and press **Save correction**.
+   → It leaves Skipped and shows under New.
+4. If RS-001 is under Updates, untick **Confirm this update**.
+   → It moves to Skipped. Tick it there, and it's back under Updates.
+5. Press **Discard import** to finish without importing anything.
+
+### Failure cases and retries
+
+| Situation | What you see | Result |
+|---|---|---|
+| Skipping the same row twice (double click, or a network retry) | The server records it once; the row is listed once under Skipped | Pass (no new code; D-091) |
+| Correcting a skipped row with a value that's still wrong | The error shows inside the row, and it stays under Skipped | Pass (the same row editor and test as in Needs review) |
+| A committed, discarded or expired import | Skipped rows are shown, but nothing can be edited | Pass |
+| **Stock** | This change is screen-only; skipped rows are never imported, so they can't change any stock | Pass |
+
+## The user experience
+
+Your remark "we need to improve user experience" is in **ECOM-018 (UI polish)**, together with six things I spotted in your screenshots:
+- disabled buttons look almost like active ones;
+- long descriptions are cut off in the editor;
+- a name made only of spaces isn't visible in the raw CSV line;
+- a finished import still shows disabled editors instead of a short summary;
+- "line(s) 2" should read "line 2";
+- on long lists, the commit button scrolls out of view.
+
+**Tests:** written first. The 5 new or changed screen tests failed on the old screen and pass now. In the CI container: all static checks, no comments, and 114 frontend tests (96% line coverage) pass. The smoke checks on your running stack pass, and the portal container is rebuilt.
+
+**Status:** ECOM-010, ECOM-011 and ECOM-012 have passed your test; the Skipped tab is waiting for your quick re-test. When you're happy, say "commit" and I'll commit ECOM-012. That commit includes the code review round 2 fixes (D-093), which are also still uncommitted. Next on the board is ECOM-013 (orders, fake payment and checkout).

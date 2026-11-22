@@ -4,10 +4,10 @@
 |---|---|
 | Type | Story (backend) |
 | Phase | 3 |
-| Status | **In Review**: committed; the owner tests it through the ECOM-012 import screen (prompt #026) |
+| Status | **Done**: accepted by the owner after the portal test of the whole import (prompts #028 and #029) |
 | Depends on | ECOM-005 |
 | Architecture | §2, §6.1–§6.3, §6.5, CC-03, CC-04 |
-| Journal | D-072, D-090 |
+| Journal | D-072, D-090, D-093 |
 
 ## Context
 
@@ -119,3 +119,9 @@ The sample CSV is deliberately dirty. Every row must be classified, never thrown
 - Acceptance criteria pass, written test-first.
 - `run.py all` is green in the `ci` container.
 - Journal, prompt history and this ticket are updated; the owner has accepted it.
+
+## Code review round 2 (2026-11-21)
+
+- Rechecked the parser, classification rules, policy variants, file-level validation and golden sample results. No new defect was found in the ECOM-010 domain or API implementation.
+- The end-to-end unsupported-media-type path had a frontend defect in ECOM-012: every selected file was labelled `text/csv`, so the ECOM-010 API could not reject a file whose browser media type was `text/plain`. The client now preserves the selected file's media type and falls back to `text/csv` only when the browser supplies none.
+- Regression coverage proves both the API-client header and the visible 415 upload error.

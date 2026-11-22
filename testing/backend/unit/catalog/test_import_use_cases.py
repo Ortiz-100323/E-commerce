@@ -81,7 +81,18 @@ class Workflow:
         values: dict[str, str] | None = None,
     ) -> None:
         use_case = ResolveImportRow(self.catalog, self.policies, self.clock)
-        await use_case.execute(batch_id, line, action, values, MARIA)
+        expected = None
+        batch = self.catalog.imports.items.get(batch_id)
+        if action is RowAction.CONFIRM and batch is not None:
+            expected = batch.row(line).outcome
+        await use_case.execute(
+            batch_id,
+            line,
+            action,
+            values,
+            MARIA,
+            expected_outcome=expected,
+        )
 
     async def commit(self, batch_id: UUID) -> ImportState:
         return await CommitImport(self.catalog, self.policies, self.clock).execute(batch_id, MARIA)
