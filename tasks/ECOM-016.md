@@ -4,9 +4,10 @@
 |---|---|
 | Type | Technical task |
 | Phase | 5 |
-| Status | **In Progress**: plan waiting for the owner's review (prompt #034) |
+| Status | **In Review**: built (prompt #035); waiting for the first GitHub Actions run (needs the `workflow` scope) |
 | Depends on | ECOM-012, ECOM-015 |
 | Architecture | §8.1 (E2E), §10, CC-08 |
+| Journal | D-100, D-101, D-102, D-103, D-104 |
 
 ## Context
 
@@ -39,7 +40,7 @@ The fix belongs to this ticket's "upload limits" scope:
 - nginx's own 413, for anything bigger, answered as `application/problem+json` (`payload-too-large`), like the backend's;
 - a smoke check that uploads a 2 MB preview through the website.
 
-## Plan (D-101, proposed)
+## Plan (D-101, accepted with changes; see "As built")
 
 ### 1. Browser end-to-end tests (Playwright)
 
@@ -109,6 +110,69 @@ The fix belongs to this ticket's "upload limits" scope:
 - **Why:** CC-08 (runs in Docker) and CC-13 (enterprise-grade). Reviewers see the same green run on GitHub that we see locally.
 - **Main goal:** proof, on every change, that a shopper and an admin can do everything end to end.
 - **Human testable or background:** mostly background. You can watch the browser tests and the GitHub run; the headers can be seen in the browser's developer tools.
+
+## As built (D-102, D-103, D-104)
+
+The owner accepted the plan with changes (prompt #035). Where this section and the plan above differ, this section is what was built.
+
+- **Browser tests:**
+  - `testing/e2e`, with `@playwright/test` 1.65.0 pinned, run in their own `e2e` compose service under the `e2e` profile: `docker compose --profile e2e run --rm --build e2e`. They are not part of `run.py all`, and `docker compose up` never starts them.
+  - Only the Chromium headless shell is installed, into the git-ignored `.cache/ms-playwright`, which CI caches.
+  - The service runs as a normal user (`E2E_UID`/`E2E_GID`, default 1000).
+  - Specs: the full journey (CSV import with a gift row to confirm → commit → shop search → cart → pay → stock down), a declined card, and a double click on Pay. Each run uses its own `E2E-<run>-` products and archives them afterwards.
+- **nginx:**
+  - the headers and CSP of the plan, from one included file, also on nginx's own error answers;
+  - `server_tokens off`; `client_max_body_size 6m` on `/api/`;
+  - nginx's own 413 answered as `application/problem+json`.
+
+  It still uses the official `nginx:1.28-alpine`, configured to run as `nginx` on port 8080: the newest `nginx-unprivileged` tag was a version behind (1.28.2), so no new image was added.
+- **Containers:**
+  - backend health check is now `python -m ecommerce.healthcheck` (standard library), so `curl` left the image (505 → 487 MB);
+  - the `ci` image runs as `runner`, with files copied in already owned by it;
+  - `run.py containers` and `run.py images` run on the host (and in GitHub Actions) and ask Docker directly.
+- **Checkout:** the idempotency key now also works over plain HTTP (DEF-02, D-102).
+- **GitHub Actions:** `.github/workflows/ci.yml`.
+  - Steps: compose up → `ci` container → container users → image budgets → browser cache → browser tests → results uploaded on failure.
+  - Actions are pinned to commit SHAs, and the workflow has read-only permissions.
+- **Screenshots:** the owner's name and email were pixelated in every commit before the first push (D-103), with `testing/scripts/redact_images.py`.
+
+## Found while building: DEF-02, the checkout needs a secure context (D-102)
+
+`crypto.randomUUID()` exists only on HTTPS or `localhost`. Over `http://frontend:8080`, as in the browser tests, or any plain-HTTP server name, Pay would have failed. The key now falls back to `crypto.getRandomValues`.
+
+## Failure cases and retries (results)
+
+| Situation | Result |
+|---|---|
+| A CSV between 1 and 5 MB through the portal | Pass: live smoke check (a 2 MB CSV gets 200; before the fix it failed) |
+| A body over 6 MB through the portal | Pass: 413 `payload-too-large` as problem+json (live smoke check) |
+| An E2E run stopped halfway | Pass: its products carry a unique prefix; every run uses new SKUs and archives its own |
+| **Retry:** the E2E suite run twice | Pass: run twice in a row, both green |
+| **Stock:** the journey checks exact stock before and after; a declined card and a double click are checked too | Pass |
+
+## Verification (2026-11-22)
+
+| # | Acceptance criterion | Result | How it was proven |
+|---|---|---|---|
+| 1 | Playwright passes: import → review → commit → search → buy → stock decreases | **Pass** | Real browser against the running stack: the CSV is uploaded, the gift row is confirmed, the import commits "2 created", the lamp is found by search, 2 are bought for $25.00, and its stock goes 5 → 3 |
+| 2 | Playwright passes: a declined card leaves stock unchanged | **Pass** | The declined message shows, the card field is cleared, and the stock stays at 5. A third test proves a double click buys once (5 → 4) |
+| 3 | Responses carry the security headers and CSP | **Pass** | Live smoke check on `/`, `/cart`, an API answer and an API error: all six headers with exact values |
+| 4 | Every container runs as a non-root user | **Pass** | `run.py containers`: backend uid 999, database uid 70, web server uid 101. The browser tests run as uid 1000 and the `ci` container as `runner` |
+| 5 | The GitHub Actions run gives the same result as the local `ci` container | **Waiting** | The workflow is written and committed. The push was refused because the `Ortiz-100323` token lacks the `workflow` scope (D-103); it runs once the owner grants it |
+
+**Totals:** 3 browser tests, 3 new live smoke checks, 10 new tooling tests, 3 backend and 2 frontend tests. Locally, the `ci` container passes all static checks, 60 tooling tests, 869 backend tests (99.62% coverage), 136 frontend tests (95.85% lines) and 11 smoke checks. `run.py containers` and `run.py images` pass.
+
+## Business view
+
+- **What was built:** the safety checks before delivery.
+  - A real browser now walks the whole journey, from importing a file to buying a product, and checks the stock.
+  - The web server sends security headers and accepts uploads up to the promised 5 MB.
+  - No container runs as the administrator.
+  - The same checks are ready to run on GitHub for every change.
+- **Why:** CC-08 (runs in Docker) and CC-13 (enterprise-grade). The reviewers will see the checks pass on GitHub.
+- **Main goal:** proof, on every change, that a shopper and an admin can do everything end to end.
+- **Human testable or background:** mostly background. You can run the browser tests yourself, and see the headers in the browser's developer tools (F12 → Network).
+- **What to test:** see prompt #035 of the prompt history.
 
 ## Test plan
 

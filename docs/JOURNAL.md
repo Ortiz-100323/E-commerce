@@ -1372,7 +1372,7 @@ Template:
 
 ### D-100: Bug: the portal refuses CSV files over 1 MB (found while planning ECOM-016)
 - **Date:** 2026-11-22
-- **Status:** Open; fixed in ECOM-016 (upload limits)
+- **Status:** Fixed in ECOM-016; guarded by two live smoke checks (a 2 MB CSV preview through the website gets 200, a 7 MB upload gets a problem+json 413). Before the fix, the first check failed on the running stack.
 - **How it was found:** while checking ECOM-016's "upload limits" scope, a 1.5 MB CSV preview was sent through the website (http://localhost:3000) and directly to the backend (port 8001). The website answered nginx's HTML "413 Request Entity Too Large"; the backend answered 200.
 - **Cause:** nginx's default `client_max_body_size` is 1 MB. The frontend's nginx config never set it, while the import accepts files up to 5 MB (D-090).
 - **Why the tests missed it:** the backend tests talk to the app directly, the frontend tests use a mocked API, and the smoke test never uploads a file. The sample file is 9 KB.
@@ -1381,7 +1381,7 @@ Template:
 
 ### D-101: Hardening, browser end-to-end tests and GitHub Actions plan (ECOM-016)
 - **Date:** 2026-11-22
-- **Status:** Proposed (waiting for the owner's review of the plan, prompt #034)
+- **Status:** Accepted with the owner's changes (prompt #035): the browser tests run in their own `e2e` compose service under an `e2e` profile, not in the `ci` container or in `run.py all`; only the Chromium headless shell is installed, and the browsers are cached in CI. Built as D-104 describes.
 - **Decision (proposed):**
   - **Playwright `@playwright/test` 1.65.0** (the newest version at least two weeks old), Chromium only. It lives in `testing/e2e` with its own lockfile and is installed in the `ci` image only. It runs through `run.py e2e` and as the last step of `run.py all`.
   - **E2E data isolation:** every run creates its own products with a unique `E2E-<run>-` SKU prefix through a generated CSV, buys only those, and archives them at the end. The owner's catalog is never touched.
@@ -1392,3 +1392,60 @@ Template:
 - **Alternatives:**
   - The official Playwright Docker image as a separate `e2e` service (rejected for now: two test containers to keep in step; the `ci` container already has Node).
   - Running the E2E tests against a separate database (rejected: the test must prove the real stack works, and unique SKUs already keep the owner's data apart).
+
+### D-102: Bug: checkout needs a secure context for its key (found while writing the browser tests)
+- **Date:** 2026-11-22
+- **Status:** Fixed in ECOM-016
+- **How it was found:** the browser tests reach the site at `http://frontend:8080`, inside Docker. Browsers only offer `crypto.randomUUID()` in a secure context (HTTPS or `localhost`), and the checkout used it to create its `Idempotency-Key`.
+- **Impact:** on any plain-HTTP address other than `localhost`, pressing **Pay** would throw before anything was sent. The owner's tests on `http://localhost:3000` could not show it.
+- **Fix:** `newIdempotencyKey()` uses `crypto.randomUUID()` when it exists, and otherwise builds a version 4 UUID from `crypto.getRandomValues`, which works in any context.
+- **Guards:** two unit tests (the browser generator is used when present; 200 keys built without it are unique, valid version 4 UUIDs). The declined-card and double-click browser tests pass over plain HTTP at `http://frontend:8080`.
+
+### D-103: Screenshots redacted in the history; secrets checked; first push to GitHub
+- **Date:** 2026-11-22
+- **Status:** Done (owner's requests in prompt #035)
+- **Redaction:**
+  - Eight test screenshots showed the owner's name (ECOM-012 evidence 02 to 06) or name and email (ECOM-015 evidence 03 to 05).
+  - `testing/scripts/redact_images.py` pixelates boxes in a PNG using only Python's standard library (no new package). It is run through `run.py script redact_images`, and four tooling tests cover it. Each result was checked by eye.
+  - The ECOM-007 and ECOM-008 screenshots show no personal details.
+- **History rewrite (owner's choice: "Rewrite before push"):**
+  - Before the first push, `git filter-branch --index-filter` replaced the eight images in every commit that held them, and nothing else (the tree difference is exactly those eight files).
+  - Commits up to ECOM-011 keep their ids. The rewritten ids are:
+    - ECOM-012: `623f60a` → `7f720cd`;
+    - ECOM-013 and ECOM-014: `bd8d8e0` → `073ff12`;
+    - ECOM-015: `a6aa96c` → `42336a7`.
+
+    The prompt history keeps the old ids, because it is verbatim.
+  - None of the original image blobs is reachable from any branch, and GitHub answers "Not Found" for one of them. The backup refs were deleted.
+- **Secrets check, current files and all 17 commits on every branch:**
+  - no `.env`, key, certificate or credential files, now or in the history;
+  - no token or key patterns (private keys, AWS, GitHub, Slack, OpenAI and Anthropic, Google);
+  - only public local-development values: the database login `ecommerce`/`ecommerce`, `CHECKOUT_FINGERPRINT_SECRET: local-development-checkout-secret-change-me`, a fake test secret, and an unreachable test database address.
+- **Push:**
+  - The owner answered "merge all of them and push, the goal is to have all of them in our repo". `main` was fast-forwarded to ECOM-015 (`42336a7`) and pushed with the 15 ticket branches (ECOM-013 and ECOM-014 share one branch) to the public `github.com/Ortiz-100323/E-commerce`.
+  - Pull requests: ECOM-000 to ECOM-015 are already in `main`, and GitHub cannot open a pull request for a branch that `main` already contains. ECOM-016, the only ticket not merged, gets its own pull request into `main`.
+- **Blocked:** pushing ECOM-016 was refused, because the `Ortiz-100323` token has the scopes `gist`, `read:org` and `repo`, and GitHub needs `workflow` to add `.github/workflows/ci.yml`. The owner must grant it in the browser: `gh auth refresh --hostname github.com --scopes workflow`.
+
+### D-104: Playwright in its own compose service; image sizes
+- **Date:** 2026-11-22
+- **Status:** Accepted (owner, prompt #035)
+- **Decision:**
+  - `@playwright/test` **1.65.0**, pinned exactly in `testing/e2e/package.json` and its lockfile. It was published 2026-11-05, the newest release at least two weeks old (1.65.1 came out on 2026-11-13).
+  - **A separate `e2e` service, profile `e2e`.** `docker compose up` never builds or starts it; `docker compose --profile e2e run --rm --build e2e` runs it. The `ci` image and `run.py all` stay unchanged.
+  - **Only the Chromium headless shell:** the image installs Chromium's system libraries at build time, and the container runs `playwright install --only-shell chromium` into `/ms-playwright`. That folder is the host's `.cache/ms-playwright` (git-ignored), so the browser is downloaded once.
+  - **CI caching:** `actions/cache` keeps `.cache/ms-playwright`, keyed by the e2e lockfile, so a new Playwright version gets a new cache.
+  - **Not root:** the service runs as `${E2E_UID:-1000}:${E2E_GID:-1000}`, which matches the host user in GitHub Actions so it can write the cache and results.
+  - **Test data:** each run creates its own products with an `E2E-<run>-` SKU prefix (a generated CSV and the API), buys only those, and archives them afterwards.
+- **Image sizes (2026-11-22):**
+
+  | Image | Size | Note |
+  |---|---|---|
+  | `ecommerce-e2e` | 848 MB | Node 22, Playwright 1.65.0 and Chromium's system libraries; no browser inside |
+  | Headless shell cache | 288 MB | `chromium_headless_shell-1254` plus `ffmpeg-1013` (which Playwright installs with it), on the host or in the CI cache |
+  | `ecommerce-ci` | 1.34 GB | Unchanged by Playwright |
+  | `ecommerce-backend` | 487 MB | Was 505 MB; `curl` removed (budget 500 MB) |
+  | `ecommerce-frontend` | 93 MB | Budget 120 MB |
+- **Alternatives:**
+  - Playwright inside the `ci` container (rejected by the owner: it should stay out of the default run).
+  - The official `mcr.microsoft.com/playwright` image (rejected: it carries every browser, about 2 GB, where only the headless shell is needed).
+  - The browser baked into the image (rejected: a browser update would rebuild the image; a cache folder is simpler to keep in CI).
