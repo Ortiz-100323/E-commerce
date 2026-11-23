@@ -1951,3 +1951,40 @@ Template:
   - The three ticket branches were pushed.
   - `main` was fast-forwarded to `feature/ECOM-024-requirements-check` and pushed. Each ticket branch had started from the previous one, so no merge commit was needed and nothing was rewritten.
 - **Result:** GitHub Actions [run 45077570500](https://github.com/Ortiz-100323/E-commerce/actions/runs/45077570500) on `main` (`baad2a4`) passed. It covers the stack, every check in the `ci` container, the root and image-size checks, the new README and decision-record check, the no-comments check over the whole repository, and the browser tests.
+
+### D-129: Final closure double-check
+- **Date:** 2026-11-22
+- **Status:** Complete (owner requested one final pass after closing the project)
+- **Repository and delivery:**
+  - the active branch, local `main`, `origin/main` and GitHub's `main` all resolve to `d3efbdf`;
+  - GitHub Actions run [45078012579](https://github.com/Ortiz-100323/E-commerce/actions/runs/45078012579) for that exact commit completed successfully;
+  - all 25 tickets, ECOM-000 to ECOM-024, and all 18 challenge requirements are Done;
+  - only the owner's private `.claude/` and `skills-lock.json` remain untracked.
+- **Documentation discoveries fixed:**
+  - ECOM-018 still said its pull request would be opened later, and ECOM-019 and ECOM-020 still said they were uncommitted. Their status rows now record their inclusion in the final `main`.
+  - the README and ADR-0023 still reported the pre-hand-in totals (79 tooling and 1,099 backend tests). The delivery totals are 107 and 1,110.
+  - the architecture still described itself as an accepted walking skeleton and its phase table ended at ECOM-017. It now records the delivered state, ECOM-018 to ECOM-024, the after-MVP and hand-in phases, and revision 32.
+- **Verification:**
+  - all static checks, 11 architecture contracts and the repository-wide no-comments check pass;
+  - the final uninterrupted `python testing/run.py all` exits 0: 107 tooling tests, 1,110 backend tests (99.57% scoped coverage), 204 frontend tests (96.17% line coverage) and all 14 live smoke checks pass;
+  - 44 browser tests pass; 5 browser cases are skipped by device design;
+  - the rebuilt production stack stays healthy; its process user ids are 999, 70 and 101, and its images are 486 MB and 93 MB, within budget;
+  - the docs check, compose config, Git object check and tracked-secret scan pass;
+  - npm reports zero known vulnerabilities in the frontend and browser-test locks; `pip-audit` reports none in the backend environment (the local `ecommerce` package itself is not on PyPI and is correctly skipped).
+- **Transient check failure:** the first host `run.py all` completed every static, tooling, backend and frontend test, then smoke found no listener. Docker's event log showed an ordered kill and destroy of the entire compose project, not a container or application crash. A fresh production build then passed all 14 smoke checks and all 44 browser tests.
+- **Conclusion:** no new application defect was found. The project is closed with the final documentation state corrected.
+
+### D-130: Make the sample CSV download date visible at the top of the README
+- **Date:** 2026-11-22
+- **Status:** Done (owner reported that the date was not visible)
+- **Context:** the required date was already present under **The sample CSV**, but that section sits below the complete test instructions and was easy to miss.
+- **Decision:** the opening summary now has a labelled **Sample CSV download date** line. Both that line and the detailed sample section say **November 20, 2026** and retain the unambiguous ISO form `2026-11-20`.
+- **Consequence:** a reviewer sees the requirement without scrolling, while the detailed fixture and classification explanation remains in its existing section.
+
+### D-131: Commit and push the final closure documentation to main
+- **Date:** 2026-11-22
+- **Status:** Done (owner requested the final documentation commit and push)
+- **Included:** D-129's closure audit corrections, the final test totals, delivered ticket and architecture wording, and D-130's prominent sample CSV download date.
+- **Verification before commit:** the documentation check and `git diff --check` pass; no secret-like file or credential pattern is tracked.
+- **Delivery:** the tracked changes are committed, local `main` is fast-forwarded to that commit, and the commit is pushed to `origin/main`.
+- **Excluded:** the owner's private `.claude/` directory and `skills-lock.json` remain untouched and untracked.

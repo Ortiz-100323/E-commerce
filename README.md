@@ -4,6 +4,7 @@ A small online shop with an admin area, built as a code challenge:
 - **Backend:** FastAPI with Domain-Driven Design and PostgreSQL 17.
 - **Frontend:** React 19 with TypeScript.
 - **Running it:** everything runs in Docker with one command.
+- **Sample CSV download date:** **November 20, 2026** (`2026-11-20`).
 
 ## What was built
 
@@ -114,8 +115,8 @@ python testing/run.py all
 |---|---|---|
 | `lint` | ruff, mypy (strict), import-linter (11 architecture contracts), the TypeScript check, Prettier and a raw-HTML check | Passing |
 | `nocomments` | Fails if any source or test file contains a comment | Passing |
-| `tooling` | Tests for the runner and the helper scripts | 79 tests |
-| `backend` | pytest: domain, use cases, PostgreSQL integration, API and contract tests, with a 95% coverage gate on domain and application code | 1,099 tests, 99% |
+| `tooling` | Tests for the runner and the helper scripts | 107 tests |
+| `backend` | pytest: domain, use cases, PostgreSQL integration, API and contract tests, with a 95% coverage gate on domain and application code | 1,110 tests, 99% |
 | `frontend` | Vitest with Testing Library and MSW, with an 80% coverage gate | 204 tests, 96% |
 | `smoke` | Live checks through http://localhost:3000. Needs the full stack. | 14 checks |
 | `containers`, `images`, `docs` | Host checks: no container runs as root, the image sizes stay within budget, and every link and decision record in the README and `docs/adr` is consistent | Passing |
@@ -124,7 +125,7 @@ The browser tests (`testing/e2e/`) cover buying, importing, the product card, lo
 
 ## The sample CSV
 
-The sample CSV provided with the challenge was downloaded on **2026-11-20**.
+The sample CSV provided with the challenge was downloaded on **November 20, 2026** (`2026-11-20`).
 
 It is kept unchanged as the golden test fixture: [`testing/fixtures/csv/sample-products.csv`](testing/fixtures/csv/sample-products.csv). On an empty catalog, the import must classify its 97 rows as follows:
 - 84 to create;

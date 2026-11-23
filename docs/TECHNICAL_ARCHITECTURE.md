@@ -1,6 +1,6 @@
 # Technical Architecture
 
-> **Status:** Accepted. ECOM-000 (the walking skeleton) is built; work is tracked as tickets in [tasks/](../tasks/README.md).
+> **Status:** Delivered. Every ticket through ECOM-024 is Done, all 18 challenge requirements are traced and met, and `main` is green in GitHub Actions.
 >
 > | Revision | Date | What changed |
 > |---|---|---|
@@ -35,6 +35,7 @@
 > | 29 | 2026-11-22 | ECOM-018 round 2 and part B: shared design tokens and controls (D-109); the `duplicate-sku` problem names the existing product; a `version.json` build id with a reload banner; auto-closing success notices; a phone actions panel for the admin table; the import and cart polish (§5, D-111, D-112). |
 > | 30 | 2026-11-22 | ECOM-019 and ECOM-020: an `identity` context with one account per email and a fixed role (`ADMIN` or `BUYER`), server-side sessions behind an `HttpOnly; SameSite=Strict` cookie, scrypt passwords, a login throttle, a same-site check on every change, the first admin from a seed, admins creating admins, buyer sign-up, orders linked to buyers and "My orders" (§3.1, §5, §7.2, D-114 to D-117). |
 > | 31 | 2026-11-22 | ECOM-021: admins can't place orders (403 `admin-cannot-buy`, and no Add to cart, cart or checkout for them); a read-only admin Orders screen backed by `GET /api/v1/admin/orders` (search, status filter, pages) and `GET /api/v1/admin/orders/{id}`; migration 0012 indexes `orders.created_at` (D-119). |
+> | 32 | 2026-11-22 | Final hand-in: one-command first run and native Windows run verified; the README, 30 ADRs and the 18-requirement traceability check completed; no-comments coverage extended to every code and config type; every ticket and requirement is Done on `main` (ECOM-022 to ECOM-024, D-125 to D-129). |
 >
 > Every decision here also appears in [JOURNAL.md](JOURNAL.md) with its context and the alternatives considered.
 
@@ -1171,8 +1172,10 @@ Each phase is a vertical slice that ends with green CI and a **review gate with 
 | 2 | ECOM-006 to ECOM-009 |
 | 3 | ECOM-010 to ECOM-012 |
 | 4 | ECOM-013 to ECOM-015 |
-| 5 | ECOM-016 |
-| 6 | ECOM-017 |
+| 5 | ECOM-016, ECOM-018, ECOM-019 and ECOM-020 (done) |
+| 6 | ECOM-017 (done) |
+| After the MVP | ECOM-021 (done) |
+| Hand-in | ECOM-022 to ECOM-024 (done) |
 
 ### Phase 0: Walking skeleton (ECOM-000, done)
 

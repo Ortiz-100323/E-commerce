@@ -4,10 +4,10 @@
 |---|---|
 | Type | Story (backend and frontend) |
 | Phase | 5 |
-| Status | **Done**: validated by the owner in the portal together with ECOM-020 (prompt #048, D-118); not committed yet |
+| Status | **Done**: validated by the owner with ECOM-020, committed and pushed; included in `main` by the final delivery merge and push (prompts #048, #053 and #062; D-118) |
 | Depends on | ECOM-016, ECOM-018 |
 | Architecture | §3.1 (a new `identity` context), §4.5, §4.6, §5, §6.4 (audit actor) |
-| Journal | D-114 (the login model), D-115 (this plan), D-117 (as built); supersedes D-107 and D-113 |
+| Journal | D-114 (the login model), D-115 (this plan), D-117 (as built), D-129; supersedes D-107 and D-113 |
 | Evidence | [Playwright on desktop and phone](ECOM-019-evidence/README.md) |
 | Followed by | [ECOM-020](ECOM-020.md): buyer sign-up and "My orders", on the same login page |
 

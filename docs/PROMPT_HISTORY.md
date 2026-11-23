@@ -3595,3 +3595,66 @@ When you've reviewed everything, say the word and I'll push the branches, bring 
 - every requirement in the challenge is traced to a file, test or screen in `docs/REQUIREMENTS_CHECK.md`.
 
 This prompt entry and the CI result are committed on `feature/ECOM-024-requirements-check`, and `main` is fast-forwarded to it and pushed.
+
+## #063 — 2026-11-22 — Final closure double-check
+
+### User
+
+> the project is closed. Go over it just for a double check.
+
+### Assistant
+
+Final double-check is complete. No application defects were found.
+
+I fixed three closure-documentation inconsistencies:
+
+- ECOM-018 through ECOM-020 still described future commits or merging, although they are already delivered on `main`.
+- The README and testing ADR showed the older totals; the final suite has 107 tooling and 1,110 backend tests.
+- The architecture still described the walking-skeleton stage and stopped its phase table at ECOM-017. It now records the delivered project through ECOM-024.
+
+Final proof:
+
+- The active branch, local `main`, `origin/main`, and GitHub `main` all point to `d3efbdf`.
+- The latest GitHub Actions run for that exact commit, run 45078012579, is green.
+- An uninterrupted `python testing/run.py all` passes: 107 tooling, 1,110 backend at 99.57% coverage, 204 frontend at 96.17%, and 14 live smoke checks.
+- Playwright passes 44 browser tests, with 5 intentional device-specific skips.
+- The rebuilt production stack is healthy and non-root; both images are within budget.
+- Documentation, compose configuration, Git objects, tracked-secret checks, npm audits, and the Python dependency audit are clean.
+
+The first host run reached smoke after every static, backend, and frontend test passed, but another process explicitly destroyed the compose project. Docker’s event log confirmed an ordered kill/removal rather than an application crash. I rebuilt the stack and then completed both the browser suite and the full canonical runner successfully.
+
+Everything is recorded as Journal D-129. These final documentation corrections are local and not committed; `.claude/` and `skills-lock.json` remain untouched.
+
+## #064 — 2026-11-22 — Make the CSV download date prominent
+
+### User
+
+> I'm not seeing the date of download from csv in the readme.
+
+### Assistant
+
+You were right—it was present, but too easy to miss.
+
+The README now shows **Sample CSV download date: November 20, 2026 (`2026-11-20`)** in two places:
+
+- line 7, in the opening project summary;
+- line 128, in the detailed **The sample CSV** section.
+
+The documentation check passes, and the visibility change is recorded as Journal D-130. It is not committed yet, along with the previous final-review documentation corrections.
+
+## #065 — 2026-11-22 — Commit and push the final documentation
+
+### User
+
+> Commit and push it to main.
+
+### Assistant
+
+Committed and pushed to `main`.
+
+- Included the final closure audit corrections, current test totals, delivered ticket and architecture status, and the prominent sample CSV download date.
+- Local `main`, `origin/main`, and the active branch now point to the same commit.
+- The documentation and whitespace checks pass, and the tracked-secret scan is clean.
+- `.claude/` and `skills-lock.json` remain private, untouched, and untracked.
+
+The push triggered the normal GitHub Actions workflow on `main`.

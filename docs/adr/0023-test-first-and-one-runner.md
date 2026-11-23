@@ -36,4 +36,4 @@ Test-driven development was a hard rule from the start. Tests and helper scripts
 ## Consequences
 
 - Vitest resolves packages from `frontend/node_modules` for specs that sit outside `frontend/`. A small Vite plugin handles that.
-- At delivery: 79 tooling, 1,099 backend (99%) and 204 frontend tests (96%), plus 14 smoke checks.
+- At delivery: 107 tooling, 1,110 backend (99%) and 204 frontend tests (96%), plus 14 smoke checks.

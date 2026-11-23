@@ -4,10 +4,10 @@
 |---|---|
 | Type | Story (backend and frontend) |
 | Phase | 5 |
-| Status | **Done**: validated by the owner in the portal (prompt #048, D-118); not committed yet. The owner's follow-up (admins don't shop; an all-orders screen) is ECOM-021 |
+| Status | **Done**: validated by the owner, committed and pushed; included in `main` by the final delivery merge and push (prompts #048, #053 and #062; D-118). The owner's follow-up (admins don't shop; an all-orders screen) is ECOM-021 |
 | Depends on | ECOM-019 (single login, roles, sessions), ECOM-015 |
 | Architecture | §3.1 (`identity`), §4.2 (`Order`), §4.5, §5, §7.2 (key scope with a login) |
-| Journal | D-114 (the login model), D-116 (this plan), D-117 (as built); supersedes D-108 |
+| Journal | D-114 (the login model), D-116 (this plan), D-117 (as built), D-129; supersedes D-108 |
 | Evidence | [Playwright on desktop and phone](ECOM-020-evidence/README.md) |
 
 ## Context

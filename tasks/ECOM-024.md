@@ -6,7 +6,7 @@
 | Phase | Hand-in |
 | Status | **Done**: 18 of 18 requirements met; R-14 closed (D-127), R-16 closed by the push (prompt #062, D-128) |
 | Depends on | ECOM-022, ECOM-023 |
-| Journal | D-122, D-126, D-127, D-128 |
+| Journal | D-122, D-126, D-127, D-128, D-129 |
 
 ## Context
 

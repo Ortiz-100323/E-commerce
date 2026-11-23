@@ -4,11 +4,11 @@
 |---|---|
 | Type | Story (frontend, with a small backend change for product images) |
 | Phase | 5 |
-| Status | **Done**: part A accepted (prompt #042) and part B accepted (prompt #045); committed on `feature/ECOM-018-ui-polish`. The pull request into `main` is opened when the owner asks |
+| Status | **Done**: parts A and B accepted, committed and pushed; included in `main` by the final delivery merge and push (prompts #045, #053 and #062) |
 | Priority | First after ECOM-016 (owner's order, prompt #037: ECOM-018 → ECOM-019 → ECOM-020 → ECOM-017) |
 | Depends on | ECOM-007, ECOM-008, ECOM-012, ECOM-015 |
 | Architecture | §4.2 (`Product`), §4.5, §5, §10 (CSP), CC-07 |
-| Journal | D-106, D-109, D-110 (code review round 4), D-111, D-112 |
+| Journal | D-106, D-109, D-110 (code review round 4), D-111, D-112, D-129 |
 | Evidence | [Playwright on desktop and mobile](ECOM-018-evidence/README.md) |
 | Source | Owner's tests of ECOM-007 (prompt #017), ECOM-012 (prompt #028) and ECOM-015 (prompt #034); the product card request (prompt #037) |
 
